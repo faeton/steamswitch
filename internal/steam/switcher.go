@@ -16,7 +16,20 @@ import (
 )
 
 // SwapToAccount: empty steamID64 clears AutoLoginUser (Add New). personaState -1 uses Steam_OverrideState; < -1 skips localconfig persona edit. extraLaunchArgs append after settings argv.
-func SwapToAccount(steamID64 string, personaState int, extraLaunchArgs []string) (err error) {
+//
+// This is the *bare* swap, taken by everything that does not go through the Session Kit
+// engine: the tray, desktop shortcuts, `steamswitch://` and the CLI. It runs under the
+// engine's transaction lock so it cannot interleave with a journaled switch, and it is refused
+// outright when a kit is live on a different account — see sessionkit_guard.go.
+func SwapToAccount(steamID64 string, personaState int, extraLaunchArgs []string) error {
+	return guardedSwap(steamID64, func() error {
+		return swapToAccountLocked(steamID64, personaState, extraLaunchArgs)
+	})
+}
+
+// swapToAccountLocked is the swap body. It runs with the engine's transaction lock held and
+// must not call back into the engine.
+func swapToAccountLocked(steamID64 string, personaState int, extraLaunchArgs []string) (err error) {
 	if err := security.RequireUnlocked(); err != nil {
 		return err
 	}
@@ -24,11 +37,6 @@ func SwapToAccount(steamID64 string, personaState int, extraLaunchArgs []string)
 	// that check reads loginusers.vdf and can return nil, reporting success for a switch that
 	// never happened.
 	if err := requireProcessInspection(); err != nil {
-		return err
-	}
-	// Also before the short circuit: a kit is live on exactly one account, and the check
-	// below is what decides whether this call is allowed to move off it.
-	if err := requireNoActiveKit(steamID64); err != nil {
 		return err
 	}
 	defer func() {

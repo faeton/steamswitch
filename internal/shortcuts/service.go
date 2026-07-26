@@ -137,6 +137,16 @@ func (s *Service) RunShortcut(platformKey, fileName string, admin bool, selected
 		}
 	}
 
+	if !needSwap && strings.EqualFold(platformKey, "Steam") {
+		// Already signed in as the requested account, so no swap — but the Session Kit gate
+		// still applies. An interrupted transaction can coexist with a loginusers.vdf that
+		// names this account, and running the shortcut would launch Steam on top of files
+		// the engine has not resolved.
+		if err := steam.SwapPermitted(selectedUniqueID); err != nil {
+			return err
+		}
+	}
+
 	if needSwap {
 		if strings.EqualFold(platformKey, "Steam") {
 			if err := steam.SwapToAccount(selectedUniqueID, -1, nil); err != nil {

@@ -36,6 +36,9 @@ var (
 	ErrNoHomeAccount = errors.New("Toast_Kit_NoHomeAccount")
 	// ErrNoActiveKit is returned by Leave when nothing is overlaid.
 	ErrNoActiveKit = errors.New("Toast_Kit_NoActiveKit")
+	// ErrLeaveRequired means a kit is live on a different account, so switching away is a
+	// decision about somebody else's files that only Leave is allowed to make.
+	ErrLeaveRequired = errors.New("Toast_Kit_LeaveRequiredOutsideWindow")
 )
 
 var engineLog = slog.Default().With("pkg", "sessionkit")
@@ -139,6 +142,60 @@ func (e *Engine) guardReady() (*Journal, error) {
 	return j, nil
 }
 
+// RunUnjournaledSwap runs a bare swap that bypasses the engine, but only if the current state
+// permits one, and holds the transaction lock for the whole thing.
+//
+// The tray, desktop shortcuts, `steamswitch://` URLs and `--run-appid=` all switch accounts
+// without going through the engine. Checking the status and *then* letting them run is not
+// enough: `Status()` releases the lock before returning, so a bare swap could read "nothing
+// outstanding", and a tile switch could enter a full transaction, and the two would then be
+// closing Steam and rewriting `loginusers.vdf` at the same time — an unjournaled login change
+// interleaved with a journaled one.
+//
+// Holding `mu` across `swap` gives those callers the same mutual exclusion a transaction has.
+// That is what the comment on the process-wide engine has always claimed and what, until now,
+// nothing implemented.
+//
+// `swap` must not call back into the engine.
+func (e *Engine) RunUnjournaledSwap(target AccountRef, swap func() error) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	st, err := e.statusLocked()
+	if err != nil {
+		// Fail closed. An active journal may well exist and simply be unreadable right now
+		// (permissions, I/O), and proceeding is how a live transaction gets compounded. This
+		// matches guardManualConfigWrite, which already treats an unreadable status as unsafe.
+		return fmt.Errorf("%w: %v", ErrRecoveryRequired, err)
+	}
+	switch st.Kind {
+	case RecoveryInterrupted, RecoveryExternalChange:
+		return ErrRecoveryRequired
+	case RecoveryKitActive:
+		if !strings.EqualFold(strings.TrimSpace(st.TargetSteamID64), strings.TrimSpace(target.SteamID64)) {
+			return ErrLeaveRequired
+		}
+	}
+	return swap()
+}
+
+// kitBlocksEntry reports whether an applied kit forbids switching to `target`.
+//
+// Both resting "a kit is on someone" phases count. Re-entering the account the kit is already
+// on is allowed: that is not leaving it, and shortcuts do it routinely.
+func kitBlocksEntry(j *Journal, target AccountRef) error {
+	if j == nil {
+		return nil
+	}
+	if j.Phase != PhaseKitActive && j.Phase != PhaseKeptActive {
+		return nil
+	}
+	if strings.EqualFold(strings.TrimSpace(j.To.SteamID64), strings.TrimSpace(target.SteamID64)) {
+		return nil
+	}
+	return ErrLeaveRequired
+}
+
 // ensureClosed closes Steam and confirms nothing is left holding the files.
 //
 // The engine enforces this rather than leaving it to modules: Dota's inherited guard only
@@ -234,7 +291,19 @@ func (e *Engine) Enter(ctx context.Context, target AccountRef, personaState int)
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	if _, err := e.guardReady(); err != nil {
+	active, err := e.guardReady()
+	if err != nil {
+		return err
+	}
+	// A live kit may only be left through Leave, which asks whose setup to keep. Enter used
+	// to walk straight past a resting PhaseKitActive into plainSwitch — closing Steam,
+	// rewriting the login and launching — with no restore and no journal update, stranding
+	// the overlay on the other person's account.
+	//
+	// The frontend does raise the prompt before calling in, so the tiles were safe in
+	// practice. That is the problem: it made the rule a property of one Svelte component
+	// rather than of the engine, and every other caller of SwitchTo inherited the hole.
+	if err := kitBlocksEntry(active, target); err != nil {
 		return err
 	}
 

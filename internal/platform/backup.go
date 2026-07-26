@@ -97,7 +97,28 @@ func (p *PlatformService) OpenPlatformBackupFolder(platformKey string) error {
 	return OpenPathInFileManager(backupDir)
 }
 
+// restoreGuard is asked whether a destructive restore may run for a platform. Injected from
+// main.go, because `platform` must not import `steam` (see CLAUDE.md).
+var restoreGuard func(platformKey string) error
+
+// SetRestoreGuard installs the check run before a backup is restored over live files.
+func SetRestoreGuard(fn func(platformKey string) error) { restoreGuard = fn }
+
+// RestoreLatestPlatformBackup overwrites the platform's live config from the newest archive.
+//
+// The guard is here rather than in the UI for the same reason the switch guard is: a
+// frontend-only check is bypassed by every other caller, and this one writes over the exact
+// trees the Session Kit journals. Steam's backup mappings cover the whole of `config/` and
+// `userdata/`, so restoring while a kit is applied silently overwrites the overlay and the
+// snapshots' hashes stop matching — turning the next Leave into an external-change recovery
+// for something the user did deliberately, and corrupting an interrupted transaction that had
+// not been resolved yet.
 func (p *PlatformService) RestoreLatestPlatformBackup(platformKey string) (BackupResult, error) {
+	if restoreGuard != nil {
+		if err := restoreGuard(platformKey); err != nil {
+			return BackupResult{}, err
+		}
+	}
 	p.mu.Lock()
 	d, err := p.loadDescriptorUnlocked(platformKey)
 	if err != nil {

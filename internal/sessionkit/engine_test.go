@@ -3,6 +3,7 @@ package sessionkit
 import (
 	"context"
 	"errors"
+	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -686,4 +687,125 @@ func TestStatus_ReportsALoginThatDisagreesWithTheJournal(t *testing.T) {
 	if !st.LoginMismatch || st.SignedInSteamID64 != sharedID {
 		t.Fatalf("status = %+v, want a mismatch against the shared account", st)
 	}
+}
+
+// TestEnter_RefusesToAbandonALiveKit is the rule the whole feature rests on, tested where it
+// is now enforced.
+//
+// It used to live in Accounts.svelte: the page raised the leave prompt before calling in, and
+// Enter itself walked a resting PhaseKitActive straight into plainSwitch — closing Steam,
+// rewriting the login and launching, with no restore and no journal update. The overlay stayed
+// on the other person's account and the journal still called the transaction live.
+//
+// That made the guarantee a property of one Svelte component. Every other caller of SwitchTo —
+// and any future one — inherited the hole.
+func TestEnter_RefusesToAbandonALiveKit(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+
+	if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err != nil {
+		t.Fatalf("enter shared: %v", err)
+	}
+
+	before := append([]string(nil), h.life.calls...)
+	theirs := h.liveTree(t, sharedID, partLocal)
+
+	if err := h.engine.Enter(ctx, AccountRef{SteamID64: otherID}, -1); !errors.Is(err, ErrLeaveRequired) {
+		t.Fatalf("enter elsewhere = %v, want ErrLeaveRequired", err)
+	}
+	// Refused means nothing happened — not "refused after closing Steam".
+	if len(h.life.calls) != len(before) {
+		t.Fatalf("lifecycle calls = %v, want unchanged %v", h.life.calls, before)
+	}
+	if got := h.liveTree(t, sharedID, partLocal); !maps.Equal(got, theirs) {
+		t.Fatalf("shared tree changed while the switch was refused: %v", got)
+	}
+
+	// Leave is the way out, and it still works.
+	if err := h.engine.Leave(ctx, AccountRef{SteamID64: otherID}, LeaveRestoreTheirs, -1); err != nil {
+		t.Fatalf("leave: %v", err)
+	}
+	// And with the kit gone, the switch that was refused now goes through.
+	if err := h.engine.Enter(ctx, AccountRef{SteamID64: otherID}, -1); err != nil {
+		t.Fatalf("enter after leave: %v", err)
+	}
+}
+
+// Re-entering the account the kit is already on is not leaving it. Shortcuts do this routinely
+// ("log in as X and launch the game" while already on X), so refusing would break them.
+func TestEnter_AllowsReEnteringTheAccountTheKitIsOn(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+
+	if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err != nil {
+		t.Fatalf("enter shared: %v", err)
+	}
+	if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err != nil {
+		t.Fatalf("re-enter the same account = %v, want nil", err)
+	}
+}
+
+// TestRunUnjournaledSwap covers the gate the tray, shortcuts and CLI go through. The callback
+// standing in for the swap must not run when the state forbids it.
+func TestRunUnjournaledSwap(t *testing.T) {
+	ctx := context.Background()
+
+	t.Run("permitted when nothing is outstanding", func(t *testing.T) {
+		h := newHarness(t)
+		ran := false
+		if err := h.engine.RunUnjournaledSwap(AccountRef{SteamID64: otherID}, func() error {
+			ran = true
+			return nil
+		}); err != nil {
+			t.Fatalf("err = %v, want nil", err)
+		}
+		if !ran {
+			t.Fatal("the swap did not run in the ordinary case; the guard must be invisible here")
+		}
+	})
+
+	t.Run("refused while a kit is live elsewhere", func(t *testing.T) {
+		h := newHarness(t)
+		if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err != nil {
+			t.Fatal(err)
+		}
+		ran := false
+		err := h.engine.RunUnjournaledSwap(AccountRef{SteamID64: otherID}, func() error {
+			ran = true
+			return nil
+		})
+		if !errors.Is(err, ErrLeaveRequired) {
+			t.Fatalf("err = %v, want ErrLeaveRequired", err)
+		}
+		if ran {
+			t.Fatal("the swap ran anyway, which is the whole bug")
+		}
+	})
+
+	t.Run("permitted onto the account the kit is on", func(t *testing.T) {
+		h := newHarness(t)
+		if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err != nil {
+			t.Fatal(err)
+		}
+		ran := false
+		if err := h.engine.RunUnjournaledSwap(AccountRef{SteamID64: sharedID}, func() error {
+			ran = true
+			return nil
+		}); err != nil {
+			t.Fatalf("err = %v, want nil", err)
+		}
+		if !ran {
+			t.Fatal("re-selecting the kit's own account was refused")
+		}
+	})
+
+	t.Run("the swap's own error is returned unchanged", func(t *testing.T) {
+		h := newHarness(t)
+		sentinel := errors.New("boom")
+		if err := h.engine.RunUnjournaledSwap(AccountRef{SteamID64: otherID}, func() error {
+			return sentinel
+		}); !errors.Is(err, sentinel) {
+			t.Fatalf("err = %v, want the swap's own error", err)
+		}
+	})
 }

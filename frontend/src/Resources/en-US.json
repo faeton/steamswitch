@@ -807,5 +807,6 @@
   "Tools_About_Title": "About SteamSwitch",
   "Tools_About_Desc": "Version and licence.",
   "Toast_Kit_LeaveRequiredOutsideWindow": "A session kit is active on another account. Open SteamSwitch and switch from the account list, so it can ask whether to put their setup back.",
-  "Toast_Kit_RecoveryRequiredOutsideWindow": "An interrupted session-kit transaction needs resolving. Open SteamSwitch to finish it before switching."
+  "Toast_Kit_RecoveryRequiredOutsideWindow": "An interrupted session-kit transaction needs resolving. Open SteamSwitch to finish it before switching.",
+  "Toast_Kit_RestoreBlockedByKit": "A session kit is active or an interrupted switch needs resolving. Restoring a backup would overwrite the files it is tracking. Settle it from the account list first."
 }

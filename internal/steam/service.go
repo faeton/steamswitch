@@ -848,7 +848,15 @@ func (s *SteamService) LoginAndLaunchGame(steamID64 string, personaState int, ap
 	// only open the game URL — do not run SwapToAccount (which kills and restarts Steam).
 	active, errActive := CurrentLiveSteamID64()
 	skipSwap := errActive == nil && active != "" && strings.EqualFold(strings.TrimSpace(active), steamID64)
-	if !skipSwap {
+	if skipSwap {
+		// Skipping the swap must not mean skipping the Session Kit gate. A crash can leave
+		// an interrupted transaction while loginusers.vdf still names this very account, and
+		// launching the game on top of files the engine has not resolved is how a
+		// recoverable state stops being recoverable.
+		if err := swapPermitted(steamID64); err != nil {
+			return err
+		}
+	} else {
 		if err := SwapToAccount(steamID64, personaState, nil); err != nil {
 			return err
 		}

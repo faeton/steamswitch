@@ -11,8 +11,25 @@
   import { t } from "../stores/i18n";
 
   export let tags: TagDefRow[] = [];
+  /**
+   * How many bubbles to draw before collapsing the rest into a "+N".
+   *
+   * Tags are unbounded — a user can define any number and put them all on one account — and
+   * the tile is a fixed-height row in a ~420px window. Without a cap, one tagged account can
+   * be three times the height of its neighbours and push the rest of the list out of view,
+   * which costs more than the tags are worth at a glance. The full set is in the ⋯ menu and
+   * in the title attribute.
+   */
+  export let maxVisible = 3;
 
   const fallbackTagBg = "#555555";
+
+  $: visibleTags = maxVisible > 0 ? tags.slice(0, maxVisible) : tags;
+  $: hiddenCount = tags.length - visibleTags.length;
+  $: hiddenNames = tags
+    .slice(visibleTags.length)
+    .map((tg) => tg.name)
+    .join(", ");
 
   let nowMs = Date.now();
   let expiryTimer: number | null = null;
@@ -52,7 +69,7 @@
 
 {#if tags.length > 0}
   <div class="acc_tag_bubbles">
-    {#each tags as tg (tg.id)}
+    {#each visibleTags as tg (tg.id)}
       <span
         class="acc_tag_bubble"
         class:acc_tag_bubble--default={!tg.color?.trim()}
@@ -70,6 +87,13 @@
         <span class="acc_tag_bubble_text">{accountTagBubbleLabel(tg.name)}</span>
       </span>
     {/each}
+    {#if hiddenCount > 0}
+      <span
+        class="acc_tag_bubble acc_tag_bubble--default acc_tag_bubble--more"
+        use:tooltip={{ text: hiddenNames, placement: "top" }}
+        aria-label={hiddenNames}>+{hiddenCount}</span
+      >
+    {/if}
   </div>
 {/if}
 
@@ -112,6 +136,11 @@
     stroke-linecap: round;
     stroke-linejoin: round;
     opacity: 0.85;
+  }
+
+  .acc_tag_bubble--more {
+    opacity: 0.8;
+    font-variant-numeric: tabular-nums;
   }
 
   .acc_tag_bubble_text {

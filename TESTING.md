@@ -115,6 +115,10 @@ be abandoned without ever being asked about. These are the cases that matter mos
 | CB4 | With a kit active, run a desktop shortcut for **the account the kit is on** | Allowed — re-selecting the account you are already on is not leaving it. |
 | CB5 | Leave an interrupted transaction unresolved (as in D1), then try a tray switch | Refused, pointing at the window. Resolving the recovery there must then let the tray work again. |
 | CB6 | With **no** kit active and nothing outstanding, tray switch | Works exactly as before. The guard must be invisible in the ordinary case. |
+| CB7 | Read the tray refusal message in CB1 | It is a **sentence**, in your language. If it reads `Toast_Kit_LeaveRequiredOutsideWindow`, the key is reaching the notification untranslated. |
+| CB8 | Repeat CB1 as a `steamswitch://` link instead of the tray | Same sentence in a toast, again not a raw key. |
+| CB9 | With a kit active, Tools → **Restore latest backup** | Refused before the confirmation. A restore overwrites the whole of `config/` and `userdata/`, which is what the kit is applied to. |
+| CB10 | With a kit active on account X, use a shortcut for **X** that launches a game, then repeat it with an interrupted transaction outstanding | Allowed in the first case, refused in the second — even though the login already names X. The point is that nothing launches on top of files the engine has not resolved. |
 
 ### C-cloud. Steam Cloud honesty
 

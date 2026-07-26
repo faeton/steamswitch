@@ -63,7 +63,49 @@
   }
 
   /**
-   * Persist the whole struct.
+   * The fields this component is allowed to write.
+   *
+   * `SteamSettings.json` holds more than Steam options: the Home account, the shared list and
+   * per-module pause state live in the same struct, and the backend writes them from
+   * elsewhere. `SetGameModulePaused` and `ListGameModules` — the latter of which auto-pauses
+   * as a side effect of merely being called — both do their own load-modify-save.
+   *
+   * So saving the object this component loaded would silently revert them. The sequence is
+   * not hypothetical, it is one page: Settings mounts and reads the struct, the Game modules
+   * card below auto-pauses Dota after a game update and writes it, then ticking any checkbox
+   * up here saves a snapshot from before the pause and undoes it.
+   *
+   * Listing the owned keys is what makes that impossible, and it doubles as the record of
+   * which half of the struct belongs to this card.
+   */
+  const OWNED_KEYS = [
+    "FolderPath",
+    "AutoStart",
+    "RunAsAdmin",
+    "LaunchArguments",
+    "ClosingMethod",
+    "StartingMethod",
+    "TrayAccNumber",
+    "ShowShortNotes",
+    "CollectInfo",
+    "ShowSteamSwitcher",
+    "Steam_RememberPassword",
+    "Steam_OverrideState",
+    "Steam_ShowAccUsername",
+    "Steam_ShowSteamID",
+    "Steam_ShowLastLogin",
+    "Steam_ShowVAC",
+    "Steam_ShowLimited",
+    "Steam_ShowMiniProfile",
+    "Steam_ShowAvatarFrame",
+    "Steam_TrayAccountName",
+    "Steam_AutoRefreshOnLaunch",
+    "Steam_AutoRefreshIntervalMinutes",
+    "Steam_ImageExpiryTime",
+  ] as const satisfies readonly (keyof Settings)[];
+
+  /**
+   * Re-read, copy the owned fields over, write that back.
    *
    * Deliberately silent on success. A settings checkbox that toasts on every click is the
    * pattern REDESIGN.md §3 set out to end — the control moving *is* the confirmation. A
@@ -72,8 +114,15 @@
    */
   async function save(): Promise<void> {
     if (!settings) return;
+    const edited = settings;
     try {
-      await SteamService.SaveSteamSettings(sanitizeSettingsPayload(settings) as unknown as Settings);
+      const fresh = (await SteamService.GetSteamSettings()) as Settings;
+      for (const key of OWNED_KEYS) {
+        (fresh as unknown as Record<string, unknown>)[key] = (
+          edited as unknown as Record<string, unknown>
+        )[key];
+      }
+      await SteamService.SaveSteamSettings(sanitizeSettingsPayload(fresh) as unknown as Settings);
       if (saveFailed) {
         saveFailed = false;
         await load();

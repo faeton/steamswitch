@@ -6,6 +6,7 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"strings"
 
 	"steamswitch/internal/actionlog"
 	"steamswitch/internal/app"
@@ -74,6 +75,14 @@ func init() {
 
 	platform.SetSteamLaunchHooks(steam.SaveFolderFromConfirmedExe, steam.ResolveSteamExePath)
 	platform.SetSteamReset(steam.ResetToDefaults)
+	// Restoring a backup writes over the same config and userdata trees the Session Kit
+	// tracks, so it answers to the same gate a bare swap does.
+	platform.SetRestoreGuard(func(platformKey string) error {
+		if !strings.EqualFold(strings.TrimSpace(platformKey), steam.PlatformKey) {
+			return nil
+		}
+		return steam.RestorePermitted()
+	})
 	platform.SetControllerSupportChangedHook(controllerSvc.SetEnabled)
 	platform.SetDiscordPresenceRefreshHook(discordRPC.RefreshAsync)
 	platform.SetPlatformLaunchers(func() error { return steam.LaunchSteamOnly(nil) }, func(platformKey string) error {

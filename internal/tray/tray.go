@@ -206,7 +206,12 @@ func (m *Manager) rebuildMenuLocked() {
 			item.OnClick(func(_ *application.Context) {
 				if err := m.handleAccountClick(plat, u.Arg); err != nil {
 					slog.Default().Warn("tray switch failed", slog.Any("err", err))
-					platform.NotifyNative("steamswitch-tray-switch-failed", "SteamSwitch", err.Error(), map[string]interface{}{
+					// Errors out of the switch engines are i18n keys. Sending err.Error()
+					// straight to a native notification showed the user the key itself —
+					// which is how the Session Kit's "open the window to finish" message
+					// reached the one surface it was written for. `tr` falls back to the
+					// key, so a non-key message still reads as itself.
+					platform.NotifyNative("steamswitch-tray-switch-failed", "SteamSwitch", tr(err.Error(), nil), map[string]interface{}{
 						"type":     "tray-switch-failed",
 						"platform": plat,
 					})

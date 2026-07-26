@@ -109,9 +109,11 @@
     {/if}
     <!-- Tags get their own row rather than joining the badge cluster: the two-badge cap in
          REDESIGN §3 is about the fixed role markers, and a user can define any number of
-         tags. A tile with no tags renders nothing and stays the original height. -->
+         tags. Capped at three plus a "+N" so one heavily tagged account cannot grow to
+         several times the height of its neighbours. A tile with no tags renders nothing and
+         stays the original height. -->
     {#if account.tags?.length}
-      <div class="tile__tags"><AccountTagBubbles tags={account.tags} /></div>
+      <div class="tile__tags"><AccountTagBubbles tags={account.tags} maxVisible={3} /></div>
     {/if}
   </div>
 
