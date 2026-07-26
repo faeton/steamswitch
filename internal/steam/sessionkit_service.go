@@ -29,9 +29,17 @@ import (
 //  1. `Lifecycle` never takes `SteamService.mu`. It calls the package-level helpers
 //     (`writeLoginUsersAndRegistry`, `buildSteamArgs`, …) directly, so a step running under
 //     the engine lock cannot block on a service call that is itself waiting for the engine.
+//
 //  2. The manual Dota tools in `dota.go` take `dotaWriteMu` but never the engine lock. They
 //     instead *refuse* while a transaction is in flight, via `ErrKitTransactionActive`
 //     below — trying to acquire the engine lock from a tool would invert the order.
+//
+//  3. The bare-swap gate (`guardedSwap`) acquires the engine lock, and its callers —
+//     `SwapToSteamAccount`, `SteamAddNew`, `LoginAndLaunchGame` — already hold
+//     `SteamService.mu`. That is the stated order backwards, and it is safe only because of
+//     rule 1: nothing running under the engine lock ever waits for `SteamService.mu`, so the
+//     cycle cannot close. If `Lifecycle` ever calls a `SteamService` method, this deadlocks.
+//     Take the gate before `SteamService.mu` rather than weakening rule 1.
 type SessionKitService struct {
 	engine *sessionkit.Engine
 
