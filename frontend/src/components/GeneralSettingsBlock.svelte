@@ -11,6 +11,7 @@
   import ThemeSettings from "./ThemeSettings.svelte";
   import SteamSettings from "./SteamSettings.svelte";
   import GameModuleSettings from "./GameModuleSettings.svelte";
+  import VaultSettings from "./VaultSettings.svelte";
   import SystemSettings from "./SystemSettings.svelte";
   import LanguageSettings from "./LanguageSettings.svelte";
 </script>
@@ -18,5 +19,6 @@
 <ThemeSettings />
 <SteamSettings />
 <GameModuleSettings />
+<VaultSettings />
 <SystemSettings />
 <LanguageSettings />

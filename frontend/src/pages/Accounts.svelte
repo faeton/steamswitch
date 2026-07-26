@@ -55,6 +55,7 @@
     type AccountRoleMap,
   } from "../lib/steam/accountRoles";
   import { buildAccountMenu } from "../lib/steam/accountMenu";
+  import { refreshVault, vaultEntries, vaultHealth } from "../stores/vault";
   import type { TagDefRow } from "../lib/accountTagsContext";
   import * as BasicService from "../../bindings/steamswitch/internal/basic/basicservice.js";
   import { createLatestRequestGuard } from "../lib/accounts/windowFocusRefresh";
@@ -133,6 +134,21 @@
       tagDefs = (defs ?? []) as unknown as TagDefRow[];
     } catch {
       tagDefs = [];
+    }
+  }
+
+  /**
+   * Vault entries, for the tile health dots and for whether the vault menu rows are enabled.
+   *
+   * A locked or absent vault is the normal case on most machines and must read as "no
+   * entries" without an error: the whole feature is opt-in, and a machine that never enables
+   * it should never see it complain.
+   */
+  async function loadVault(): Promise<void> {
+    try {
+      await refreshVault();
+    } catch {
+      // Already reflected as an empty list by the store; nothing to say.
     }
   }
 
@@ -385,6 +401,7 @@
         roles,
         blocked,
         tagDefs,
+        hasVaultEntry: $vaultEntries.some((v) => v.steamId64 === acc.steamId64),
         t: get(t),
         onSwitch: () => void switchTo(acc.steamId64),
         // Routed through the same gate as a tile click, so "Log in as ▸ Invisible" cannot
@@ -447,6 +464,7 @@
       relabelKit(labelOf(byId.get(get(kitStatus).targetSteamId64)));
       // Last: nothing on the first paint needs it, only the account menu does.
       await loadTagDefs();
+      await loadVault();
     })();
 
     const offStrip = statusStripAction.subscribe(onStripAction);

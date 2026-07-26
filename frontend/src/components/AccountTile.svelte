@@ -15,6 +15,8 @@
   import { accountMetaLine, accountNotePreview } from "../lib/steam/accountMetaLine";
   import type { SteamAccountRow } from "../lib/steam/types";
   import type { AccountRole } from "../lib/steam/accountRoles";
+  import { vaultHealth } from "../stores/vault";
+  import { tileDot } from "../lib/vault/health";
 
   export let account: SteamAccountRow;
   export let role: AccountRole = "plain";
@@ -39,6 +41,7 @@
   $: label = account.displayName?.trim() || account.personaName?.trim() || id;
   $: meta = accountMetaLine(account, (raw) => formatLastLoginForLocale(raw, $locale));
   $: notePreview = accountNotePreview(account);
+  $: healthDot = tileDot($vaultHealth[id]);
 
   function activate(): void {
     if (disabled || current) {
@@ -118,6 +121,18 @@
   </div>
 
   <div class="tile__badges">
+    {#if healthDot}
+      <!--
+        Only warn and fail get a dot. A green dot on every healthy account is noise that
+        trains people to ignore the colour, and a dot for "not checked" would mark every
+        account on a machine where the vault is never used.
+      -->
+      <span
+        class="badge badge--health badge--health-{healthDot}"
+        title={$t(healthDot === "fail" ? "Vault_Tile_Fail" : "Vault_Tile_Warn")}
+        aria-label={$t(healthDot === "fail" ? "Vault_Tile_Fail" : "Vault_Tile_Warn")}
+      ></span>
+    {/if}
     {#if role === "home"}
       <span class="badge badge--home">{$t("Badge_Home")}</span>
     {:else if role === "shared"}
@@ -231,6 +246,24 @@
   .badge--kit {
     font-size: 11px;
     padding: 1px 4px;
+  }
+
+  /* A dot, not a word: the badge row already carries up to two text badges, and the health
+     marker has to fit alongside them without pushing the name column narrower. Colour is
+     never the only carrier — the title and aria-label say which state it is. */
+  .badge--health {
+    width: 8px;
+    height: 8px;
+    padding: 0;
+    border-radius: 50%;
+    align-self: center;
+    border: none;
+  }
+  .badge--health-warn {
+    background: var(--warning, #d19a20);
+  }
+  .badge--health-fail {
+    background: var(--danger, #c0392b);
   }
 
   .tile__hint {

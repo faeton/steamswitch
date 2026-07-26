@@ -26,6 +26,12 @@ export type AccountMenuDeps = {
    * array still gives a working menu — you can create a tag by typing a new name.
    */
   tagDefs: TagDefRow[];
+  /**
+   * Whether this account has a vault entry. Passed in rather than looked up here because the
+   * menu builder is synchronous, and because a locked vault must read as "no entry" without
+   * every menu open triggering an unlock prompt.
+   */
+  hasVaultEntry: boolean;
   t: Translate;
   onSwitch: () => void;
   /** Switch with an explicit persona state; must go through the same gate as `onSwitch`. */
@@ -110,6 +116,14 @@ export function buildAccountMenu(deps: AccountMenuDeps): MenuItemDef[] {
       label: t("Context_Steam_OpenUserdata"),
       action: () => void openUserdata(deps),
     },
+    // The Guard code is the one vault action that belongs on the daily path: it is wanted
+    // while Steam is sitting on a prompt, and burying it under Advanced would cost more
+    // time than the feature saves. Everything else vault-related is one level down.
+    {
+      label: t("Vault_Menu_GuardCode"),
+      disabled: !deps.hasVaultEntry,
+      action: () => void openVaultGuardCode(deps),
+    },
     { type: "separator" },
     {
       // Everything below is reachable but off the daily path (REDESIGN.md §3). These rows
@@ -168,6 +182,21 @@ export function buildAccountMenu(deps: AccountMenuDeps): MenuItemDef[] {
           label: t("Context_Steam_OpenGameData"),
           action: () => void openGameData(deps),
         },
+        { type: "separator" },
+        {
+          label: t("Vault_Menu_Edit"),
+          action: () => void openVaultEditor(deps),
+        },
+        {
+          label: t("Vault_Menu_Health"),
+          disabled: !deps.hasVaultEntry,
+          action: () => void openVaultHealth(deps),
+        },
+        {
+          label: t("Vault_Menu_LoginDetails"),
+          disabled: !deps.hasVaultEntry,
+          action: () => void openVaultLoginDetails(deps),
+        },
         {
           label: t("Kit_Settings"),
           action: () => deps.onNavigate("settings"),
@@ -181,6 +210,64 @@ export function buildAccountMenu(deps: AccountMenuDeps): MenuItemDef[] {
       ],
     },
   ];
+}
+
+/**
+ * The four vault surfaces, all opened the same way: an alert-shaped modal whose body owns
+ * its own actions. They are dynamic imports so a build that never opens the vault never
+ * loads any of it.
+ */
+async function openVaultEditor(deps: AccountMenuDeps): Promise<void> {
+  const [{ openAlert }, body] = await Promise.all([
+    import("../../stores/modal"),
+    import("../../components/modals/VaultEntryModalBody.svelte"),
+  ]);
+  await openAlert({
+    title: deps.t("Vault_Menu_Edit"),
+    dismissLabel: deps.t("Button_Close"),
+    bodyComponent: body.default,
+    bodyProps: { steamId64: deps.account.steamId64, accountName: deps.account.accountName ?? "" },
+  });
+  deps.onAccountsChanged();
+}
+
+async function openVaultHealth(deps: AccountMenuDeps): Promise<void> {
+  const [{ openAlert }, body] = await Promise.all([
+    import("../../stores/modal"),
+    import("../../components/modals/VaultHealthModalBody.svelte"),
+  ]);
+  await openAlert({
+    title: deps.t("Vault_Menu_Health"),
+    dismissLabel: deps.t("Button_Close"),
+    bodyComponent: body.default,
+    bodyProps: { steamId64: deps.account.steamId64 },
+  });
+}
+
+async function openVaultLoginDetails(deps: AccountMenuDeps): Promise<void> {
+  const [{ openAlert }, body] = await Promise.all([
+    import("../../stores/modal"),
+    import("../../components/modals/VaultLoginDetailsModalBody.svelte"),
+  ]);
+  await openAlert({
+    title: deps.t("Vault_Menu_LoginDetails"),
+    dismissLabel: deps.t("Button_Close"),
+    bodyComponent: body.default,
+    bodyProps: { steamId64: deps.account.steamId64 },
+  });
+}
+
+async function openVaultGuardCode(deps: AccountMenuDeps): Promise<void> {
+  const [{ openAlert }, body] = await Promise.all([
+    import("../../stores/modal"),
+    import("../../components/modals/VaultGuardCodeModalBody.svelte"),
+  ]);
+  await openAlert({
+    title: deps.t("Vault_Menu_GuardCode"),
+    dismissLabel: deps.t("Button_Close"),
+    bodyComponent: body.default,
+    bodyProps: { steamId64: deps.account.steamId64 },
+  });
 }
 
 async function createShortcut(
