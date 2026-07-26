@@ -16,6 +16,7 @@
   import { route } from "../stores/nav";
   import { pushToast } from "../stores/toast";
   import { formatToastWithError } from "../lib/formatWailsError";
+  import { offerRestartIfNeedsAdmin } from "../lib/adminFlow";
   import { openContextMenu } from "../stores/contextMenu";
   import {
     beginSwitch,
@@ -54,6 +55,8 @@
     type AccountRoleMap,
   } from "../lib/steam/accountRoles";
   import { buildAccountMenu } from "../lib/steam/accountMenu";
+  import type { TagDefRow } from "../lib/accountTagsContext";
+  import * as BasicService from "../../bindings/steamswitch/internal/basic/basicservice.js";
   import { createLatestRequestGuard } from "../lib/accounts/windowFocusRefresh";
   import { buildEpochMap } from "../lib/accounts/epochManager";
   import "../styles/platformAccountsShared.scss";
@@ -66,6 +69,7 @@
   let rootEl: HTMLDivElement | null = null;
   let offPatch: (() => void) | undefined;
   let addingAccount = false;
+  let tagDefs: TagDefRow[] = [];
 
   const RETRY_SWITCH = "retry-switch";
 
@@ -114,6 +118,21 @@
       roles = { homeSteamId64: r.homeSteamId64 ?? "", sharedIds: r.sharedIds ?? [] };
     } catch {
       roles = EMPTY_ROLES;
+    }
+  }
+
+  /**
+   * Tag definitions for the account menu's "Tags ▸ Add" list.
+   *
+   * Failing to load them is not worth a toast: the menu still works, it just cannot offer
+   * existing tags to pick from, and typing a name creates one.
+   */
+  async function loadTagDefs(): Promise<void> {
+    try {
+      const defs = await BasicService.ListTagDefinitions("Steam");
+      tagDefs = (defs ?? []) as unknown as TagDefRow[];
+    } catch {
+      tagDefs = [];
     }
   }
 
@@ -300,6 +319,11 @@
       // only the engine knows which. Re-reading it turns a dead error line into the recovery
       // prompt that can actually clear it.
       void refreshKitStatus();
+      // A permission failure is not something the user can act on from an error line. The
+      // offer to restart elevated was reachable from the old account page and went missing
+      // with it, leaving "switch failed" as the whole story on an install the app cannot
+      // write to. No-op unless the error is actually an elevation one.
+      void offerRestartIfNeedsAdmin(e, "Steam");
     } finally {
       platformActionBusy.set({ busy: false, platformKey: "" });
     }
@@ -360,6 +384,7 @@
         label: labelOf(acc),
         roles,
         blocked,
+        tagDefs,
         t: get(t),
         onSwitch: () => void switchTo(acc.steamId64),
         // Routed through the same gate as a tile click, so "Log in as ▸ Invisible" cannot
@@ -420,6 +445,8 @@
       await loadAccounts();
       await refreshSteamRunning();
       relabelKit(labelOf(byId.get(get(kitStatus).targetSteamId64)));
+      // Last: nothing on the first paint needs it, only the account menu does.
+      await loadTagDefs();
     })();
 
     const offStrip = statusStripAction.subscribe(onStripAction);

@@ -8,6 +8,7 @@
 import type { MenuItemDef } from "../../stores/contextMenu";
 import type { SteamAccountRow } from "./types";
 import { canMarkShared, roleOf, type AccountRoleMap } from "./accountRoles";
+import { buildTagsSectionMenuItem, type TagDefRow } from "../accountTagsContext";
 import * as SteamService from "../../../bindings/steamswitch/internal/steam/steamservice.js";
 import * as BasicService from "../../../bindings/steamswitch/internal/basic/basicservice.js";
 
@@ -19,6 +20,12 @@ export type AccountMenuDeps = {
   roles: AccountRoleMap;
   /** True while a switch or recovery is in flight; mutating rows are disabled. */
   blocked: boolean;
+  /**
+   * Every tag defined for Steam, for the "Tags ▸ Add" list. Loaded by the page, because the
+   * menu builder is synchronous and the definitions live behind a service call. An empty
+   * array still gives a working menu — you can create a tag by typing a new name.
+   */
+  tagDefs: TagDefRow[];
   t: Translate;
   onSwitch: () => void;
   /** Switch with an explicit persona state; must go through the same gate as `onSwitch`. */
@@ -132,6 +139,18 @@ export function buildAccountMenu(deps: AccountMenuDeps): MenuItemDef[] {
           ],
         },
         { type: "separator" },
+        // Tags survived the redesign as a complete subsystem — Go service, expiry modal,
+        // bubbles on the tile — with nothing left that opened it. This is the way back in.
+        buildTagsSectionMenuItem({
+          platformKey: "Steam",
+          uniqueId: id,
+          assignedTags: (account.tags ?? []) as TagDefRow[],
+          tagDefs: deps.tagDefs,
+          tr: t,
+          afterChange: () => deps.onAccountsChanged(),
+          onSuccess: () => {},
+          onError: (e) => deps.onError(t("Toast_SaveFailed"), e),
+        }),
         {
           label: t("Context_ChangeName"),
           action: () => void renameAccount(deps),

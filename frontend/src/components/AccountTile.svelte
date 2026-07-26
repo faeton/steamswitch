@@ -9,7 +9,10 @@
    */
   import { createEventDispatcher } from "svelte";
   import SteamAccountAvatar from "./SteamAccountAvatar.svelte";
-  import { t } from "../stores/i18n";
+  import AccountTagBubbles from "./AccountTagBubbles.svelte";
+  import { t, locale } from "../stores/i18n";
+  import { formatLastLoginForLocale } from "../lib/formatLastLogin";
+  import { accountMetaLine, accountNotePreview } from "../lib/steam/accountMetaLine";
   import type { SteamAccountRow } from "../lib/steam/types";
   import type { AccountRole } from "../lib/steam/accountRoles";
 
@@ -34,6 +37,8 @@
 
   $: id = account.steamId64;
   $: label = account.displayName?.trim() || account.personaName?.trim() || id;
+  $: meta = accountMetaLine(account, (raw) => formatLastLoginForLocale(raw, $locale));
+  $: notePreview = accountNotePreview(account);
 
   function activate(): void {
     if (disabled || current) {
@@ -96,8 +101,17 @@
 
   <div class="tile__body">
     <div class="tile__name" title={label}>{label}</div>
-    {#if account.showAccUsername && account.accountName}
-      <div class="tile__sub meta-mono">{account.accountName}</div>
+    {#if meta}
+      <div class="tile__sub meta-mono" title={meta}>{meta}</div>
+    {/if}
+    {#if notePreview}
+      <div class="tile__note" title={notePreview}>{notePreview}</div>
+    {/if}
+    <!-- Tags get their own row rather than joining the badge cluster: the two-badge cap in
+         REDESIGN §3 is about the fixed role markers, and a user can define any number of
+         tags. A tile with no tags renders nothing and stays the original height. -->
+    {#if account.tags?.length}
+      <div class="tile__tags"><AccountTagBubbles tags={account.tags} /></div>
     {/if}
   </div>
 
@@ -179,11 +193,19 @@
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .tile__sub {
+  .tile__sub,
+  .tile__note {
     color: var(--role-text-muted, var(--text-subtle-gray));
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .tile__note {
+    font-size: 11px;
+    font-style: italic;
+  }
+  .tile__tags {
+    margin-top: 3px;
   }
 
   .tile__badges {

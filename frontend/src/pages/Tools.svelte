@@ -17,16 +17,19 @@
   import { get } from "svelte/store";
   import { onMount } from "svelte";
   import { appBarTitle, navigateBackLikeButton, previousPage, route } from "../stores/nav";
-  import { activeModal } from "../stores/modal";
+  import { activeModal, openAlert, openConfirm } from "../stores/modal";
   import { t } from "../stores/i18n";
   import { pushToast } from "../stores/toast";
   import { formatToastWithError } from "../lib/formatWailsError";
   import type { Route } from "../stores/routeCodec";
   import { prefetchPage } from "../lib/pageLoaders";
   import { controllerSpatialNavigation } from "../lib/actions/controllerSpatialNavigation";
+  import HelpAboutModalBody from "../components/modals/HelpAboutModalBody.svelte";
   import * as SteamService from "../../bindings/steamswitch/internal/steam/steamservice.js";
   import * as PlatformService from "../../bindings/steamswitch/internal/platform/platformservice.js";
   import "../styles/Settings.scss";
+
+  const STEAM = "Steam";
 
   type ToolEntry = {
     titleKey: string;
@@ -50,6 +53,72 @@
       pushToast({
         type: "error",
         message: formatToastWithError(get(t)("Toast_ActionFailed"), e),
+        duration: 8000,
+      });
+    } finally {
+      running = "";
+    }
+  }
+
+  /**
+   * Backup writes a zip of Steam's `config/` and `userdata/` into the data folder; the report
+   * names the archive, because a backup you cannot find is not a backup.
+   */
+  async function backup(everything: boolean): Promise<void> {
+    if (running) return;
+    running = everything ? "backup-all" : "backup";
+    try {
+      const res = await PlatformService.BackupPlatform(STEAM, everything);
+      pushToast({
+        type: "success",
+        message: get(t)("Tools_Backup_Done", { path: res?.archivePath ?? "", files: res?.files ?? 0 }),
+        duration: 9000,
+      });
+    } catch (e) {
+      pushToast({
+        type: "error",
+        message: formatToastWithError(get(t)("Tools_Backup_Failed"), e),
+        duration: 8000,
+      });
+    } finally {
+      running = "";
+    }
+  }
+
+  /**
+   * Restore overwrites the live Steam config from the newest archive, so it asks first and
+   * refuses while Steam is running — Steam rewrites `config/` as it exits, which would undo
+   * the restore without saying anything.
+   */
+  async function restoreLatest(): Promise<void> {
+    if (running) return;
+    try {
+      if (await SteamService.IsSteamRunning()) {
+        pushToast({ type: "error", message: get(t)("Tools_Restore_SteamRunning"), duration: 8000 });
+        return;
+      }
+    } catch {
+      // Cannot tell — fall through to the confirmation, which spells out the risk anyway.
+    }
+    const ok = await openConfirm({
+      title: get(t)("Tools_Restore_Title"),
+      body: get(t)("Tools_Restore_Confirm"),
+      style: "yesno",
+    });
+    if (!ok) return;
+
+    running = "restore";
+    try {
+      const res = await PlatformService.RestoreLatestPlatformBackup(STEAM);
+      pushToast({
+        type: "success",
+        message: get(t)("Tools_Restore_Done", { path: res?.restoredFrom ?? "", files: res?.files ?? 0 }),
+        duration: 9000,
+      });
+    } catch (e) {
+      pushToast({
+        type: "error",
+        message: formatToastWithError(get(t)("Tools_Restore_Failed"), e),
         duration: 8000,
       });
     } finally {
@@ -95,6 +164,38 @@
       ],
     },
     {
+      // Backup covers Steam's own config and userdata trees, not SteamSwitch's saved
+      // accounts — those live in the data folder and are backed up by copying it.
+      labelKey: "Tools_Group_Backup",
+      entries: [
+        {
+          titleKey: "Tools_Backup_Title",
+          descKey: "Tools_Backup_Desc",
+          action: () => backup(false),
+        },
+        {
+          titleKey: "Tools_BackupAll_Title",
+          descKey: "Tools_BackupAll_Desc",
+          action: () => backup(true),
+        },
+        {
+          titleKey: "Tools_Restore_Title",
+          descKey: "Tools_Restore_Desc",
+          action: restoreLatest,
+        },
+        {
+          titleKey: "Tools_OpenBackup_Title",
+          descKey: "Tools_OpenBackup_Desc",
+          action: () =>
+            withFeedback(
+              "backupfolder",
+              () => PlatformService.OpenPlatformBackupFolder(STEAM),
+              "Tools_OpenBackup_Done",
+            ),
+        },
+      ],
+    },
+    {
       labelKey: "Tools_Group_Diagnostics",
       entries: [
         {
@@ -106,6 +207,18 @@
               () => PlatformService.OpenUserDataFolder(),
               "Tools_OpenDataFolder_Done",
             ),
+        },
+        {
+          // The version string and the upstream attribution. Reachable from nowhere else
+          // since the title bar lost its menu.
+          titleKey: "Tools_About_Title",
+          descKey: "Tools_About_Desc",
+          action: async () => {
+            await openAlert({
+              title: get(t)("Tools_About_Title"),
+              bodyComponent: HelpAboutModalBody,
+            });
+          },
         },
       ],
     },
