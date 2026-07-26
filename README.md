@@ -137,6 +137,21 @@ simply deleted.
 - Avatar refresh and VAC status check.
 - Configurable account refresh: on launch, on a timer, and avatar cache expiry.
 
+### Account vault
+For anyone keeping more than a couple of accounts around. Everything here is sealed under
+your app-lock password — set one first, or the vault stays unavailable.
+
+- **Stores what an account is**: login name, password, authenticator seed and the email
+  address bound to it. One encrypted blob, no plaintext metadata beside it.
+- **Steam Guard codes** from a stored authenticator seed, or read out of a bound inbox over
+  IMAP — read-only, and never marking your mail as read.
+- **Health checks** for bans, profile visibility, account age and idle time. The everyday
+  check never logs in; only an explicit "verify password" does.
+- Values are shown one at a time behind an explicit Reveal, and hide themselves again.
+
+It cannot sign in for you, and it has no way to hand an account to someone else yet. See
+[`FEATURES.md`](FEATURES.md) for exactly which parts are proven and which are not.
+
 ### Appearance
 - System / Light / Dark, following the OS by default. One accent colour.
 - The inherited theme packs are still there, collapsed under "Classic themes".
@@ -246,7 +261,9 @@ cloud-synced Dota write made while Steam is up is reverted silently, with no err
 Windows path and file-locking behaviour. See `FORK.md` for the exact list — that is the
 expected baseline, not a regression.
 
-[`TESTING.md`](TESTING.md) is the manual test plan for a real machine with Steam installed.
+[`FEATURES.md`](FEATURES.md) is the inventory of what is built and how confident each part is;
+[`TESTING.md`](TESTING.md) is the manual test plan it orders, for a real machine with Steam
+installed.
 
 ## Credits
 

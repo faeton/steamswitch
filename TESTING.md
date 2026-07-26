@@ -4,6 +4,13 @@ This is the by-hand pass to run on a real machine before a release. It is not CI
 the things automated tests structurally cannot: the Windows registry (or macOS `registry.vdf`),
 real Steam process behaviour, Steam Cloud, and what the UI actually looks like at 420×520.
 
+**Read `FEATURES.md` first.** It lists what is built feature by feature, says how confident
+each piece is, and orders the sections below into six blocks you can run one at a time. The
+distinction it draws matters here: most of this plan re-checks things that already work, but a
+handful of steps — §V4 above all — are the first time that code has ever run for real. A
+failure in the first kind is a bug; a failure in the second is expected-until-proven, and the
+useful report is *how far it got*.
+
 **Run it on Windows and on macOS.** Both are supported targets and the OS-specific half of the
 engine is a separate implementation on each (`internal/steam/os_backend_windows.go` and
 `os_backend_darwin.go`), so a pass on one says nothing about the other. Where a step names a
