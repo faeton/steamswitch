@@ -1,10 +1,10 @@
 package mail
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"strconv"
@@ -144,10 +144,11 @@ const maxCandidates = 5
 
 func (s *imapSource) searchOnce(c *client.Client, notBefore time.Time) (string, error) {
 	crit := imap.NewSearchCriteria()
-	// Since is date-granular in IMAP, so a login just after midnight would otherwise search
-	// an empty day. Backing off one day costs nothing and the freshness check below is what
-	// actually enforces recency.
-	crit.Since = notBefore.Add(-24 * time.Hour)
+	// The server searches on INTERNALDATE (when it received the message) while the
+	// freshness check below compares Envelope.Date (what the sender stamped). Those differ
+	// by relay delay and clock skew, so the search casts the wider net and Go re-filters
+	// precisely. Since is also date-granular, so this is effectively "today and yesterday".
+	crit.Since = notBefore.Add(-StaleSkew)
 	crit.Header = map[string][]string{"From": {SenderDomain}}
 
 	ids, err := c.Search(crit)
@@ -300,10 +301,20 @@ func AutoconfigCandidates(address string) []string {
 	return []string{"imap." + domain, "mail." + domain, "imap.mail." + domain, domain}
 }
 
-// Autoconfig tries each candidate host until one accepts the credentials, and returns the
-// working config. It is a convenience over Probe, not a separate protocol.
+// Autoconfig finds a working IMAP host for an address.
+//
+// It identifies the service first and only then tries the credentials, because the two fail
+// for different reasons and trying them together makes "wrong password" and "wrong host"
+// indistinguishable.
 func Autoconfig(ctx context.Context, address, password string) (IMAPConfig, error) {
-	for _, host := range AutoconfigCandidates(address) {
+	for _, candidate := range AutoconfigCandidates(address) {
+		if ctx.Err() != nil {
+			return IMAPConfig{}, ctx.Err()
+		}
+		host, ok := identifyIMAPHost(candidate)
+		if !ok {
+			continue
+		}
 		cfg := IMAPConfig{Host: host, Port: 993, User: address, Password: password, UseTLS: true, Address: address}
 		src, err := NewIMAP(cfg)
 		if err != nil {
@@ -311,10 +322,79 @@ func Autoconfig(ctx context.Context, address, password string) (IMAPConfig, erro
 		}
 		if err := src.Probe(ctx); err == nil {
 			return cfg, nil
-		}
-		if ctx.Err() != nil {
-			return IMAPConfig{}, ctx.Err()
+		} else if errors.Is(err, ErrAuth) {
+			// The host is right and the credentials are not. Trying the remaining
+			// candidates would only produce connection errors and bury the real answer.
+			return IMAPConfig{}, ErrAuth
 		}
 	}
-	return IMAPConfig{}, fmt.Errorf("%w", ErrConnect)
+	return IMAPConfig{}, ErrConnect
+}
+
+// identifyIMAPHost checks whether something at host:993 speaks IMAP, and returns the name
+// that will verify under strict TLS at login time.
+//
+// The indirection exists for vanity domains: a mailbox at `zorrodemail.test` is commonly
+// served by someone else's host, and the certificate presented is theirs. Connecting to
+// `imap.zorrodemail.test` and demanding a certificate for that name fails, even though the
+// service is there and working. Reading the certificate's own names and using one of those
+// instead is what makes those addresses configurable at all — which is the single worst
+// piece of onboarding friction this feature has.
+//
+// Verification is skipped for the probe only. Nothing is sent: the connection is opened,
+// one greeting line is read, the names are taken from the certificate, and it is closed.
+// Every real session afterwards verifies strictly against the name this returns.
+func identifyIMAPHost(host string) (string, bool) {
+	d := &net.Dialer{Timeout: probeTimeout}
+	conn, err := tls.DialWithDialer(d, "tcp", net.JoinHostPort(host, "993"), &tls.Config{
+		InsecureSkipVerify: true, //nolint:gosec // probe only; see the doc comment above
+		ServerName:         host,
+		MinVersion:         tls.VersionTLS12,
+	})
+	if err != nil {
+		return "", false
+	}
+	defer func() { _ = conn.Close() }()
+	_ = conn.SetReadDeadline(time.Now().Add(probeTimeout))
+
+	// An IMAP server greets unprompted. Anything that does not is some other service that
+	// happens to be listening on 993.
+	line, _ := bufio.NewReader(conn).ReadString('\n')
+	upper := strings.ToUpper(line)
+	if !strings.Contains(upper, "OK") && !strings.Contains(upper, "IMAP") {
+		return "", false
+	}
+
+	certs := conn.ConnectionState().PeerCertificates
+	if len(certs) == 0 {
+		return host, true
+	}
+	if name, ok := preferredCertName(certs[0].DNSNames); ok && name != host {
+		// Only if it actually resolves — a certificate can name hosts that do not exist.
+		if _, err := net.LookupHost(name); err == nil {
+			return name, true
+		}
+	}
+	return host, true
+}
+
+// probeTimeout bounds one candidate. Four candidates are tried, so this has to stay small
+// enough that a domain with no mail service at all fails in seconds.
+const probeTimeout = 4 * time.Second
+
+// preferredCertName picks the name from a certificate that an IMAP client should verify
+// against: an explicit imap.* entry if there is one, otherwise the imap.* form of a
+// wildcard.
+func preferredCertName(names []string) (string, bool) {
+	for _, n := range names {
+		if lower := strings.ToLower(n); strings.HasPrefix(lower, "imap.") {
+			return lower, true
+		}
+	}
+	for _, n := range names {
+		if lower := strings.ToLower(n); strings.HasPrefix(lower, "*.") {
+			return "imap." + strings.TrimPrefix(lower, "*."), true
+		}
+	}
+	return "", false
 }

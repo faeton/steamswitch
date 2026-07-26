@@ -3,6 +3,7 @@ package mail
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 )
@@ -54,10 +55,22 @@ func TestExtractCode(t *testing.T) {
 			ok:   false,
 		},
 		{
-			// The bounded window is what keeps the label from matching something far away
-			// in the message.
-			name: "label far from any code",
-			body: "Login Code" + string(make([]byte, 200)) + "ZZZZZ",
+			// Steam's real HTML mail puts a long run of tags and inline styles between the
+			// label and the code. A window tight enough to fail this is tight enough to
+			// fail live mail while still passing hand-written test bodies.
+			name: "label separated by a realistic run of markup",
+			body: `<td class="code-label">Login Code</td></tr><tr><td style="padding:24px 0 8px 0;` +
+				`font-family:'Motiva Sans',Arial,sans-serif;font-size:14px;line-height:20px;` +
+				`color:#c7d5e0;background-color:#1b2838;border:0;text-align:center;">` +
+				`<div class="code-box" style="letter-spacing:6px;font-size:32px;">7QJ4N</div>`,
+			want: "7QJ4N",
+			ok:   true,
+		},
+		{
+			// Still bounded, though: past the window the label stops vouching for whatever
+			// five characters turn up next.
+			name: "label far beyond the window",
+			body: "Login Code" + strings.Repeat("x", 600) + " ZZZZZ ",
 			ok:   false,
 		},
 	}
@@ -244,5 +257,31 @@ func TestPollUntil_StopsOnTerminalError(t *testing.T) {
 	}
 	if calls != 1 {
 		t.Fatalf("called %d times, want 1 — auth failures must not be retried", calls)
+	}
+}
+
+// The vanity-domain case this exists for: a mailbox at one domain served by someone else's
+// host, presenting their certificate. Picking the right name from the certificate is what
+// makes those addresses configurable at all.
+func TestPreferredCertName(t *testing.T) {
+	cases := []struct {
+		name  string
+		names []string
+		want  string
+		ok    bool
+	}{
+		{"explicit imap SAN wins", []string{"firstmail.ltd", "imap.firstmail.ltd", "*.firstmail.ltd"}, "imap.firstmail.ltd", true},
+		{"wildcard becomes an imap host", []string{"*.firstmail.ltd"}, "imap.firstmail.ltd", true},
+		{"case is normalised", []string{"IMAP.Firstmail.LTD"}, "imap.firstmail.ltd", true},
+		{"nothing usable", []string{"mail.example.test", "example.test"}, "", false},
+		{"no names at all", nil, "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			got, ok := preferredCertName(tc.names)
+			if ok != tc.ok || got != tc.want {
+				t.Fatalf("preferredCertName(%v) = %q, %v; want %q, %v", tc.names, got, ok, tc.want, tc.ok)
+			}
+		})
 	}
 }

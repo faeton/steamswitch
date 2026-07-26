@@ -295,6 +295,8 @@ surprise.
 | V3c | Watch the countdown to zero, then press **Get another** | A different code. |
 | V3d | Paste a code into a real Steam login | Steam accepts it. |
 | V3e | Set the code source to **an inbox (IMAP)**, enter the address and password, press **Detect** | It finds the IMAP host without you knowing its name. If your provider is unusual it may fail — enter the host by hand and continue. |
+| V3e2 | Detect against a **vanity domain** whose mail is served by another host (e.g. a bought-account provider) | It still finds it, and the host it fills in is the one the certificate names, not `imap.<your-domain>`. This is the case detection exists for; if it only ever works on Gmail-shaped addresses, it is not doing its job. |
+| V3e3 | Detect with the **right address and a wrong password** | It reports that the mailbox rejected the credentials, not "no server found". Finding the host and failing to log in are different answers. |
 | V3f | Press **Test the connection** | Confirms it connected. With a deliberately wrong password it says the mailbox rejected the credentials, distinct from "could not connect". |
 | V3g | Remove the authenticator seed so the inbox is the only source. Trigger a real Steam login that sends a code, then **Get Steam Guard code** | The code from that mail, marked "From your inbox". |
 | V3h | Check that mail in your normal mail client | It is **still unread**. Reading a code must never mark mail as read. |
@@ -306,17 +308,22 @@ surprise.
 | V3n | Start a switch to an account whose code comes from an inbox, and watch the timing | The fetch starts as the switch starts, not when you ask. By the time Steam shows its prompt the code is usually already available. |
 | V3o | Start such a switch and make it fail (e.g. rename Steam's exe first) | No mail connection is left running afterwards. |
 
-### V4. Verification — the unproven part
+### V4. Verification
 
-`internal/vault/steamauth` hand-encodes Steam's protobuf wire format and **has never run
-against Valve's servers**. A wrong field number or wire type shows up here as a rejected
-request, not as a crash. If V4a fails while V4b through V4e behave, the fault is in this
-code rather than in your account.
+`internal/vault/steamauth` now follows the request shape that has been running against
+Valve's servers in `ggcr-bot-fleet` for a long time and across many accounts: form-encoded
+parameters, JSON replies, no protobuf. That removes the main reason this section used to
+carry a warning.
+
+What is still unproven is **this** implementation of that shape — the parameter set, the
+`,string` decoding of 64-bit ids and the guard-type handling are checked by unit tests but
+have not themselves completed a real login. Treat V4a as the first real run.
 
 | # | Steps | Expected |
 |---|---|---|
 | V4a | Store the correct login name and password for a test account, then account menu → Advanced → **Account health…** → **Verify password** | It reports the password works. If Steam sends a Guard email, the app answers it automatically when a code source is configured. |
 | V4b | Change the stored password to something wrong, verify again | "Steam rejected the stored password", marked as a blocker. Not "could not be confirmed" — the two mean different things. |
+| V4b2 | Change the stored **login name** to one that does not exist, verify | "Steam has no account with that login name", pointing at the name rather than the password. These arrive as different Steam result codes and must not be collapsed. |
 | V4c | Verify twice in a row | The second run does **not** send a second Guard email: the first stored a trusted-device token. |
 | V4d | Verify a third and fourth time in quick succession | If Steam rate-limits, the app says so, disables Verify for the session, and does **not** retry. Retrying is what turns a warning into a block. |
 | V4e | Start a verify on one account, then immediately on another | The second is refused with "a verification is already running". They are serialised on purpose. |

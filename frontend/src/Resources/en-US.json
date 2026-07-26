@@ -987,5 +987,11 @@
   "Toast_Vault_GuardCodeRequired": "Steam asked for a Steam Guard code.",
   "Toast_Vault_GuardCodeRejected": "Steam rejected the Steam Guard code.",
   "Toast_Vault_LoginRequestFailed": "The sign-in request to Steam failed.",
-  "Toast_Vault_LoginUnexpectedResponse": "Steam answered with something this build did not understand."
+  "Toast_Vault_LoginUnexpectedResponse": "Steam answered with something this build did not understand.",
+  "Vault_Signal_NoSuchAccount": "Steam has no account with that login name. Check the stored login name, not the password.",
+  "Vault_Signal_AccessDenied": "Steam refused access to this account.",
+  "Vault_Signal_SteamUnavailable": "Steam did not answer. Nothing is known about the password either way.",
+  "Toast_Vault_NoSuchAccount": "Steam has no account with that login name.",
+  "Toast_Vault_AccessDenied": "Steam refused access to this account.",
+  "Toast_Vault_SteamUnavailable": "Steam is not answering. Try again later."
 }

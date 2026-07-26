@@ -54,14 +54,21 @@ const SenderDomain = "steampowered.com"
 // links and the recipient's own account name.
 //
 // The alphabet is Steam's: uppercase letters and digits, no lowercase.
-// The case-insensitive flag is scoped to the label only. Applying it to the whole pattern
-// makes `[A-Z0-9]{5}` match lowercase, and the first thing it finds in Steam's HTML mail is
-// the word `class` from `<div class="code">` — a plausible-looking five characters that is
-// not a code at all.
+// Two details here are load-bearing and were both got wrong first time round.
+//
+// The case-insensitive flag is scoped to the label only. Applied to the whole pattern it
+// makes `[A-Z0-9]{5}` match lowercase, and the first thing it then finds in Steam's HTML
+// mail is the word `class` from `<div class="code">` — a plausible-looking five characters
+// that is not a code.
+//
+// The window is 500 characters, not the 120 that seemed sufficient. Steam's HTML mail puts
+// a substantial run of tags, inline styles and quoted-printable soft wraps between the
+// label and the code; 500 is the figure a long-running deployment settled on, and anything
+// tighter silently fails on real mail while passing on hand-written test bodies.
 var (
-	loginCodeRe    = regexp.MustCompile(`(?s)(?i:login\s*code).{0,120}?\b([A-Z0-9]{5})\b`)
+	loginCodeRe    = regexp.MustCompile(`(?s)(?i:login\s*code).{1,500}?\b([A-Z0-9]{5})\b`)
 	bareCodeRe     = regexp.MustCompile(`(?m)^\s*([A-Z0-9]{5})\s*$`)
-	recoveryCodeRe = regexp.MustCompile(`(?s)(?i:(?:recovery|verification)\s*code).{0,120}?\b([A-Z0-9]{5})\b`)
+	recoveryCodeRe = regexp.MustCompile(`(?s)(?i:(?:recovery|verification)\s*code).{1,500}?\b([A-Z0-9]{5})\b`)
 )
 
 // ExtractCode pulls a Guard code out of a message body.

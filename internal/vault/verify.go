@@ -106,7 +106,9 @@ func DeepCheck(ctx context.Context, steamID64 string, in QuickCheckInput) (Healt
 
 	if result != nil && result.RefreshToken != "" {
 		expiry := ""
-		if claims, err := probe.DecodeToken(result.RefreshToken); err == nil && !claims.ExpiresAt.IsZero() {
+		if !result.ExpiresAt.IsZero() {
+			expiry = result.ExpiresAt.Format(time.RFC3339)
+		} else if claims, err := probe.DecodeToken(result.RefreshToken); err == nil && !claims.ExpiresAt.IsZero() {
 			expiry = claims.ExpiresAt.Format(time.RFC3339)
 		}
 		// guard_data is what stops the *next* verification emailing the user another code.
@@ -175,17 +177,35 @@ func guardCodeForLogin(ctx context.Context, e Entry, sess *steamauth.Session) (s
 	return src.FetchCode(ctx, time.Now())
 }
 
+// classifyLoginError turns a login failure into a signal.
+//
+// The distinction that matters is fail versus unknown. "Steam rejected the password" is a
+// fact about the account and blocks; "Steam would not answer" is a fact about the network
+// and must not be reported as though the account were broken — a user who deletes a working
+// account because the app said it was dead has been failed by this function.
 func classifyLoginError(s Signal, err error) Signal {
 	switch {
 	case errors.Is(err, steamauth.ErrBadCredentials):
 		s.Status, s.Blocker, s.Detail = VerdictFail, true, "Vault_Signal_PasswordWrong"
+	case errors.Is(err, steamauth.ErrNoSuchAccount):
+		// Steam has no such login name. Distinct from a wrong password: the thing to fix is
+		// the stored account name, not the password.
+		s.Status, s.Blocker, s.Detail = VerdictFail, true, "Vault_Signal_NoSuchAccount"
 	case errors.Is(err, steamauth.ErrSuspended):
 		s.Status, s.Blocker, s.Detail = VerdictFail, true, "Vault_Signal_AccountSuspended"
+	case errors.Is(err, steamauth.ErrAccessDenied):
+		s.Status, s.Blocker, s.Detail = VerdictFail, true, "Vault_Signal_AccessDenied"
 	case errors.Is(err, steamauth.ErrGuardRejected):
 		s.Status, s.Detail = VerdictWarn, "Vault_Signal_GuardRejected"
+	case errors.Is(err, steamauth.ErrGuardRequired):
+		// Reaching the Guard step at all proves the password was accepted; Steam does not
+		// ask for a second factor otherwise.
+		s.Status, s.Detail = VerdictOK, "Vault_Signal_PasswordOKGuardUnavailable"
 	case errors.Is(err, steamauth.ErrRateLimited):
 		markRateLimited()
 		s.Status, s.Detail = VerdictUnknown, "Vault_Signal_RateLimited"
+	case errors.Is(err, steamauth.ErrServiceDown):
+		s.Status, s.Detail = VerdictUnknown, "Vault_Signal_SteamUnavailable"
 	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
 		s.Status, s.Detail = VerdictUnknown, "Vault_Signal_CheckTimedOut"
 	default:
