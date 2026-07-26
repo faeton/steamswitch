@@ -72,6 +72,37 @@ type Settings struct {
 	// SharedSteamIDs are accounts other people also use. Switching *to* one carries the
 	// Home account's kit along; leaving one prompts to put their setup back.
 	SharedSteamIDs []string `json:"SharedSteamIds,omitempty"`
+
+	// GameModules is per-module pause state, keyed by the module's stable ID.
+	GameModules map[string]GameModuleState `json:"GameModules,omitempty"`
+}
+
+// GameModuleState is what the app remembers about one Session Kit game module between runs.
+//
+// Only two things are worth persisting: whether it is paused, and the layout fingerprint that
+// was last known to be good. Everything else — installed, ready, the current fingerprint — is
+// re-derived from disk on every Detect, because a cached answer about somebody's game install
+// is a stale answer.
+type GameModuleState struct {
+	// Paused stops the module contributing to any transaction. Set by the user, or
+	// automatically when the fingerprint moves (REDESIGN.md §5).
+	Paused bool `json:"paused,omitempty"`
+	// PausedByFingerprintChange distinguishes "the user turned this off" from "the game
+	// changed underneath us". The UI offers a self-test for the second and not the first.
+	PausedByFingerprintChange bool `json:"pausedByFingerprintChange,omitempty"`
+	// KnownGoodFingerprint is the layout last confirmed by a passing self-test. Empty means
+	// the module has never been verified on this machine.
+	KnownGoodFingerprint string `json:"knownGoodFingerprint,omitempty"`
+	// LastSelfTestAt is when that confirmation happened, RFC3339. For the card only.
+	LastSelfTestAt string `json:"lastSelfTestAt,omitempty"`
+}
+
+// ModuleState returns the stored state for a module, zero-valued when there is none.
+func (s Settings) ModuleState(moduleID string) GameModuleState {
+	if s.GameModules == nil {
+		return GameModuleState{}
+	}
+	return s.GameModules[strings.TrimSpace(moduleID)]
 }
 
 // IsShared reports whether the given account is marked as shared with someone else.

@@ -162,6 +162,21 @@ Only meaningful if you can arrange it, but please do arrange it.
 | F7 | Tray → quick switch | Switches without opening the window. |
 | F8 | Tray while a kit is active | The tooltip reflects it. |
 
+## F-modules. Game modules
+
+| # | Steps | Expected |
+|---|---|---|
+| FM1 | Settings → **Game modules** | Two cards: Dota 2 and Counter-Strike 2. Each states installed / not installed and active / not running. |
+| FM2 | With CS2 installed | It shows as installed but **not running**, with a reason saying support is unfinished. It must not claim CS2 is missing. |
+| FM3 | Switch to a Shared account with CS2 installed | Only Dota's settings travel. Nothing under `userdata/<id32>/730/` is touched — check the modification times. |
+| FM4 | Dota card → **Run self-test** | Passes, records a layout signature and a timestamp. Nothing on disk changes; compare `userdata/<id32>/570/` before and after. |
+| FM5 | Dota card → **Pause**, then switch to a Shared account | The switch happens as a plain switch; no kit is applied and no journal is left in `SessionKit/transactions/`. |
+| FM6 | **Resume**, switch again | The kit travels as before. |
+| FM7 | After FM4, edit `<Steam>/steamapps/appmanifest_570.acf` and change `buildid`, then reopen Settings | The Dota card is **paused automatically** and says the game's files have moved. This simulates a Dota patch. |
+| FM8 | Run the self-test on that paused card | It passes, records the new layout and resumes the module by itself. |
+| FM9 | Restore the original `buildid`, reopen Settings | Paused again — the layout moved a second time. Self-test to settle it. |
+| FM10 | Pause Dota by hand, then run the self-test | It passes, but the module **stays paused**. A self-test confirms the layout; it does not overrule a decision the user made. |
+
 ## F-macos. macOS specifics
 
 Run the whole plan on macOS too, then these. They cover the parts where the macOS backend is a

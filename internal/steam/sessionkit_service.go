@@ -57,7 +57,7 @@ var (
 func InitSessionKit(svc *SteamService) (*sessionkit.Engine, error) {
 	eng, err := sessionkit.New(sessionkit.Options{
 		Lifecycle: Lifecycle{},
-		Modules:   []sessionkit.Module{DotaModule{}},
+		Modules:   engineModules(),
 		Progress:  kitProgress{},
 		Home: func() (sessionkit.AccountRef, error) {
 			st, err := LoadSettings()
@@ -161,8 +161,8 @@ func (s *SessionKitService) GetKitStatus() (KitStatus, error) {
 // moduleDisplayName maps a journal module id to its user-facing name without needing an
 // engine lookup, so it stays callable from status paths.
 func moduleDisplayName(id string) string {
-	if id == DotaModuleID {
-		return DotaModule{}.DisplayName()
+	if m, ok := moduleByID(id); ok {
+		return m.DisplayName()
 	}
 	return id
 }
