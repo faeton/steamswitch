@@ -1,14 +1,6 @@
 <script lang="ts">
-  import { get } from "svelte/store";
-  import * as PlatformService from "../../bindings/steamswitch/internal/platform/platformservice.js";
   import { viewportDropdown } from "../lib/actions/viewportDropdown";
-  import type { CrowdinTranslatorsList } from "../lib/crowdinTranslators";
-  import { openExternalUrl } from "../lib/openExternalUrl";
   import { t, availableLocales, locale, setUserLanguage } from "../stores/i18n";
-  import { offlineMode } from "../stores/offlineMode";
-  import { openAlertNoButton } from "../stores/modal";
-  import CrowdinTranslatorsModalBody from "./modals/CrowdinTranslatorsModalBody.svelte";
-
 
   let open = false;
 
@@ -22,27 +14,6 @@
   async function pick(code: string): Promise<void> {
     await setUserLanguage(code);
     open = false;
-  }
-
-  async function openCreditsModal(): Promise<void> {
-    let list: CrowdinTranslatorsList = { proofReaders: [], translators: [] };
-    let loadError: string | undefined;
-
-    if (get(offlineMode)) {
-      loadError = "OFFLINE MODE";
-    } else {
-      try {
-        list = await PlatformService.GetCrowdinTranslators();
-      } catch {
-        loadError = "Failed to load Crowdin supporters!";
-      }
-    }
-
-    void openAlertNoButton({
-      title: get(t)("Modal_Crowdin_Header"),
-      bodyComponent: CrowdinTranslatorsModalBody,
-      bodyProps: { list, loadError },
-    });
   }
 </script>
 
@@ -66,9 +37,6 @@
       </ul>
     {/if}
   </div>
-  <button type="button" class="fancyLink" on:click={() => void openCreditsModal()}
-    >{$t("Settings_ViewTranslators")}</button
-  >
 </div>
 
 <style lang="scss">
