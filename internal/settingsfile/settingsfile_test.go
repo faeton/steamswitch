@@ -3,6 +3,7 @@ package settingsfile
 import (
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -23,11 +24,7 @@ func TestDiscover_prefersPortableOverAppData(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	orig := os.Getenv("APPDATA")
-	if err := os.Setenv("APPDATA", filepath.Join(dir, "appdata")); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Setenv("APPDATA", orig) })
+	redirectUserConfigDir(t, filepath.Join(dir, "appdata"))
 
 	got, ok := Discover(exeDir)
 	if !ok {
@@ -39,15 +36,11 @@ func TestDiscover_prefersPortableOverAppData(t *testing.T) {
 }
 
 func TestDiscover_fallsBackToExeRoot(t *testing.T) {
-	orig := os.Getenv("APPDATA")
 	tmpAppData := filepath.Join(t.TempDir(), "appdata")
 	if err := os.MkdirAll(tmpAppData, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Setenv("APPDATA", tmpAppData); err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = os.Setenv("APPDATA", orig) })
+	redirectUserConfigDir(t, tmpAppData)
 
 	exeDir := t.TempDir()
 	legacy := filepath.Join(exeDir, FileName)
@@ -69,5 +62,57 @@ func TestIsDefaultUserDataDir(t *testing.T) {
 	}
 	if IsDefaultUserDataDir(custom, exeDir) {
 		t.Fatal("custom should not be default")
+	}
+}
+
+// redirectUserConfigDir points DefaultUserDataDir at `dir` for the duration of the test.
+//
+// Setting %APPDATA% only works on Windows: `os.UserConfigDir` reads $HOME/Library/Application
+// Support on darwin and $XDG_CONFIG_HOME (else $HOME/.config) elsewhere. Without the other two
+// the AppData half of these tests passes for the wrong reason off Windows — the real user
+// directory has no settings file in it, so "portable wins" is not actually being demonstrated.
+func redirectUserConfigDir(t *testing.T, dir string) {
+	t.Helper()
+	set := func(key, value string) {
+		orig, had := os.LookupEnv(key)
+		if err := os.Setenv(key, value); err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() {
+			if had {
+				_ = os.Setenv(key, orig)
+				return
+			}
+			_ = os.Unsetenv(key)
+		})
+	}
+	set("APPDATA", dir)
+	set("XDG_CONFIG_HOME", dir)
+	// darwin appends Library/Application Support to $HOME rather than reading a variable, so
+	// the only way to aim it at an arbitrary directory is to build that suffix and link the
+	// leaf back to `dir`. Then all three platforms agree on where UserConfigDir lands.
+	home := filepath.Join(dir, "home")
+	if runtime.GOOS == "darwin" {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		macParent := filepath.Join(home, "Library")
+		if err := os.MkdirAll(macParent, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(dir, filepath.Join(macParent, "Application Support")); err != nil {
+			t.Fatal(err)
+		}
+	}
+	set("HOME", home)
+
+	got, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolved, err := filepath.EvalSymlinks(got); err == nil {
+		if want, err := filepath.EvalSymlinks(dir); err == nil && resolved != want {
+			t.Fatalf("user config dir resolved to %q, want %q — the redirect did not take", resolved, want)
+		}
 	}
 }

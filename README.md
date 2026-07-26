@@ -6,14 +6,15 @@ Switch between your Steam accounts in one click — no passwords, no 2FA codes. 
 into an account you share with someone else, SteamSwitch can carry *your* game config with you
 and put *theirs* back when you leave.
 
-Windows only. GPL-3.0. No telemetry, no update check, no account of any kind.
+Windows and macOS. GPL-3.0. No telemetry, no update check, no account of any kind.
 
-> **Status: early alpha — v0.1.0. Not yet run on Windows.**
+> **Status: early alpha — v0.1.0. Never run end to end on either OS.**
 >
-> This is a source snapshot, not a release. The switching engine, the Session Kit and the
-> Dota config handling were written and unit-tested on macOS, where the Windows primitives
-> they depend on are compile-only stubs — so the actual switch path has **never been executed
-> end to end on the one OS it supports**. There are no binaries and no releases yet.
+> This is a source snapshot, not a release. Every part of it — the switching engine, the
+> Session Kit, the Dota config handling — is unit-tested, and the macOS backend is verified
+> against a real Steam install's files and process table. What has **not** happened is a
+> complete switch, on a real account, on either Windows or macOS. There are no binaries and
+> no releases yet.
 >
 > If you want to try it, build from source, read [`TESTING.md`](TESTING.md), and don't point
 > it at an account you couldn't log back into by hand.
@@ -157,7 +158,8 @@ once, so the config folders exist.
 ## Where your data lives
 
 ```
-%AppData%\SteamSwitch\            (or <exe folder>\SteamSwitch\ when portable)
+%AppData%\SteamSwitch\            Windows (or <exe folder>\SteamSwitch\ when portable)
+~/Library/Application Support/SteamSwitch/    macOS
   steamswitch.settings.json       app settings
   Settings/                       per-platform settings
   LoginCache/Steam/<account>/     saved login blocks
@@ -220,13 +222,31 @@ wails3 task test      # Go + frontend tests
 `frontend/bindings/` is generated and gitignored; frontend typechecking and tests cannot
 resolve imports until it exists.
 
-**On macOS or Linux the app compiles but cannot switch accounts.** The `!windows` builds of
-`internal/winutil` are stubs: registry access, process termination and process launching all
-return `ErrUnsupported`, and `IsExeRunning` always reports false. `go test ./...` reports 16
-failures there, inherited from upstream, that assume Windows path, registry and file-locking
-behaviour. See `FORK.md` for the exact list — that is the expected baseline, not a regression.
+### Operating systems
 
-[`TESTING.md`](TESTING.md) is the manual test plan for a real Windows machine.
+| | Switching | Session Kit | Notes |
+|---|---|---|---|
+| **Windows** | yes | yes | The original target. |
+| **macOS** | yes | yes | Steam keeps the same file layout under `~/Library/Application Support/Steam`, with `registry.vdf` standing in for the Windows registry. |
+| **Linux** | no | no | Refused, not broken — see below. |
+
+Everything OS-specific in the Steam engine lives behind one interface, `osBackend`
+(`internal/steam/os_backend.go`), with one file per platform. On an OS with no backend the app
+still runs — account lists, notes, images, settings — but every operation that would write to
+a Steam install refuses with a clear error rather than proceeding.
+
+That refusal is deliberate and is the reason Linux is not simply "enabled". The whole engine
+is only safe while Steam is closed, and "no Steam process found" is indistinguishable from
+"I cannot see processes at all". Flatpak and Snap installs put Steam in a sandbox where it is
+not reachable by process name from outside, so a Linux backend that only handled the native
+install would confidently report Steam as closed for a large share of users — and a
+cloud-synced Dota write made while Steam is up is reverted silently, with no error anywhere.
+
+`go test ./...` reports 15 failures on macOS and Linux, inherited from upstream, that assume
+Windows path and file-locking behaviour. See `FORK.md` for the exact list — that is the
+expected baseline, not a regression.
+
+[`TESTING.md`](TESTING.md) is the manual test plan for a real machine with Steam installed.
 
 ## Credits
 

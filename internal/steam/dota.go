@@ -15,7 +15,6 @@ import (
 	"steamswitch/internal/paths"
 	"steamswitch/internal/platform"
 	"steamswitch/internal/security"
-	"steamswitch/internal/winutil"
 
 	"github.com/google/uuid"
 )
@@ -209,7 +208,7 @@ func dotaSteamRunningGuard(parts []string) error {
 	if err := requireProcessInspection(); err != nil {
 		return err
 	}
-	if winutil.IsExeRunning("steam.exe") {
+	if steamClientRunning() {
 		return ErrDotaSteamRunning
 	}
 	return nil
@@ -714,6 +713,8 @@ func (s *SteamService) GetDotaAccountStatuses(steamIDs []string) ([]DotaAccountS
 }
 
 // IsSteamRunning lets the UI warn before a copy that Steam Cloud could revert.
-func (s *SteamService) IsSteamRunning() bool {
-	return winutil.IsExeRunning("steam.exe")
-}
+//
+// False here means either "closed" or "this build cannot tell", so it is only ever used to
+// *add* a warning. Anything that must not run while Steam is up goes through
+// requireProcessInspection first, which distinguishes the two.
+func (s *SteamService) IsSteamRunning() bool { return steamClientRunning() }

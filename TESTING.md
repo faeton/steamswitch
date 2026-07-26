@@ -1,13 +1,25 @@
 # Manual test plan
 
-This is the by-hand pass to run on a real Windows machine before a release. It is not CI — it
-covers the things automated tests structurally cannot: the Windows registry, real Steam
-process behaviour, Steam Cloud, and what the UI actually looks like at 420×520.
+This is the by-hand pass to run on a real machine before a release. It is not CI — it covers
+the things automated tests structurally cannot: the Windows registry (or macOS `registry.vdf`),
+real Steam process behaviour, Steam Cloud, and what the UI actually looks like at 420×520.
 
-**Everything below assumes Windows.** On macOS or Linux the app builds and renders but cannot
-switch: `internal/winutil`'s non-Windows stubs return `ErrUnsupported` for registry writes,
-process termination and process launch, and `IsExeRunning` always returns false. Nothing in
-sections B–F can be exercised there.
+**Run it on Windows and on macOS.** Both are supported targets and the OS-specific half of the
+engine is a separate implementation on each (`internal/steam/os_backend_windows.go` and
+`os_backend_darwin.go`), so a pass on one says nothing about the other. Where a step names a
+Windows path, the macOS equivalent is:
+
+| Windows | macOS |
+|---|---|
+| `<Steam>\` (contains `steam.exe`) | `~/Library/Application Support/Steam` |
+| `HKCU\Software\Valve\Steam` | `<Steam>/registry.vdf`, under `Registry/HKCU/Software/Valve/Steam` |
+| `steam.exe`, `steamwebhelper.exe`, `dota2.exe` | `steam_osx`, `steamwebhelper`, `dota2` |
+| `%AppData%\SteamSwitch\` | `~/Library/Application Support/SteamSwitch/` |
+
+**On Linux the app builds and renders but refuses to switch.** There is no backend for it, so
+every write path returns `Toast_Steam_SwitchingUnsupportedOnThisOS`. Sections B–F cannot be
+exercised; the one thing worth checking there is that the refusal is what happens, rather than
+a silent no-op.
 
 ## Before you start
 
@@ -67,7 +79,7 @@ leaves nothing behind.
 | B12 | Leave it **on**, switch to another account | Steam comes up already signed in, as in B1. |
 | B13 | Turn it **off**, switch to another account | Steam comes up at the **password prompt** for that account rather than signed in. The switch itself still worked — the right account is preselected. |
 | B14 | With it off, open `<Steam>/config/loginusers.vdf` | Every account reads `"RememberPassword" "0"`, including the one just switched to. |
-| B15 | Windows only, with it off: check `HKCU\Software\Valve\Steam` | `RememberPassword` is `0`, matching the file. The two must never disagree. |
+| B15 | With it off, check `HKCU\Software\Valve\Steam` (Windows) or `registry.vdf` (macOS) | `RememberPassword` is `0`, matching the file. The two must never disagree. |
 | B16 | Turn it back **on**, switch again | Signed in automatically once more. |
 | B17 | Compare `loginusers.vdf` before and after any switch | Only `RememberPassword` and the active-account marker change. **No other key is added, removed or reordered** — this is the lossless-write guarantee. |
 
@@ -108,6 +120,9 @@ This is the most important section and the easiest to skip. Don't.
 | D3 | Try to switch accounts with the modal up | Impossible. Tiles are unreachable. |
 | D4 | Expand **Inspect** | Shows phase, transaction id, start time, games. Read-only. |
 | D5 | Choose **Restore their setup** | The shared account's original config is back and intact. Compare against your C1 notes. |
+| D5a | Immediately after D5, check which account Steam will sign in as | It is the account you started from, **not** the shared one. A restore that puts the files back but leaves the login pointing at someone else's account is a half-undo. |
+| D5b | Confirm Steam did **not** start on its own during D5 | Answering a repair prompt is not a request to launch Steam. |
+| D5c | Repeat D1 but kill the app *before* the strip reaches "Applying my kit", then relaunch and expand **Inspect** | "Signed in as" shows the original account and there is no login-mismatch notice — nothing was swapped, so there is nothing to reconcile. |
 | D6 | Repeat D1, then choose **Keep current** instead | The app unblocks; whatever was on disk stays. |
 | D7 | Repeat D1 twice in a row without resolving between them | The second launch still shows exactly one prompt and still recovers cleanly. |
 | D8 | Inspect `%AppData%\SteamSwitch\SessionKit\` after a clean switch | `transactions/` is empty; `snapshots/` and `archive/` hold history. No leftovers. |
@@ -145,6 +160,24 @@ Only meaningful if you can arrange it, but please do arrange it.
 | F6 | Settings | Everything is on **one** page. No duplicated global block, no per-platform settings page. |
 | F7 | Tray → quick switch | Switches without opening the window. |
 | F8 | Tray while a kit is active | The tooltip reflects it. |
+
+## F-macos. macOS specifics
+
+Run the whole plan on macOS too, then these. They cover the parts where the macOS backend is a
+separate implementation rather than shared code.
+
+| # | Steps | Expected |
+|---|---|---|
+| M1 | With Steam **running**, try a switch | Refused with "Steam or a game is still running", or Steam is closed first — never a write while `steam_osx` is alive. Check with `pgrep -x steam_osx`. |
+| M2 | Start a switch while Steam is running and watch `pgrep -x steam_osx` | Steam gets a SIGTERM and is given up to 20s to exit cleanly before SIGKILL. It must not be killed instantly: Steam flushes `loginusers.vdf` and `registry.vdf` on exit. |
+| M3 | After a switch, open `~/Library/Application Support/Steam/registry.vdf` | `AutoLoginUser` under `Registry/HKCU/Software/Valve/Steam` is the new account. |
+| M4 | Diff that file against a copy taken before the switch | **Only** `AutoLoginUser` and `RememberPassword` changed. Every other key — `language`, `SourceModInstallPath`, the `steamglobal` subtree, the whole `HKLM` hive — is byte-identical. |
+| M5 | With Dota **running** but Steam closed, try a Dota config copy touching cloud settings | Refused. `dota2` on macOS has no `.exe` suffix; if this is *allowed*, the process-name list is wrong and every cloud guard is dead. |
+| M6 | Switch with auto-start on | Steam launches via LaunchServices, and quitting SteamSwitch afterwards leaves Steam running — it must not be a child process. |
+| M7 | Launch a game from a tile | The `steam://rungameid/` URL opens in Steam. |
+| M8 | Settings → Steam → uncheck "Stay signed in after switching", switch | `RememberPassword` is `0` in **both** `loginusers.vdf` and `registry.vdf`. |
+| M9 | Rename `/Applications/Steam.app` away, then switch with auto-start on | The login is still written; only the launch fails, with an error naming `Steam.app`. |
+| M10 | Tools → Advanced Cleaning → the registry rows | They are enabled on macOS and edit `registry.vdf`. Confirm afterwards that the named key is gone and the rest of the file is intact. |
 
 ## G. Regression sweep
 

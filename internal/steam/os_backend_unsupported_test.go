@@ -1,4 +1,4 @@
-//go:build !windows
+//go:build !windows && !darwin
 
 package steam
 
@@ -6,32 +6,17 @@ import (
 	"context"
 	"errors"
 	"testing"
-
-	"steamswitch/internal/winutil"
 )
 
-// These run only where process inspection is unavailable — the platform whose stubs used to
-// report "Steam is not running" with total confidence. Each asserts the refusal happens
-// before anything is written, so a macOS or Linux build cannot corrupt a Steam install.
+// These run on any OS with no backend. Each asserts the refusal happens before anything is
+// written, so a build that cannot see Steam's processes cannot corrupt a Steam install.
 
-func TestProcessInspectionIsUnsupportedHere(t *testing.T) {
-	if winutil.ProcessInspectionSupported() {
-		t.Fatal("expected process inspection to be unsupported on a !windows build")
-	}
+func TestUnsupportedOS_SwitchingIsRefused(t *testing.T) {
 	if SwitchingSupported() {
-		t.Fatal("SwitchingSupported must agree with ProcessInspectionSupported")
+		t.Fatal("SwitchingSupported must be false where there is no backend")
 	}
-}
-
-func TestSnapshotRunningExeBasenames_ReportsFailureRatherThanAnEmptySet(t *testing.T) {
-	// An empty set is indistinguishable from "no processes are running", and the caller in
-	// internal/basic caches the result.
-	set, err := winutil.SnapshotRunningExeBasenames()
-	if !errors.Is(err, winutil.ErrUnsupported) {
-		t.Fatalf("err = %v, want ErrUnsupported", err)
-	}
-	if set != nil {
-		t.Fatalf("set = %v, want nil so it cannot be cached as authoritative", set)
+	if err := requireProcessInspection(); !errors.Is(err, ErrSwitchingUnsupported) {
+		t.Fatalf("err = %v, want ErrSwitchingUnsupported", err)
 	}
 }
 

@@ -13,15 +13,7 @@ import (
 	"steamswitch/internal/stability"
 	"steamswitch/internal/stats"
 	"steamswitch/internal/tray"
-	"steamswitch/internal/winutil"
 )
-
-var steamKillNames = []string{
-	"steam.exe",
-	"SERVICE:Steam Client Service",
-	"steamwebhelper.exe",
-	"GameOverlayUI.exe",
-}
 
 // SwapToAccount: empty steamID64 clears AutoLoginUser (Add New). personaState -1 uses Steam_OverrideState; < -1 skips localconfig persona edit. extraLaunchArgs append after settings argv.
 func SwapToAccount(steamID64 string, personaState int, extraLaunchArgs []string) (err error) {
@@ -76,12 +68,13 @@ func SwapToAccount(steamID64 string, personaState int, extraLaunchArgs []string)
 	}
 
 	platform.EmitActionBarStatusI18nPlatform("Status_ClosingPlatform", "Steam")
-	if err := winutil.ErrIfCannotKill(steamKillNames, winutil.ClosingMethod(st.ClosingMethod)); err != nil {
+	names := backend.ProcessNames()
+	if err := backend.CanClose(names, st.ClosingMethod); err != nil {
 		platform.EmitActionBarStatusI18nPlatform("Status_ClosingPlatformFailed", "Steam")
 		return err
 	}
-	if err := winutil.KillByName(steamKillNames, winutil.ClosingMethod(st.ClosingMethod), nil); err != nil {
-		steamLog.Warn("kill steam processes", slog.Any("err", err))
+	if err := backend.Close(names, st.ClosingMethod); err != nil {
+		steamLog.Warn("close steam processes", slog.Any("err", err))
 	}
 
 	platform.EmitActionBarStatusI18n("Status_ActionBar_UpdatingSteamLogin")
@@ -119,16 +112,7 @@ func SwapToAccount(steamID64 string, personaState int, extraLaunchArgs []string)
 	}
 
 	platform.EmitActionBarStatusI18nPlatform("Status_StartingPlatform", "Steam")
-	args := buildSteamArgs(st, extraLaunchArgs)
-	exe := filepath.Join(root, "steam.exe")
-	opts := winutil.StartOpts{
-		Admin:         st.RunAsAdmin,
-		Method:        winutil.StartingMethod(strings.TrimSpace(st.StartingMethod)),
-		HideWindow:    false,
-		WorkingDir:    root,
-		AsDesktopUser: winutil.IsProcessElevated() && !st.RunAsAdmin,
-	}
-	if err := winutil.Start(exe, args, opts); err != nil {
+	if err := backend.Launch(root, buildSteamArgs(st, extraLaunchArgs), launchOpts(st, st.RunAsAdmin)); err != nil {
 		return err
 	}
 	tray.MaybeHideMainWindow()
@@ -165,16 +149,7 @@ func LaunchSteamOnly(extraLaunchArgs []string) error {
 	if root == "" {
 		return fmt.Errorf("steam install folder not found")
 	}
-	args := buildSteamArgs(st, extraLaunchArgs)
-	exe := filepath.Join(root, "steam.exe")
-	opts := winutil.StartOpts{
-		Admin:         st.RunAsAdmin,
-		Method:        winutil.StartingMethod(strings.TrimSpace(st.StartingMethod)),
-		HideWindow:    false,
-		WorkingDir:    root,
-		AsDesktopUser: winutil.IsProcessElevated() && !st.RunAsAdmin,
-	}
-	return winutil.Start(exe, args, opts)
+	return backend.Launch(root, buildSteamArgs(st, extraLaunchArgs), launchOpts(st, st.RunAsAdmin))
 }
 
 func LaunchSteamOnlyAs(forceAdmin bool, extraLaunchArgs []string) error {
@@ -207,20 +182,13 @@ func LaunchSteamOnlyAs(forceAdmin bool, extraLaunchArgs []string) error {
 	if root == "" {
 		return fmt.Errorf("steam install folder not found")
 	}
-	args := buildSteamArgs(st, extraLaunchArgs)
-	exe := filepath.Join(root, "steam.exe")
-	admin := st.RunAsAdmin
-	if forceAdmin {
-		admin = true
-	}
-	opts := winutil.StartOpts{
-		Admin:         admin,
-		Method:        winutil.StartingMethod(strings.TrimSpace(st.StartingMethod)),
-		HideWindow:    false,
-		WorkingDir:    root,
-		AsDesktopUser: winutil.IsProcessElevated() && !admin,
-	}
-	return winutil.Start(exe, args, opts)
+	admin := st.RunAsAdmin || forceAdmin
+	return backend.Launch(root, buildSteamArgs(st, extraLaunchArgs), launchOpts(st, admin))
+}
+
+// launchOpts narrows the settings to the OS-neutral pair a backend can act on.
+func launchOpts(st Settings, admin bool) LaunchOpts {
+	return LaunchOpts{Admin: admin, StartingMethod: strings.TrimSpace(st.StartingMethod)}
 }
 
 func buildSteamArgs(st Settings, extraLaunchArgs []string) []string {
@@ -253,21 +221,12 @@ func writeLoginUsersAndRegistry(steamRoot, selectedID64 string, rememberPassword
 		return err
 	}
 
-	regBase := `HKCU\Software\Valve\Steam`
+	// Where this lands is the one genuinely OS-specific part of a switch: the Windows
+	// registry, or registry.vdf on macOS. The backend keeps AutoLoginUser and
+	// RememberPassword in step with each other, since two stores disagreeing about whether
+	// to stay signed in is how an account reaches a password prompt it never should.
 	platform.EmitActionBarStatusI18n("Status_UpdatingRegistry")
-	if err := winutil.RegistryWrite(regBase+":AutoLoginUser", autoUser); err != nil {
-		return err
-	}
-	// Keep the selector in step with the file: writing 1 here while loginusers.vdf says 0
-	// would leave Steam with two contradictory answers about whether to stay signed in.
-	remember := uint32(0)
-	if rememberPassword {
-		remember = 1
-	}
-	if err := winutil.RegistryWrite(regBase+":RememberPassword", remember); err != nil {
-		return err
-	}
-	return nil
+	return backend.SetAutoLogin(steamRoot, autoUser, rememberPassword)
 }
 
 func setShowSteamSwitcher(steamRoot string, show bool) error {

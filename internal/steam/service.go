@@ -21,7 +21,6 @@ import (
 	"steamswitch/internal/profileimage"
 	"steamswitch/internal/security"
 	"steamswitch/internal/stats"
-	"steamswitch/internal/winutil"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"golang.org/x/sync/semaphore"
@@ -854,13 +853,20 @@ func (s *SteamService) LoginAndLaunchGame(steamID64 string, personaState int, ap
 			return err
 		}
 	}
-	url := "steam://rungameid/" + appID
-	if err := winutil.Start("cmd.exe", []string{"/c", "start", "", url}, winutil.StartOpts{}); err != nil {
+	if err := backend.OpenURL("steam://rungameid/" + appID); err != nil {
 		return err
 	}
 	_ = stats.IncrementGamesLaunched(PlatformKey)
 	return nil
 }
+
+// SwitchingSupported reports whether this build can swap accounts on the host OS.
+//
+// Bound so the frontend can disable the controls and say why, rather than letting the user
+// click a tile that always fails. Windows and macOS are supported; everywhere else the app
+// still runs — account lists, notes, images, settings — but nothing that writes to a Steam
+// install will proceed.
+func (s *SteamService) SwitchingSupported() bool { return SwitchingSupported() }
 
 func (s *SteamService) ChangeAccountImage(steamID64, sourcePath string) error {
 	s.mu.Lock()

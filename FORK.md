@@ -135,6 +135,35 @@ In Steam platform settings:
 Changing either setting re-applies the schedule immediately; no restart needed. The
 scheduler skips runs while the app is locked.
 
+### macOS support (`internal/steam/os_backend*.go`)
+
+Upstream is Windows-only, and reasonably so: it drives 24 platforms, most of which do not
+exist on macOS. A Steam-only fork does not have that problem — Steam keeps the same layout
+under `~/Library/Application Support/Steam` that it does under `C:\Program Files (x86)\Steam`,
+including `config/loginusers.vdf` and `userdata/<id32>/570/{local,remote}`.
+
+What differs is small enough to sit behind one interface, `osBackend`:
+
+- the Windows registry values (`AutoLoginUser`, `RememberPassword`) live in `registry.vdf`
+  under `Registry/HKCU/Software/Valve/Steam`, edited losslessly by `registryvdf.go`;
+- processes are `steam_osx` / `steamwebhelper` / `dota2`, found with `pgrep -x` and stopped
+  with SIGTERM followed by SIGKILL after a 20-second grace period;
+- the application bundle is separate from the data directory, so `steamRoot` throughout this
+  package means the *data* root and only `Launch` looks for `/Applications/Steam.app`.
+
+The seam is also the fail-closed gate. `unsupportedBackend` answers every method with
+`Toast_Steam_SwitchingUnsupportedOnThisOS`, and `ProcessInspectionSupported()` reporting false
+is what makes the write guards refuse rather than proceed — because "no Steam process found"
+and "I cannot see processes" are the same answer from a stub, and one of them means it is safe
+to write.
+
+Linux is not enabled. It is closer than it looks — same `registry.vdf`, process names `steam`
+and `steamwebhelper` — but Flatpak and Snap installs relocate the data directory into a sandbox
+and hide the process from name lookup outside it. A backend that handled only the native
+install would report Steam as closed, with confidence, for a large share of Linux users; a
+cloud-synced Dota write made in that state is reverted silently by Steam Cloud with no error
+anywhere.
+
 ## Development
 
 Same as upstream, but note:
@@ -151,12 +180,15 @@ to resolve imports until bindings are generated at least once.
 
 ### Test baseline on non-Windows
 
-`go test ./...` shows **16 failures on macOS/Linux**, all inherited from upstream and all
+`go test ./...` shows **15 failures on macOS/Linux**, all inherited from upstream and all
 caused by Windows path/registry/file-locking assumptions:
 
 - `internal/basic` — 13 (`TestFlow_*`, `TestResolveDescriptorVariables_WithTokens`)
 - `internal/platform` — 1 (`TestResolveSafeDeletePatternRejectsGlobAtPlaceholderBase`)
-- `internal/steam` — 2 (`TestWriteLoginUsersAndRegistry_FieldSwapping`, `TestWriteFileAtomic_LockedFile`)
+- `internal/steam` — 1 (`TestWriteFileAtomic_LockedFile`)
+
+These are all in the `basic` engine and in file-locking helpers, none of which the Steam
+engine uses. The Steam package itself is green on macOS.
 
 ## Review notes
 

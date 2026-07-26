@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"strings"
 
 	"steamswitch/internal/platform"
@@ -12,7 +11,6 @@ import (
 	"steamswitch/internal/stability"
 	"steamswitch/internal/stats"
 	"steamswitch/internal/tray"
-	"steamswitch/internal/winutil"
 )
 
 // Lifecycle is the Steam half of a session-kit transaction (sessionkit.Lifecycle).
@@ -98,11 +96,11 @@ func (l Lifecycle) CloseSteam(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	method := winutil.ClosingMethod(st.ClosingMethod)
-	if err := winutil.ErrIfCannotKill(steamKillNames, method); err != nil {
+	names := backend.ProcessNames()
+	if err := backend.CanClose(names, st.ClosingMethod); err != nil {
 		return err
 	}
-	if err := winutil.KillByName(steamKillNames, method, nil); err != nil {
+	if err := backend.Close(names, st.ClosingMethod); err != nil {
 		// Matches SwapToAccount: a kill that reports an error may still have worked, so the
 		// authority is RunningProcesses below, not this return value.
 		steamLog.Warn("kill steam processes", slog.Any("err", err))
@@ -112,25 +110,7 @@ func (l Lifecycle) CloseSteam(ctx context.Context) error {
 
 // RunningProcesses names anything still holding the files. The engine treats a non-empty
 // result as a hard stop, so this must only report processes that actually lock config trees.
-func (Lifecycle) RunningProcesses() []string {
-	var out []string
-	for _, name := range steamKillNames {
-		if strings.HasPrefix(name, "SERVICE:") {
-			// The client service holds no user config and cannot be polled by exe name.
-			continue
-		}
-		if winutil.IsExeRunning(name) {
-			out = append(out, name)
-		}
-	}
-	// Dota keeps its own handles on userdata/570 and survives Steam exiting.
-	for _, name := range dotaProcessNames {
-		if winutil.IsExeRunning(name) {
-			out = append(out, name)
-		}
-	}
-	return out
-}
+func (Lifecycle) RunningProcesses() []string { return runningProcessNames() }
 
 // WriteLogin points Steam at an account without launching it.
 //
@@ -172,13 +152,7 @@ func (l Lifecycle) LaunchSteam(ctx context.Context) error {
 	if !st.AutoStart {
 		return nil
 	}
-	return winutil.Start(filepath.Join(root, "steam.exe"), buildSteamArgs(st, nil), winutil.StartOpts{
-		Admin:         st.RunAsAdmin,
-		Method:        winutil.StartingMethod(strings.TrimSpace(st.StartingMethod)),
-		HideWindow:    false,
-		WorkingDir:    root,
-		AsDesktopUser: winutil.IsProcessElevated() && !st.RunAsAdmin,
-	})
+	return backend.Launch(root, buildSteamArgs(st, nil), launchOpts(st, st.RunAsAdmin))
 }
 
 // OnSwitchSucceeded runs the bookkeeping from the tail of SwapToAccount.

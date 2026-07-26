@@ -1,6 +1,7 @@
 package steam
 
 import (
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -9,7 +10,6 @@ import (
 	"strings"
 
 	"steamswitch/internal/security"
-	"steamswitch/internal/winutil"
 )
 
 // AdvancedClearResult is returned to the UI for each clearing action.
@@ -51,9 +51,14 @@ func advancedClearingI18nLine(key string, vars ...string) string {
 	return "i18n:" + key + advancedClearingI18nSep + strings.Join(vars, advancedClearingI18nSep)
 }
 
-// AdvancedClearingRegistrySupported is true when HKCU registry edits for Steam are supported.
+// AdvancedClearingRegistrySupported reports whether Steam's own settings values can be edited
+// on this OS.
+//
+// "Registry" is the Windows name for them; on macOS the same keys live in registry.vdf and the
+// backend edits that. The question the UI is really asking is "can the backend do this", not
+// "is this Windows".
 func (s *SteamService) AdvancedClearingRegistrySupported() bool {
-	return runtime.GOOS == "windows"
+	return backend.ProcessInspectionSupported()
 }
 
 // AdvancedClearingItems lists available actions for building the UI.
@@ -105,11 +110,11 @@ func (s *SteamService) RunAdvancedClearingAction(action string) (AdvancedClearRe
 		if err != nil {
 			return AdvancedClearResult{}, err
 		}
-		method := winutil.ClosingMethod(st.ClosingMethod)
-		if err := winutil.ErrIfCannotKill(steamKillNames, method); err != nil {
+		names := backend.ProcessNames()
+		if err := backend.CanClose(names, st.ClosingMethod); err != nil {
 			return AdvancedClearResult{}, err
 		}
-		if err := winutil.KillByName(steamKillNames, method, nil); err != nil {
+		if err := backend.Close(names, st.ClosingMethod); err != nil {
 			appendLine("Warning: " + err.Error())
 		}
 		appendLine(advancedClearingI18nLine("SteamAdvanced_ClosedSteam"))
@@ -149,13 +154,13 @@ func (s *SteamService) RunAdvancedClearingAction(action string) (AdvancedClearRe
 		clearSSFNFiles(root, appendLine)
 
 	case acRegAutoLogin:
-		tryDeleteSteamRegValue("AutoLoginuser", appendLine)
+		tryDeleteSteamRegValue(root, "AutoLoginuser", appendLine)
 	case acRegLastGame:
-		tryDeleteSteamRegValue("LastGameNameUsed", appendLine)
+		tryDeleteSteamRegValue(root, "LastGameNameUsed", appendLine)
 	case acRegPseudoUUID:
-		tryDeleteSteamRegValue("PseudoUUID", appendLine)
+		tryDeleteSteamRegValue(root, "PseudoUUID", appendLine)
 	case acRegRememberPass:
-		tryDeleteSteamRegValue("RememberPassword", appendLine)
+		tryDeleteSteamRegValue(root, "RememberPassword", appendLine)
 
 	default:
 		return AdvancedClearResult{}, fmt.Errorf("unknown advanced clearing action: %q", action)
@@ -376,19 +381,23 @@ func clearSSFNFiles(root string, appendLine func(string)) {
 	}
 }
 
-func tryDeleteSteamRegValue(valueName string, appendLine func(string)) {
-	if runtime.GOOS != "windows" {
-		appendLine("Registry actions are only available on Windows.")
-		return
-	}
-	encoded := "HKCU\\Software\\Valve\\Steam:" + valueName
-	err := winutil.RegistryDelete(encoded)
+// tryDeleteSteamRegValue clears one of Steam's own settings values.
+//
+// "Registry" is the Windows name for it; on macOS the same key lives in registry.vdf and the
+// backend edits that instead. Either way the effect on the user's Steam client is identical,
+// which is why this no longer refuses outright on non-Windows.
+func tryDeleteSteamRegValue(steamRoot, valueName string, appendLine func(string)) {
+	existed, err := backend.DeleteRegistryValue(steamRoot, valueName)
 	if err != nil {
-		if winutil.RegistryDeleteIsNotExist(err) {
-			appendLine(fmt.Sprintf("Registry value %s was not set (nothing to do).", valueName))
+		if errors.Is(err, ErrSwitchingUnsupported) {
+			appendLine("Steam settings values cannot be edited on this operating system.")
 			return
 		}
 		appendLine(fmt.Sprintf("Could not delete registry value %s: %v", valueName, err))
+		return
+	}
+	if !existed {
+		appendLine(fmt.Sprintf("Registry value %s was not set (nothing to do).", valueName))
 		return
 	}
 	appendLine(fmt.Sprintf("Deleted registry value: %s", valueName))

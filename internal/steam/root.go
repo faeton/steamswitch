@@ -28,6 +28,18 @@ func ResolveInstallFolder(exeDir string, s Settings, app platform.AppSettings, p
 		}
 	}
 
+	// The OS default comes before Platforms.json because that file's ExeLocationDefault is a
+	// Windows path (`%ProgramFiles(x86)%\Steam\steam.exe`) and expanding it anywhere else
+	// yields a directory that does not exist. On Windows the backend returns "" and the
+	// descriptor — which the user can override — stays authoritative.
+	//
+	// Note this is the *data* root, the folder holding `config/loginusers.vdf` and
+	// `userdata/`. On Windows that happens to be the same folder as `steam.exe`; on macOS it
+	// is not, and the backend's Launch finds the application bundle for itself.
+	if def := strings.TrimSpace(backend.DefaultRoot()); def != "" {
+		return filepath.Clean(def), nil
+	}
+
 	entry, err := platform.ParsePlatformEntry(platformsJSON, platformName)
 	if err != nil {
 		return "", err
