@@ -39,6 +39,9 @@ var (
 	// ErrLeaveRequired means a kit is live on a different account, so switching away is a
 	// decision about somebody else's files that only Leave is allowed to make.
 	ErrLeaveRequired = errors.New("Toast_Kit_LeaveRequiredOutsideWindow")
+	// ErrNotSettled blocks an operation that rewrites the files a transaction tracks while
+	// any kit state stands, live or interrupted.
+	ErrNotSettled = errors.New("Toast_Kit_RestoreBlockedByKit")
 )
 
 var engineLog = slog.Default().With("pkg", "sessionkit")
@@ -166,7 +169,14 @@ func (e *Engine) RunUnjournaledSwap(target AccountRef, swap func() error) error 
 		// Fail closed. An active journal may well exist and simply be unreadable right now
 		// (permissions, I/O), and proceeding is how a live transaction gets compounded. This
 		// matches guardManualConfigWrite, which already treats an unreadable status as unsafe.
-		return fmt.Errorf("%w: %v", ErrRecoveryRequired, err)
+		//
+		// The sentinel is returned bare rather than wrapped with the cause. Every error out
+		// of this package is an i18n key, and callers translate `err.Error()` — wrapping
+		// turns the key into "Toast_Kit_RecoveryRequired: permission denied", which matches
+		// no message and reaches the user as that literal string. The detail belongs in the
+		// log, where it is actually useful.
+		engineLog.Warn("session kit status unreadable; refusing swap", slog.Any("err", err))
+		return ErrRecoveryRequired
 	}
 	switch st.Kind {
 	case RecoveryInterrupted, RecoveryExternalChange:
@@ -177,6 +187,30 @@ func (e *Engine) RunUnjournaledSwap(target AccountRef, swap func() error) error 
 		}
 	}
 	return swap()
+}
+
+// RunWhileSettled runs `fn` under the transaction lock, but only when nothing at all is
+// outstanding — no live kit, no interrupted transaction.
+//
+// Stricter than RunUnjournaledSwap and with no same-account exemption, because the callers are
+// operations that rewrite the trees a kit is applied to rather than just the login: restoring
+// a backup over `config/` and `userdata/`, and launching a game on files a transaction may
+// still be mid-way through. Holding the lock for the duration is the point — checking and then
+// releasing is the exact race RunUnjournaledSwap exists to close, and doing it here would
+// reopen it one level up.
+func (e *Engine) RunWhileSettled(fn func() error) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	st, err := e.statusLocked()
+	if err != nil {
+		engineLog.Warn("session kit status unreadable; refusing", slog.Any("err", err))
+		return ErrRecoveryRequired
+	}
+	if st.Kind != RecoveryNone {
+		return ErrNotSettled
+	}
+	return fn()
 }
 
 // kitBlocksEntry reports whether an applied kit forbids switching to `target`.

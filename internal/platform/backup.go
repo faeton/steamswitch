@@ -97,12 +97,17 @@ func (p *PlatformService) OpenPlatformBackupFolder(platformKey string) error {
 	return OpenPathInFileManager(backupDir)
 }
 
-// restoreGuard is asked whether a destructive restore may run for a platform. Injected from
-// main.go, because `platform` must not import `steam` (see CLAUDE.md).
-var restoreGuard func(platformKey string) error
+// restoreGuard wraps a destructive restore so it runs only when the Session Kit permits it,
+// with the engine's transaction lock held for the duration. Injected from main.go, because
+// `platform` must not import `steam` (see CLAUDE.md).
+//
+// It takes the restore as a callback rather than answering a yes/no question: a gate that
+// returns "allowed" and then lets the caller act is the check/use race this whole mechanism
+// exists to close, and a restore is the most destructive thing to lose that race to.
+var restoreGuard func(platformKey string, restore func() error) error
 
-// SetRestoreGuard installs the check run before a backup is restored over live files.
-func SetRestoreGuard(fn func(platformKey string) error) { restoreGuard = fn }
+// SetRestoreGuard installs the wrapper around a backup restore over live files.
+func SetRestoreGuard(fn func(platformKey string, restore func() error) error) { restoreGuard = fn }
 
 // RestoreLatestPlatformBackup overwrites the platform's live config from the newest archive.
 //
@@ -114,11 +119,19 @@ func SetRestoreGuard(fn func(platformKey string) error) { restoreGuard = fn }
 // for something the user did deliberately, and corrupting an interrupted transaction that had
 // not been resolved yet.
 func (p *PlatformService) RestoreLatestPlatformBackup(platformKey string) (BackupResult, error) {
-	if restoreGuard != nil {
-		if err := restoreGuard(platformKey); err != nil {
-			return BackupResult{}, err
-		}
+	if restoreGuard == nil {
+		return p.restoreLatestPlatformBackup(platformKey)
 	}
+	var out BackupResult
+	err := restoreGuard(platformKey, func() error {
+		var err error
+		out, err = p.restoreLatestPlatformBackup(platformKey)
+		return err
+	})
+	return out, err
+}
+
+func (p *PlatformService) restoreLatestPlatformBackup(platformKey string) (BackupResult, error) {
 	p.mu.Lock()
 	d, err := p.loadDescriptorUnlocked(platformKey)
 	if err != nil {

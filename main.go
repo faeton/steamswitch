@@ -77,11 +77,11 @@ func init() {
 	platform.SetSteamReset(steam.ResetToDefaults)
 	// Restoring a backup writes over the same config and userdata trees the Session Kit
 	// tracks, so it answers to the same gate a bare swap does.
-	platform.SetRestoreGuard(func(platformKey string) error {
+	platform.SetRestoreGuard(func(platformKey string, restore func() error) error {
 		if !strings.EqualFold(strings.TrimSpace(platformKey), steam.PlatformKey) {
-			return nil
+			return restore()
 		}
-		return steam.RestorePermitted()
+		return steam.RestorePermitted(restore)
 	})
 	platform.SetControllerSupportChangedHook(controllerSvc.SetEnabled)
 	platform.SetDiscordPresenceRefreshHook(discordRPC.RefreshAsync)

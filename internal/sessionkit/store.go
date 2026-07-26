@@ -59,6 +59,33 @@ func SessionKitRoot() (string, error) {
 	return filepath.Join(r, "SessionKit"), nil
 }
 
+// ActivePointerExists reports whether a transaction pointer is on disk, without building an
+// engine or parsing anything.
+//
+// This is for the one case where the engine could not be constructed. `newStore` only resolves
+// the data root and creates a directory, so a construction failure means the *store* is
+// unavailable, not that a transaction is in progress — and refusing every switch on that basis
+// would take a machine whose owner has never used a shared account and disable the whole
+// product because a subdirectory could not be made.
+//
+// The three answers are kept distinct on purpose. `false, nil` is the overwhelmingly common
+// case and is safe to switch on. `true, nil` means something was left behind and only the
+// engine can say what. An error means we could not tell, which reads the same as the second.
+func ActivePointerExists() (bool, error) {
+	root, err := SessionKitRoot()
+	if err != nil {
+		return false, err
+	}
+	_, err = os.Stat(filepath.Join(root, "active.json"))
+	if err == nil {
+		return true, nil
+	}
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	return false, err
+}
+
 func newStore() (store, error) {
 	root, err := SessionKitRoot()
 	if err != nil {

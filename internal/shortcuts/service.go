@@ -142,9 +142,12 @@ func (s *Service) RunShortcut(platformKey, fileName string, admin bool, selected
 		// still applies. An interrupted transaction can coexist with a loginusers.vdf that
 		// names this account, and running the shortcut would launch Steam on top of files
 		// the engine has not resolved.
-		if err := steam.SwapPermitted(selectedUniqueID); err != nil {
-			return err
-		}
+		//
+		// The shortcut runs inside the gate rather than after it, so a transaction cannot
+		// start between the check and the launch.
+		return steam.SwapPermitted(selectedUniqueID, func() error {
+			return RunShortcut(platformKey, fileName, admin)
+		})
 	}
 
 	if needSwap {
