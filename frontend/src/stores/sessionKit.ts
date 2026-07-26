@@ -26,6 +26,10 @@ export type KitStatus = {
   moduleNames: string[];
   lastError: string;
   startedAt: string;
+  /** Who Steam will actually log in as right now, read from disk rather than inferred. */
+  signedInSteamId64: string;
+  /** The login on disk is not the one the interrupted transaction was heading for. */
+  loginMismatch: boolean;
   homeSteamId64: string;
   sharedIds: string[];
   cloudRisk: boolean;
@@ -41,6 +45,8 @@ const EMPTY: KitStatus = {
   moduleNames: [],
   lastError: "",
   startedAt: "",
+  signedInSteamId64: "",
+  loginMismatch: false,
   homeSteamId64: "",
   sharedIds: [],
   cloudRisk: false,

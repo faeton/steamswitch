@@ -82,6 +82,12 @@ func ReplacePart(src, live, staging, rollback string, srcAbsent bool, step Repla
 	} else if err := writeAbsentMarker(rollback); err != nil {
 		return err
 	}
+	// RollbackPart treats the presence of `rollback` as the authority on whether this move
+	// happened — more trustworthy than the journal, which can lag it. That only holds if the
+	// directory entry is durable, so sync both ends of the rename before journalling it.
+	if err := syncParents(live, rollback); err != nil {
+		return err
+	}
 	if err := step(ReplaceOldMoved); err != nil {
 		return err
 	}
@@ -94,8 +100,29 @@ func ReplacePart(src, live, staging, rollback string, srcAbsent bool, step Repla
 		if err := os.Rename(staging, live); err != nil {
 			return err
 		}
+		if err := syncParents(live, staging); err != nil {
+			return err
+		}
 	}
 	return step(ReplaceInstalled)
+}
+
+// syncParents makes the directory entries touched by a rename durable. A missing parent is
+// not an error: `staging` is removed by a later step, and syncing its parent is only useful
+// while it is still there.
+func syncParents(paths ...string) error {
+	seen := map[string]bool{}
+	for _, p := range paths {
+		dir := filepath.Dir(p)
+		if seen[dir] {
+			continue
+		}
+		seen[dir] = true
+		if err := fsutil.SyncDir(dir); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
+	return nil
 }
 
 // VerifyPart re-hashes the installed tree and compares it against what was expected.

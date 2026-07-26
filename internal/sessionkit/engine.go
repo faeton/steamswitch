@@ -344,6 +344,15 @@ func (e *Engine) Enter(ctx context.Context, target AccountRef, personaState int)
 			return e.failTransaction(j, err)
 		}
 		e.store.prune(m.ID(), target, e.store.protectedSnapshots(j, m.ID(), target))
+
+		// The Home account needs pruning too, and it is the one that grows fastest: a
+		// kit-source snapshot is taken on *every* Enter, whereas a "their setup" snapshot is
+		// taken once per shared account. Left alone this is an unbounded pile of full copies
+		// of the same config. Safe here because the journal now references the current
+		// kit-source snapshot, so protectedSnapshots covers it.
+		if home.SteamID64 != target.SteamID64 {
+			e.store.prune(m.ID(), home, e.store.protectedSnapshots(j, m.ID(), home))
+		}
 	}
 	if err := e.store.journal.Advance(j, PhaseSnapshotSaved); err != nil {
 		return e.failTransaction(j, err)
@@ -529,7 +538,7 @@ func (e *Engine) restoreTheirSetup(ctx context.Context, j *Journal, steamRoot st
 			Account:   j.To,
 			Plan:      plan,
 			SteamRoot: steamRoot,
-			Expected:  manifestFromDigests(m.ID(), expectedDigests),
+			Expected:  DigestOnlyManifest(m.ID(), expectedDigests),
 		})
 		if err != nil {
 			return e.failTransaction(j, err)
@@ -768,17 +777,6 @@ func planFor(plans []ModulePlan, moduleID string) (ModulePlan, bool) {
 	return ModulePlan{}, false
 }
 
-// manifestFromDigests rebuilds the minimal manifest needed for a digest-level comparison.
-// Only the digests are recorded in the journal; the per-file detail lives in the snapshot's
-// manifest.json and is loaded on demand for the "what changed" view.
-func manifestFromDigests(moduleID string, digests map[string]string) Manifest {
-	m := Manifest{ModuleID: moduleID, Parts: map[string]PartManifest{}}
-	for id, d := range digests {
-		m.Parts[id] = PartManifest{PartID: id, Digest: d}
-	}
-	return m
-}
-
 // VerifyCloudRisk re-reads the cloud-synced parts after Steam has been up for a while, to
 // catch Steam Cloud reverting the kit (REDESIGN.md §2, "Steam Cloud honesty").
 //
@@ -811,7 +809,7 @@ func (e *Engine) VerifyCloudRisk(ctx context.Context) (bool, error) {
 			Account:   j.To,
 			Plan:      plan,
 			SteamRoot: steamRoot,
-			Expected:  manifestFromDigests(m.ID(), expected),
+			Expected:  DigestOnlyManifest(m.ID(), expected),
 		})
 		if err != nil {
 			return true, err

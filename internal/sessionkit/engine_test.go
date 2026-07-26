@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"steamswitch/internal/paths"
@@ -543,5 +544,146 @@ func TestEnter_NoHomeAccountIsRefused(t *testing.T) {
 	}
 	if err := eng.Enter(context.Background(), AccountRef{SteamID64: sharedID}, -1); !errors.Is(err, ErrNoHomeAccount) {
 		t.Fatalf("err = %v, want ErrNoHomeAccount", err)
+	}
+}
+
+// TestEnter_KitSourceSnapshotsArePruned pins the growth bound on the Home account.
+//
+// A "their setup" snapshot is taken once per shared account, but a kit-source snapshot is
+// taken on *every* Enter, so Home is where an unpruned snapshot library actually runs away:
+// each one is a full copy of the same config tree.
+func TestEnter_KitSourceSnapshotsArePruned(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+
+	cycles := maxSnapshotsPerAccount + 5
+	for i := 0; i < cycles; i++ {
+		if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err != nil {
+			t.Fatalf("enter %d: %v", i, err)
+		}
+		if err := h.engine.Leave(ctx, AccountRef{SteamID64: homeID}, LeaveRestoreTheirs, -1); err != nil {
+			t.Fatalf("leave %d: %v", i, err)
+		}
+	}
+
+	homeSnaps := countSnapshots(t, h.store, AccountRef{SteamID64: homeID})
+	if homeSnaps > maxSnapshotsPerAccount {
+		t.Fatalf("Home kept %d kit-source snapshots after %d switches, cap is %d",
+			homeSnaps, cycles, maxSnapshotsPerAccount)
+	}
+	if homeSnaps == 0 {
+		t.Fatal("Home kept no snapshots at all — pruning ate the live kit source")
+	}
+
+	sharedSnaps := countSnapshots(t, h.store, AccountRef{SteamID64: sharedID})
+	if sharedSnaps > maxSnapshotsPerAccount {
+		t.Fatalf("shared account kept %d snapshots, cap is %d", sharedSnaps, maxSnapshotsPerAccount)
+	}
+
+	// The pointer that "restore theirs" depends on must still resolve to a readable snapshot.
+	lkg, ok := h.store.lastKnownGood(fakeModuleID, AccountRef{SteamID64: sharedID})
+	if !ok {
+		t.Fatal("last-known-good pointer disappeared")
+	}
+	if _, _, _, err := h.store.readSnapshot(fakeModuleID, AccountRef{SteamID64: sharedID}, lkg); err != nil {
+		t.Fatalf("pruning deleted the last-known-good snapshot: %v", err)
+	}
+}
+
+func countSnapshots(t *testing.T, s store, account AccountRef) int {
+	t.Helper()
+	dir, err := s.snapshotsDir(fakeModuleID, account)
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0
+		}
+		t.Fatal(err)
+	}
+	n := 0
+	for _, e := range entries {
+		if e.IsDir() && !strings.HasPrefix(e.Name(), ".tmp-") {
+			n++
+		}
+	}
+	return n
+}
+
+// TestResolve_RestoreTheirsPutsTheLoginBack pins the other half of a restore.
+//
+// Putting the shared account's own files back while leaving Steam signed in as that account
+// is a half-undo: the next launch signs into someone else's account, which now looks
+// untouched, and the user has no signal that their visit is still in progress.
+func TestResolve_RestoreTheirsPutsTheLoginBack(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+
+	if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err != nil {
+		t.Fatal(err)
+	}
+	if got, _ := h.life.CurrentAccount(); got.SteamID64 != sharedID {
+		t.Fatalf("after Enter the login is %q, want the shared account", got.SteamID64)
+	}
+
+	// Someone plays on the shared account, so Leave blocks instead of restoring.
+	writeFile(t, filepath.Join(h.mod.root, sharedID, partLocal, "my.cfg"), "edited by them")
+	if err := h.engine.Leave(ctx, AccountRef{SteamID64: homeID}, LeaveRestoreTheirs, -1); !errors.Is(err, ErrExternalChange) {
+		t.Fatalf("leave returned %v, want ErrExternalChange", err)
+	}
+
+	if err := h.engine.Resolve(ctx, ActionRestoreTheirs); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+
+	if got, _ := h.life.CurrentAccount(); got.SteamID64 != homeID {
+		t.Fatalf("after restore the login is %q, want the Leave target %q", got.SteamID64, homeID)
+	}
+	// Repair, not a switch: recovery must not start Steam on the user's behalf.
+	for _, c := range h.life.calls[len(h.life.calls)-1:] {
+		if c == "launch" {
+			t.Fatal("recovery launched Steam; answering a repair prompt is not a request to start it")
+		}
+	}
+}
+
+// TestStatus_ReportsALoginThatDisagreesWithTheJournal covers the read-only half: the journal
+// records a phase, not an outcome, so the UI needs the login read back off disk.
+func TestStatus_ReportsALoginThatDisagreesWithTheJournal(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.mod.failApplyOn = partRemote
+
+	if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err == nil {
+		t.Fatal("expected the simulated crash to surface")
+	}
+
+	st, err := h.engine.Status()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if st.Kind != RecoveryInterrupted {
+		t.Fatalf("status = %+v, want interrupted", st)
+	}
+	// The crash landed before the login swap, so there is nothing to reconcile.
+	if st.SignedInSteamID64 != homeID {
+		t.Fatalf("signed in as %q, want %q", st.SignedInSteamID64, homeID)
+	}
+	if st.LoginMismatch {
+		t.Fatalf("reported a login mismatch, but the login was never swapped: %+v", st)
+	}
+
+	// Now simulate the crash having happened *after* the swap.
+	if err := h.life.WriteLogin(ctx, AccountRef{SteamID64: sharedID}, -1); err != nil {
+		t.Fatal(err)
+	}
+	st, err = h.engine.Status()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.LoginMismatch || st.SignedInSteamID64 != sharedID {
+		t.Fatalf("status = %+v, want a mismatch against the shared account", st)
 	}
 }

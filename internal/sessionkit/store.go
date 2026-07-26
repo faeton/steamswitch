@@ -187,6 +187,12 @@ func (s store) commitSnapshot(tmpDir, moduleID string, account AccountRef, id st
 	if err := os.Rename(tmpDir, final); err != nil {
 		return "", err
 	}
+	// Make the publish durable before anyone is told the snapshot exists. The journal write
+	// that references this id lands next, and a journal pointing at a snapshot the filesystem
+	// forgot is worse than no snapshot: recovery would offer a restore that cannot run.
+	if err := fsutil.SyncDir(filepath.Dir(final)); err != nil {
+		return "", err
+	}
 	return final, nil
 }
 
@@ -265,7 +271,7 @@ func (s store) setLastKnownGood(moduleID string, account AccountRef, snapshotID 
 	if err != nil {
 		return err
 	}
-	return fsutil.WriteFileAtomic(path, data, 0o644)
+	return fsutil.WriteFileAtomicDurable(path, data, 0o644)
 }
 
 func (s store) lastKnownGood(moduleID string, account AccountRef) (string, bool) {

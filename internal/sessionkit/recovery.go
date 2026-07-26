@@ -44,6 +44,16 @@ type RecoveryState struct {
 	Modules    []string `json:"modules,omitempty"`
 	LastError  string   `json:"lastError,omitempty"`
 	StartedAt  string   `json:"startedAt,omitempty"`
+
+	// SignedInSteamID64 is who Steam will actually log in as right now, read from disk
+	// rather than inferred from the phase. Empty when it could not be determined.
+	SignedInSteamID64 string `json:"signedInSteamId64,omitempty"`
+	// LoginMismatch reports that the login on disk is not the one this transaction was
+	// heading for. The journal records a *phase*, not an outcome: the process can die
+	// between `WriteLogin` and the write that records it, or after being recorded but
+	// before Steam is relaunched, and either way the phase alone cannot tell the UI which
+	// account the user is about to end up on. Resolve fixes this; Status only reports it.
+	LoginMismatch bool `json:"loginMismatch,omitempty"`
 }
 
 // Status classifies the current state without changing anything. Safe to call while the app
@@ -96,6 +106,16 @@ func (e *Engine) statusLocked() (RecoveryState, error) {
 		st.Kind = RecoveryNone
 	default:
 		st.Kind = RecoveryInterrupted
+	}
+
+	// Reconcile the journal against the login Steam actually holds. A failure to read it is
+	// not a recovery failure — on a build where the Steam files are unreadable we simply
+	// report nothing rather than blocking the user out of the prompt.
+	if signedIn, err := e.life.CurrentAccount(); err == nil && signedIn.SteamID64 != "" {
+		st.SignedInSteamID64 = signedIn.SteamID64
+		if want := j.LoginAfterRestore(); want.SteamID64 != "" && st.Kind == RecoveryInterrupted {
+			st.LoginMismatch = signedIn.SteamID64 != want.SteamID64
+		}
 	}
 	return st, nil
 }
@@ -175,6 +195,9 @@ func (e *Engine) Resolve(ctx context.Context, action RecoveryAction) error {
 		if err := e.restoreFromSnapshots(ctx, j, steamRoot); err != nil {
 			return err
 		}
+		if err := e.reconcileLogin(ctx, j); err != nil {
+			return err
+		}
 		if err := e.store.journal.Advance(j, PhaseComplete); err != nil {
 			return err
 		}
@@ -189,6 +212,45 @@ func (e *Engine) Resolve(ctx context.Context, action RecoveryAction) error {
 
 // ErrAbandonAfterWrite refuses to discard a transaction that already overlaid files.
 var ErrAbandonAfterWrite = errors.New("Toast_Kit_AbandonAfterWrite")
+
+// reconcileLogin points Steam back at the account the restore just made true.
+//
+// Restoring files without this leaves the two halves of a switch disagreeing: the shared
+// account's own config is back on disk, but Steam is still set to log in as that account,
+// so the user's next launch signs into someone else's account wearing their own settings —
+// the exact confusion the transaction was being undone to avoid.
+//
+// Only the login is written; Steam is deliberately not launched. Recovery is repair, and
+// starting a game platform is not something the user asked for by answering a prompt.
+//
+// Nothing here is fatal. A login that cannot be written is worth telling the user about, but
+// it must not strand the transaction in a state that blocks every future switch — the files,
+// which are the part that can actually be lost, are already back.
+func (e *Engine) reconcileLogin(ctx context.Context, j *Journal) error {
+	want := j.LoginAfterRestore()
+	if want.SteamID64 == "" {
+		engineLog.Info("recovery: no recorded login to restore", "tx", j.TransactionID)
+		return nil
+	}
+
+	current, err := e.life.CurrentAccount()
+	if err != nil {
+		engineLog.Warn("recovery: could not read the current Steam login", "tx", j.TransactionID, "err", err)
+		return nil
+	}
+	if current.SteamID64 == want.SteamID64 {
+		return nil
+	}
+
+	e.phase("Status_ActionBar_UpdatingSteamLogin", nil)
+	if err := e.life.WriteLogin(ctx, want, j.PersonaState); err != nil {
+		engineLog.Warn("recovery: could not restore the Steam login", "tx", j.TransactionID, "err", err)
+		actionlog.Record("kit:loginReconcileFailed", j.TransactionID, want.SteamID64, err)
+		return nil
+	}
+	actionlog.Record("kit:loginReconciled", j.TransactionID, want.SteamID64, nil)
+	return nil
+}
 
 // hasCompletedWrites reports whether any part finished its replacement and was verified.
 //

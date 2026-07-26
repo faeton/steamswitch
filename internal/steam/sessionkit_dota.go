@@ -419,9 +419,11 @@ func (m DotaModule) Verify(ctx context.Context, req sessionkit.VerifyRequest) (s
 		return sessionkit.VerifyResult{}, err
 	}
 	return sessionkit.VerifyResult{
-		Match:       current.Equal(req.Expected),
-		Current:     current,
-		Differences: current.Diff(req.Expected),
+		Match:   current.Equal(req.Expected),
+		Current: current,
+		// Expected is the receiver: Diff reports what the *live* tree did relative to what
+		// was recorded, so a file the other person added reads as "added", not "removed".
+		Differences: req.Expected.Diff(current),
 	}, nil
 }
 

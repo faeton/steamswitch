@@ -47,3 +47,17 @@ func WriteFileAtomic(path string, data []byte, perm os.FileMode) error {
 	actionlog.Record("file:write", path, "", nil)
 	return nil
 }
+
+// WriteFileAtomicDurable is WriteFileAtomic plus a sync of the containing directory, so the
+// rename that publishes the file is itself durable and not just atomic.
+//
+// Use it where a crash immediately afterwards must not be able to lose the write — the
+// session-kit journal and its active pointer, whose entire purpose is to be on disk before
+// the mutation they describe. Ordinary settings writes do not need it and should not pay
+// for it: an fsync of the directory is a real seek on spinning media and a flush on SSDs.
+func WriteFileAtomicDurable(path string, data []byte, perm os.FileMode) error {
+	if err := WriteFileAtomic(path, data, perm); err != nil {
+		return err
+	}
+	return SyncDir(filepath.Dir(path))
+}

@@ -31,6 +31,11 @@ const (
 	PartAbsent PartState = "absent"
 	PartEmpty  PartState = "empty"
 	PartFilled PartState = "filled"
+	// PartDigestOnly marks a part reconstructed from a journal digest alone. The journal
+	// stores `partID -> digest`, not the per-file records, so such a manifest can answer
+	// "did this change?" but not "which files changed?". Diff refuses to guess at the
+	// file level for these — see DigestOnlyManifest.
+	PartDigestOnly PartState = "digest-only"
 )
 
 // FileRecord is one regular file inside a part.
@@ -193,6 +198,24 @@ func HashParts(moduleID string, parts []Part, resolve func(partID string) (strin
 	return m, nil
 }
 
+// DigestOnlyManifest rebuilds the minimal manifest needed for a digest-level comparison
+// from the compact map the journal stores.
+//
+// The result is deliberately marked PartDigestOnly. Without that marker its zero-valued
+// State and empty Files list are indistinguishable from a real reading of an empty tree,
+// and Diff would report every live file as "removed" — the exact opposite of what happened.
+func DigestOnlyManifest(moduleID string, digests map[string]string) Manifest {
+	m := Manifest{ModuleID: moduleID, Parts: make(map[string]PartManifest, len(digests))}
+	for id, d := range digests {
+		m.Parts[id] = PartManifest{PartID: id, State: PartDigestOnly, Files: []FileRecord{}, Digest: d}
+	}
+	return m
+}
+
+// HasFileDetail reports whether this part carries per-file records, i.e. whether a
+// file-level diff against it means anything.
+func (pm PartManifest) HasFileDetail() bool { return pm.State != PartDigestOnly }
+
 // Digests flattens a manifest to the compact `partID -> digest` map the journal stores.
 func (m Manifest) Digests() map[string]string {
 	out := make(map[string]string, len(m.Parts))
@@ -237,6 +260,12 @@ func (expected Manifest) Diff(current Manifest) []FileDiff {
 			continue
 		}
 		if want.Digest == got.Digest {
+			continue
+		}
+		// One side has digests only, so file-level comparison would be fiction. Report the
+		// part as changed and let the caller load the snapshot manifest if it wants detail.
+		if !want.HasFileDetail() || !got.HasFileDetail() {
+			diffs = append(diffs, FileDiff{PartID: id, Path: "", Kind: "changed"})
 			continue
 		}
 		// A part that appeared or vanished wholesale is one diff, not one per file.

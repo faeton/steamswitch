@@ -65,6 +65,13 @@
     <p class="kit-rec__note">{$t("Kit_Recovery_NothingWritten")}</p>
   {/if}
 
+  {#if status.loginMismatch}
+    <!-- The crash left the files and the login disagreeing. Worth saying plainly, because
+         it is the one part of the damage the user can see for themselves next time they
+         open Steam. Restoring fixes it; keeping what is on disk deliberately does not. -->
+    <p class="kit-rec__note">{$t("Kit_Recovery_LoginMismatch")}</p>
+  {/if}
+
   <button
     type="button"
     class="kit-rec__disclosure"
@@ -87,6 +94,8 @@
       <dd>{status.startedAt || "—"}</dd>
       <dt>{$t("Kit_Detail_Modules")}</dt>
       <dd>{(status.moduleNames ?? []).join(", ") || "—"}</dd>
+      <dt>{$t("Kit_Detail_SignedIn")}</dt>
+      <dd>{status.signedInSteamId64 || "—"}</dd>
       {#if status.lastError}
         <dt>{$t("Kit_Detail_Error")}</dt>
         <dd>{status.lastError}</dd>

@@ -145,6 +145,21 @@ type Journal struct {
 	LastError    string `json:"lastError,omitempty"`
 }
 
+// LoginAfterRestore is the account Steam should be pointed at once this transaction's files
+// have been put back — i.e. the login that makes "undo my visit" true.
+//
+// For an interrupted Leave that is where the user was heading. For an interrupted Enter it is
+// where they came from: the visit never completed, so undoing it means going back.
+//
+// The zero AccountRef means "not known" — `From` is empty when nothing was signed in at Enter
+// time — and callers must treat that as "leave the login alone", not as an account to write.
+func (j *Journal) LoginAfterRestore() AccountRef {
+	if j.LeaveTarget != nil && j.LeaveTarget.SteamID64 != "" {
+		return *j.LeaveTarget
+	}
+	return j.From
+}
+
 var (
 	// ErrJournalUnknownVersion refuses a journal written by a newer build.
 	ErrJournalUnknownVersion = errors.New("Toast_Kit_JournalVersion")
@@ -317,8 +332,13 @@ func (s journalStore) journalPath(txID string) (string, error) {
 	return filepath.Join(dir, "journal.json"), nil
 }
 
-// Write persists the journal and stamps UpdatedAt. Both this and the active pointer go
-// through WriteFileAtomic, which fsyncs a same-directory temp file before renaming.
+// Write persists the journal and stamps UpdatedAt.
+//
+// This and the active pointer are the two writes the whole crash-safety story rests on, so
+// they go through WriteFileAtomicDurable: the temp file is fsynced, renamed into place, and
+// then the containing directory is fsynced too. Without that last step the rename can be
+// lost in a power cut while a mutation made *after* it survives, which is precisely the
+// ordering the journal exists to rule out.
 func (s journalStore) Write(j *Journal) error {
 	j.UpdatedAt = nowRFC3339()
 	path, err := s.journalPath(j.TransactionID)
@@ -332,7 +352,7 @@ func (s journalStore) Write(j *Journal) error {
 	if err != nil {
 		return err
 	}
-	return fsutil.WriteFileAtomic(path, data, 0o644)
+	return fsutil.WriteFileAtomicDurable(path, data, 0o644)
 }
 
 // Advance moves to a new phase and persists in one step, so no caller can change the phase
@@ -356,7 +376,7 @@ func (s journalStore) SetActive(txID string) error {
 	if err := os.MkdirAll(s.root, 0o755); err != nil {
 		return err
 	}
-	return fsutil.WriteFileAtomic(s.activePath(), data, 0o644)
+	return fsutil.WriteFileAtomicDurable(s.activePath(), data, 0o644)
 }
 
 func (s journalStore) ClearActive() error {

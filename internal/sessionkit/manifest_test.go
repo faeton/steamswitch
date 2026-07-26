@@ -180,6 +180,49 @@ func TestManifestDiff_WholePartAppearanceIsOneEntry(t *testing.T) {
 	}
 }
 
+func TestDigestOnlyManifest_DiffDoesNotInventFileChanges(t *testing.T) {
+	live := t.TempDir()
+	writeFile(t, filepath.Join(live, "a.cfg"), "1")
+	writeFile(t, filepath.Join(live, "b.cfg"), "2")
+
+	parts := []Part{{ID: "local", KitEligible: true}}
+	current, err := HashParts("dota2", parts, func(string) (string, bool) { return live, true })
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// What the engine has after a restart: the journal kept a digest, nothing more.
+	expected := DigestOnlyManifest("dota2", map[string]string{"local": "sha256:deadbeef"})
+
+	if expected.Equal(current) {
+		t.Fatal("a stale digest compared equal to the live tree")
+	}
+
+	diffs := expected.Diff(current)
+	if len(diffs) != 1 || diffs[0].PartID != "local" || diffs[0].Kind != "changed" || diffs[0].Path != "" {
+		t.Fatalf("diffs = %+v, want a single part-level 'changed' — file-level detail is not available", diffs)
+	}
+}
+
+func TestDigestOnlyManifest_MatchingDigestIsNotADiff(t *testing.T) {
+	live := t.TempDir()
+	writeFile(t, filepath.Join(live, "a.cfg"), "1")
+
+	parts := []Part{{ID: "local", KitEligible: true}}
+	current, err := HashParts("dota2", parts, func(string) (string, bool) { return live, true })
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := DigestOnlyManifest("dota2", current.Digests())
+	if !expected.Equal(current) {
+		t.Fatal("a digest-only manifest of the live tree did not compare equal to it")
+	}
+	if diffs := expected.Diff(current); len(diffs) != 0 {
+		t.Fatalf("diffs = %+v, want none", diffs)
+	}
+}
+
 func TestManifestEqual_IdenticalTreesMatch(t *testing.T) {
 	mk := func() string {
 		dir := t.TempDir()
