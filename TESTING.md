@@ -34,6 +34,10 @@ You need:
 Take a copy of `<Steam>\userdata\` before starting. If a test goes wrong you want a way back
 that does not depend on the thing you are testing.
 
+§V (the account vault) needs a little more — a test account you do not mind locking out, a
+free Steam Web API key, and optionally an inbox you can reach over IMAP. Its own preamble
+lists them, and the section can be skipped entirely if you are only checking switching.
+
 > Where a step says **must**, a failure is a release blocker. Where it says *should*, note it
 > and move on.
 
@@ -235,6 +239,118 @@ separate implementation rather than shared code.
 | M8 | Settings → Steam → uncheck "Stay signed in after switching", switch | `RememberPassword` is `0` in **both** `loginusers.vdf` and `registry.vdf`. |
 | M9 | Rename `/Applications/Steam.app` away, then switch with auto-start on | The login is still written; only the launch fails, with an error naming `Steam.app`. |
 | M10 | Tools → Advanced Cleaning → the registry rows | They are enabled on macOS and edit `registry.vdf`. Confirm afterwards that the named key is gone and the rest of the file is intact. |
+| M11 | Run §V with the data root at `~/Library/Application Support/SteamSwitch/` | The vault blob lands under `Vault/secrets.ssvault` there, and `ls -l` shows `-rw-------`. |
+| M12 | Store a vault entry on macOS, copy the whole data folder to Windows, and open it with the same app password | It opens. The blob format is not OS-specific and must not become so — the same file is what a future handoff bundle builds on. |
+
+## V. Account vault
+
+New in this build, and the least proven part of it. Sections V1–V3 can be run with nothing
+but a throwaway account; **V4 is the only place the Steam login code has ever run against
+Valve's servers**, so treat a failure there as expected-until-proven rather than as a
+surprise.
+
+### Before this section
+
+- Somewhere to put a **test account you do not mind locking out**. V4 attempts real logins
+  and a wrong password repeated enough times will get the account rate-limited by Steam.
+- A **Steam Web API key** from `steamcommunity.com/dev/apikey`. Free, takes a minute.
+  V2 covers what happens without one, so get it after V2a.
+- Optionally, an email account you can reach over IMAP. If you have none, V3 can be skipped
+  and V4 run with an authenticator seed instead.
+
+> **Nothing in this section should ever put a readable secret on disk.** V1c is the check
+> that matters most; if it fails, stop and report it before running anything else.
+
+### V1. The store
+
+| # | Steps | Expected |
+|---|---|---|
+| V1a | With **no app password set**, Settings → Account vault | It says the vault needs an app password and offers to set one. There is no toggle that pretends to enable it without one. |
+| V1b | Set an app password, then right-click an account → Advanced → **Vault…** | The editor opens. Every secret field is empty with no "stored" marker yet. |
+| V1c | Enter a password, an authenticator seed and an email address, Save. Then open `%AppData%\SteamSwitch\Vault\secrets.ssvault` in a text editor | **A JSON envelope and nothing else.** Search it for the password, the account name, the email address and the SteamID64 — none may appear. If any does, this is a release blocker. |
+| V1d | Check the file's permissions | Owner-only. macOS: `ls -l` shows `-rw-------`. Windows: Properties → Security lists only your account. |
+| V1e | Reopen the editor | Password and seed show `••• stored`, not the value, and not a masked field containing the value. |
+| V1f | Press **Save** without touching anything, then Reveal the password | Still the original. Saving a form that never displayed a secret must not erase it. |
+| V1g | Click **Reveal** on the password | It appears once, with a Copy button, and **hides itself after about 20 seconds** without being touched. |
+| V1h | Reveal, then close the dialog immediately | Nothing is left on screen anywhere, and reopening does not show it again. |
+| V1i | Edit the entry, tick **Store and check only**, Save. Look at the account list | The tile is unchanged (it is still a real Steam account); the entry is marked *store only* in Tools → Stored accounts. |
+| V1j | Delete the entry, then look at the blob again | The file still exists but is smaller. Reopening the vault shows the entry gone. |
+| V1k | Corrupt the blob: change one character inside `"ciphertext"` and relaunch | The vault reports the file could not be read. It must **not** silently start empty — that would look like your data vanished. |
+| V1l | Restore the good file, restart, and unlock | Entries are back. |
+
+### V2. Locking
+
+| # | Steps | Expected |
+|---|---|---|
+| V2a | With the vault holding an entry, quit and relaunch the app | Unlock is required. Before unlocking, Settings → Account vault says it is locked, and no tile shows a health dot. |
+| V2b | Before unlocking, open an account menu | Vault, health, Guard code and login details are all disabled, and opening the menu does **not** trigger an unlock prompt. |
+| V2c | Unlock, then check Settings → Account vault | The entry count appears. |
+
+### V3. Guard codes
+
+| # | Steps | Expected |
+|---|---|---|
+| V3a | Store an authenticator seed for an account, then account menu → **Get Steam Guard code** | A 5-character code appears within a second, marked "From your authenticator seed", with a countdown, and it is already on the clipboard. |
+| V3b | Compare it against the code your phone shows for the same account, at the same moment | **Identical.** If not, the seed or the code generation is wrong and V4 will fail too. |
+| V3c | Watch the countdown to zero, then press **Get another** | A different code. |
+| V3d | Paste a code into a real Steam login | Steam accepts it. |
+| V3e | Set the code source to **an inbox (IMAP)**, enter the address and password, press **Detect** | It finds the IMAP host without you knowing its name. If your provider is unusual it may fail — enter the host by hand and continue. |
+| V3f | Press **Test the connection** | Confirms it connected. With a deliberately wrong password it says the mailbox rejected the credentials, distinct from "could not connect". |
+| V3g | Remove the authenticator seed so the inbox is the only source. Trigger a real Steam login that sends a code, then **Get Steam Guard code** | The code from that mail, marked "From your inbox". |
+| V3h | Check that mail in your normal mail client | It is **still unread**. Reading a code must never mark mail as read. |
+| V3i | Ask for a code when no new mail is coming | It polls with a visible wait and then gives up cleanly, telling you that you can still type the code yourself. It must not hang forever. |
+| V3j | Ask for a code immediately after an *older* login's mail | It does **not** hand you the old code. Steam codes are single-use, and a dead one is worse than none because you cannot tell it is dead. |
+| V3k | If your inbox receives codes for several accounts: ask for account A's code while account B's is the newest mail | You get A's, or none. Never B's. |
+| V3l | Turn on Offline mode, then ask for a code from the inbox | Refused because of offline mode. A TOTP code still works — it needs no network. |
+| V3m | Set the source to **a mailbox service I run** and enter a plain `http://` URL | Refused. The request carries a bearer token and the reply carries a Guard code; neither belongs on plain HTTP. |
+| V3n | Start a switch to an account whose code comes from an inbox, and watch the timing | The fetch starts as the switch starts, not when you ask. By the time Steam shows its prompt the code is usually already available. |
+| V3o | Start such a switch and make it fail (e.g. rename Steam's exe first) | No mail connection is left running afterwards. |
+
+### V4. Verification — the unproven part
+
+`internal/vault/steamauth` hand-encodes Steam's protobuf wire format and **has never run
+against Valve's servers**. A wrong field number or wire type shows up here as a rejected
+request, not as a crash. If V4a fails while V4b through V4e behave, the fault is in this
+code rather than in your account.
+
+| # | Steps | Expected |
+|---|---|---|
+| V4a | Store the correct login name and password for a test account, then account menu → Advanced → **Account health…** → **Verify password** | It reports the password works. If Steam sends a Guard email, the app answers it automatically when a code source is configured. |
+| V4b | Change the stored password to something wrong, verify again | "Steam rejected the stored password", marked as a blocker. Not "could not be confirmed" — the two mean different things. |
+| V4c | Verify twice in a row | The second run does **not** send a second Guard email: the first stored a trusted-device token. |
+| V4d | Verify a third and fourth time in quick succession | If Steam rate-limits, the app says so, disables Verify for the session, and does **not** retry. Retrying is what turns a warning into a block. |
+| V4e | Start a verify on one account, then immediately on another | The second is refused with "a verification is already running". They are serialised on purpose. |
+| V4f | After a successful verify, open Advanced → **Login details…** | Audience, issue and expiry dates, token ID and IP claims are shown. If the audience includes `client`, the panel warns that anyone holding the token can sign in from any machine. |
+| V4g | Press **Reveal the raw token** | The token appears and hides itself after about 20 seconds. |
+| V4h | Confirm the panel is read-only | Nothing on it writes. Compare `loginusers.vdf` before and after opening it — byte-identical. |
+| V4i | Remove the stored password, open the health screen | **Verify password** is disabled. There is nothing to verify. |
+
+### V5. Health checks
+
+| # | Steps | Expected |
+|---|---|---|
+| V5a | With **no** Web API key set, account menu → Advanced → **Account health…** | Bans and profile say they need an API key. The other results still work. The feature is degraded, not broken. |
+| V5b | Add the key in Settings → Account vault, run **Check** again | Bans and profile now report real values. |
+| V5c | Check a healthy account | Verdict "Looks fine"; **no dot appears on its tile**. |
+| V5d | Check a VAC-banned account if you have one | Verdict "Something is wrong", the ban row is marked as a blocker, and a red dot appears on the tile. |
+| V5e | Check an account created under 30 days ago | Warned as probably still limited, and the wording says it is **inferred from the creation date** rather than reported by Steam. |
+| V5f | Check an account not signed into for months | Warned as idle, with the day count. |
+| V5g | Hover the tile dot | The tooltip says which state it is. Colour is never the only signal. |
+| V5h | Tools → Account vault → **Check every account** | Every stored account is checked, one after another, and the summary names how many. It must not fan out. |
+| V5i | Confirm no Guard email arrives from V5h | The cheap tier never logs in. If an email arrives, the tiers have been confused and that is a release blocker. |
+| V5j | Tools → **Stored accounts** | Every entry including store-only ones, each with its verdict. No secret values anywhere on this screen. |
+
+### V6. Vault against the rest of the app
+
+| # | Steps | Expected |
+|---|---|---|
+| V6a | With a vault entry for a shared account, switch into it with a Session Kit involved | Both work. The vault takes no part in the kit transaction; the switch behaves exactly as in §C. |
+| V6b | Trigger a leave prompt while a code pre-warm is running | The prompt behaves normally. The pre-warm must not block, delay or fail the switch. |
+| V6c | Switch from the tray while the vault is locked | The switch works. A locked vault must never block switching. |
+| V6d | Remove the app password entirely | The vault becomes unreadable, and says so plainly rather than reporting corruption or starting empty. |
+| V6e | Turn on Offline mode and run a **Check** | Reported as unavailable because of offline mode, not as a timeout. |
+| V6f | Look at `%AppData%\SteamSwitch\` logs after all of the above | No password, seed, Guard code, token or email password appears anywhere in them. |
+| V6g | Trigger a crash report (Tools → Diagnostics) and read what it would send | Same: account identifiers are aliased to `accountN`, and no vault value is present. |
 
 ## G. Regression sweep
 
@@ -248,6 +364,8 @@ separate implementation rather than shared code.
 | G6 | Launch a second copy while one is running | The second forwards its arguments and exits; only one window. |
 | G7 | Switch the app language | Every visible string changes; no raw keys like `Kit_Leave_Title` leak into the UI. |
 | G8 | Tab through the main window and both kit dialogs | Focus is trapped inside a dialog while it's open, and lands on the primary button first. |
+| G9 | With the vault in use, switch the app language | Vault strings change too. No raw keys like `Vault_Signal_NoBans` or `Toast_Vault_Locked` leak into the UI — the Go side returns those keys as its error messages, so an untranslated one shows up as gibberish rather than as a missing string. |
+| G10 | Run the whole of §V with **Offline mode on** from the start | Everything that needs the network says so. Nothing hangs, and the vault's local operations — storing, revealing, TOTP codes — all still work. |
 
 ---
 
@@ -256,6 +374,12 @@ separate implementation rather than shared code.
 Include: the section number, what you expected, what happened, and — for anything in §C or §D —
 the contents of `%AppData%\SteamSwitch\SessionKit\active.json` plus the matching file under
 `transactions/`. Those two identify the exact point the transaction reached.
+
+For §V, include the section number and the message shown, and **never** the vault blob or
+anything you revealed from it. If §V4 fails, the useful detail is which step it reached —
+whether Steam was asked for the RSA key at all, whether it asked for a Guard code, and
+whether the failure names a rejected password or an unrecognised response. Those three
+distinguish "the account is fine and this code is wrong" from the opposite.
 
 `internal/actionlog` keeps a rolling record of user actions that is attached to crash reports,
 and `internal/logsanitize.Redact` replaces account identifiers with `accountN` aliases first,
