@@ -6,6 +6,8 @@ require (
 	github.com/Jleagle/steam-go v0.0.0-20260527194636-a5837ecc04c4
 	github.com/Microsoft/go-winio v0.6.2
 	github.com/antchfx/htmlquery v1.3.6
+	github.com/emersion/go-imap v1.2.1
+	github.com/emersion/go-message v0.18.2
 	github.com/go-ole/go-ole v1.3.0
 	github.com/google/uuid v1.6.0
 	github.com/hugolgst/rich-go v0.0.0-20240715122152-74618cc1ace2
@@ -33,6 +35,7 @@ require (
 	github.com/antchfx/xpath v1.3.6 // indirect
 	github.com/coder/websocket v1.8.14 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
+	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21 // indirect
 	github.com/godbus/dbus/v5 v5.2.2 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
 	github.com/golang/snappy v1.0.0 // indirect

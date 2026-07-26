@@ -45,9 +45,17 @@ type Settings struct {
 
 	ShortcutsJSON map[string]string `json:"ShortcutsJson,omitempty"`
 
-	// `SteamWebApiKey` used to sit here. Upstream used it to distinguish community-banned
-	// accounts from trade-limited ones; this fork has no code path that reads it, so the
-	// setting was removed rather than left as a text box that quietly does nothing.
+	// SteamWebApiKey is the user's own Steam Web API key.
+	//
+	// It was removed once, when upstream's only consumer went away and it was left as a text
+	// box that quietly did nothing. It is back because the account vault's quick check reads
+	// it for GetPlayerBans and GetPlayerSummaries. Without a key those two signals report
+	// "unknown" rather than failing, so it stays genuinely optional.
+	//
+	// It is not a secret in the vault sense — it grants read-only access to public profile
+	// data, not to the account — so it lives here with the other settings rather than in the
+	// encrypted blob.
+	SteamWebApiKey string `json:"Steam_WebApiKey,omitempty"`
 
 	ShowSteamSwitcher bool `json:"ShowSteamSwitcher"`
 	CollectInfo       bool `json:"CollectInfo"`

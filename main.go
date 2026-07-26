@@ -24,6 +24,7 @@ import (
 	"steamswitch/internal/stats"
 	"steamswitch/internal/steam"
 	"steamswitch/internal/tray"
+	"steamswitch/internal/vault"
 	"steamswitch/internal/winutil"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -49,6 +50,7 @@ var (
 	// itself needs the data root, which is not resolved until main(). The service resolves
 	// the process-wide engine lazily on first use.
 	sessionKitSvc = steam.NewSessionKitService(nil)
+	vaultSvc      = vault.NewService()
 
 	crashSubmitted bool
 )
@@ -92,9 +94,15 @@ func init() {
 		return basic.LaunchBasicAs(basic.FlowDeps{PS: platformSvc}, platformKey, forceAdmin, nil)
 	})
 	security.SetStatusChangedHook(func() {
-		if !security.AppLocked() {
+		if security.AppLocked() {
+			// Locking must remove the decrypted secrets from memory, not merely refuse to
+			// render them. Without this the vault would stay readable to anything in-process
+			// for as long as the app ran.
+			vault.DropCache()
+		} else {
 			basic.SyncAllTrayKnownAccounts()
 			steam.SyncTrayKnownAccounts()
+			refreshVaultInputs()
 		}
 		tray.RefreshMenuIfSet()
 	})
@@ -121,6 +129,7 @@ func main() {
 	if _, err := steam.InitSessionKit(steamSvc); err != nil {
 		log.Printf("session kit unavailable: %v", err)
 	}
+	refreshVaultInputs()
 
 	idx, idxErr := cli.LoadPlatformIndex()
 	idxPtr := idx
@@ -217,8 +226,23 @@ func serviceList() []application.Service {
 		application.NewService(basicSvc),
 		application.NewService(securitySvc),
 		application.NewService(sessionKitSvc),
+		application.NewService(vaultSvc),
 		application.NewService(shortcuts.NewService(platformSvc)),
 	}
+}
+
+// refreshVaultInputs feeds the vault the two things it deliberately does not read for
+// itself: the user's Web API key, and Steam's own record of when each account last logged
+// in. Both are pushed in rather than pulled, so `internal/vault` never imports the Steam
+// engine.
+//
+// Called at startup and again whenever the app unlocks, since neither value is available
+// while locked.
+func refreshVaultInputs() {
+	if st, err := steam.LoadSettings(); err == nil {
+		vault.SetAPIKey(st.SteamWebApiKey)
+	}
+	vault.SetLastUsed(steam.LastLoginTimes())
 }
 
 func loadStartupSettings() (platform.AppSettings, error) {

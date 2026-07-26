@@ -13,6 +13,7 @@ import (
 	"steamswitch/internal/stability"
 	"steamswitch/internal/stats"
 	"steamswitch/internal/tray"
+	"steamswitch/internal/vault"
 )
 
 // SwapToAccount: empty steamID64 clears AutoLoginUser (Add New). personaState -1 uses Steam_OverrideState; < -1 skips localconfig persona edit. extraLaunchArgs append after settings argv.
@@ -23,7 +24,18 @@ import (
 // outright when a kit is live on a different account — see sessionkit_guard.go.
 func SwapToAccount(steamID64 string, personaState int, extraLaunchArgs []string) error {
 	return guardedSwap(steamID64, func() error {
-		return swapToAccountLocked(steamID64, personaState, extraLaunchArgs)
+		// A switch beginning is the earliest honest signal that a Guard code will be
+		// wanted, and fetching from here rather than from the moment Steam shows its
+		// prompt is most of the perceived speed of that feature.
+		//
+		// Fire-and-forget, and cancelled if the swap fails: a mail server must never delay
+		// a switch, let alone fail one.
+		vault.Prewarm(steamID64)
+		err := swapToAccountLocked(steamID64, personaState, extraLaunchArgs)
+		if err != nil {
+			vault.CancelPrewarm(steamID64)
+		}
+		return err
 	})
 }
 
