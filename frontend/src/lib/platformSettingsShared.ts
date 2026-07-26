@@ -5,17 +5,25 @@ export const closingValues = ["Combined", "Close", "TaskKill", "Electron"] as co
 
 export const startingValues = ["Default", "Direct"] as const;
 
+/**
+ * These two return i18n *keys*, not text — the caller translates.
+ *
+ * They used to return hardcoded English, which meant the one dropdown in the app that names a
+ * destructive behaviour ("TaskKill") stayed English in every locale. An unrecognised value
+ * falls through to itself, so a method added to the Go side before its key exists still shows
+ * something legible rather than a blank row.
+ */
 export function closingLabel(v: string): string {
-  if (v === "Combined") return "Combined (Best)";
-  if (v === "Close") return "Close";
-  if (v === "TaskKill") return "TaskKill (Old)";
-  if (v === "Electron") return "Electron / Discord (recommended)";
+  if (v === "Combined") return "ClosingMethod_Combined";
+  if (v === "Close") return "ClosingMethod_Close";
+  if (v === "TaskKill") return "ClosingMethod_TaskKill";
+  if (v === "Electron") return "ClosingMethod_Electron";
   return v;
 }
 
 export function startingLabel(v: string): string {
-  if (v === "Default") return "Default (Best)";
-  if (v === "Direct") return "Direct";
+  if (v === "Default") return "StartingMethod_Default";
+  if (v === "Direct") return "StartingMethod_Direct";
   return v;
 }
 

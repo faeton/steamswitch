@@ -79,10 +79,16 @@ func settingsDirUnderExe() (string, error) {
 	return filepath.Join(ud, "Settings"), nil
 }
 
+// PlatformSettings are the options shared by every switching engine.
+//
+// `ForgetAccountEnabled` and `AlwaysSwapOnShortcut` used to live here. Both were removed
+// because nothing read them: upstream gated the "forget account" menu row and the
+// shortcut-swap behaviour on them, and the code doing the gating is gone. A persisted option
+// no code consults is not a setting, it is a promise the app does not keep — and the UI
+// control for it looks, to the user, exactly like one that works.
 type PlatformSettings struct {
 	RunAsAdmin                bool                `json:"RunAsAdmin"`
 	TrayAccNumber             int                 `json:"TrayAccNumber"`
-	ForgetAccountEnabled      bool                `json:"ForgetAccountEnabled"`
 	ClosingMethod             string              `json:"ClosingMethod"`
 	ClosingMethodForced       bool                `json:"ClosingMethodForced,omitempty"`
 	StartingMethod            string              `json:"StartingMethod"`
@@ -91,7 +97,6 @@ type PlatformSettings struct {
 	ShowLastUsed              bool                `json:"ShowLastUsed"`
 	AccountNotes              map[string]string   `json:"AccountNotes"`
 	Shortcuts                 []GameShortcutEntry `json:"Shortcuts,omitempty"`
-	AlwaysSwapOnShortcut      bool                `json:"AlwaysSwapOnShortcut,omitempty"`
 	LaunchArguments           string              `json:"LaunchArguments,omitempty"`
 	ProfileImageExpiryDays    int                 `json:"ProfileImageExpiryDays,omitempty"`
 	PullAccountImagesOnSwitch bool                `json:"PullAccountImagesOnSwitch,omitempty"`
@@ -107,9 +112,7 @@ func DefaultPlatformSettings() PlatformSettings {
 		ShowLastUsed:              true,
 		AccountNotes:              map[string]string{},
 		Shortcuts:                 []GameShortcutEntry{},
-		ForgetAccountEnabled:      false,
 		RunAsAdmin:                false,
-		AlwaysSwapOnShortcut:      true,
 		ProfileImageExpiryDays:    7,
 		PullAccountImagesOnSwitch: true,
 	}
@@ -271,9 +274,6 @@ func loadPlatformSettingsFromDisk(platformKey string) (PlatformSettings, error) 
 		return s, err
 	}
 
-	if _, ok := raw["AlwaysSwapOnShortcut"]; !ok {
-		s.AlwaysSwapOnShortcut = true
-	}
 	if _, ok := raw["ShowLastUsed"]; !ok {
 		s.ShowLastUsed = true
 	}

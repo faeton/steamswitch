@@ -45,7 +45,9 @@ type Settings struct {
 
 	ShortcutsJSON map[string]string `json:"ShortcutsJson,omitempty"`
 
-	SteamWebAPIKey string `json:"SteamWebApiKey"`
+	// `SteamWebApiKey` used to sit here. Upstream used it to distinguish community-banned
+	// accounts from trade-limited ones; this fork has no code path that reads it, so the
+	// setting was removed rather than left as a text box that quietly does nothing.
 
 	ShowSteamSwitcher bool `json:"ShowSteamSwitcher"`
 	CollectInfo       bool `json:"CollectInfo"`
@@ -228,7 +230,6 @@ func LoadSettings() (Settings, error) {
 	if legacySilent {
 		s.LaunchArguments = platform.EnsureLaunchArg(s.LaunchArguments, "-silent")
 	}
-	s.AlwaysSwapOnShortcut = boolWithDefault(data2, "AlwaysSwapOnShortcut", true)
 	s.SteamRememberPassword = boolWithDefault(data2, "Steam_RememberPassword", true)
 	s.FolderPath = NormalizeFolderPath(s.FolderPath)
 	if len(s.Shortcuts) == 0 && len(s.ShortcutsJSON) > 0 {
