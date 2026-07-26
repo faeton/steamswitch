@@ -151,6 +151,29 @@ in the direction of the worst outcome here: a switch that looks like a logout. T
 **Settings → Steam → Stay signed in after switching** still works, and is still scoped to the
 account being switched to.
 
+### The leave rule is enforced in Go, not in the UI (`internal/steam/sessionkit_guard.go`)
+
+The Session Kit's central promise is that borrowing someone's account cannot silently
+overwrite their settings. That rests on one rule: switching *away* from an account carrying a
+kit has to ask whether to put their setup back.
+
+For a while that rule existed only in `Accounts.svelte`. `SessionKitService.SwitchTo` is the
+kit-aware entry point, and the account tiles call it — but the tray menu, desktop shortcuts,
+`steamswitch://` URLs and `--run-appid=` all reach `steam.SwapToAccount` directly and never
+touch the engine. A tray switch would therefore leave the other person's account under this
+machine's kit with an open journal, which is the state the crash-recovery modal exists to
+clean up, reached without a crash.
+
+`requireNoActiveKit` now runs at the head of `SwapToAccount`, before the already-signed-in
+short circuit. The engine drives the individual `Lifecycle` steps rather than calling
+`SwapToAccount`, so the guard constrains only the bypass paths.
+
+It refuses rather than guessing. "Restore theirs" and "keep mine" is a decision about somebody
+else's files, and there is no defensible default for a tray click — so the error names the
+window as where to finish. It fails *open* when it cannot tell (no engine, unreadable journal),
+because a guard that blocks every switch on a transient read failure would be worse than the
+hole it closes.
+
 ### macOS support (`internal/steam/os_backend*.go`)
 
 Upstream is Windows-only, and reasonably so: it drives 24 platforms, most of which do not

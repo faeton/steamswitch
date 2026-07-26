@@ -102,6 +102,20 @@ Mark your second account **Shared**. Home must be set.
 | C10 | With Steam **running**, try to switch to the shared account | Steam is closed first automatically. It should not write anything while Steam is up. |
 | C11 | Start Dota, leave it running, and try to switch | Refused with "Steam or a game is still running", naming the process. Not a silent failure, not a partial write. |
 
+### C-bypass. The ways to switch that are not a tile
+
+Every one of these skipped the leave prompt entirely before the guard existed, so a kit could
+be abandoned without ever being asked about. These are the cases that matter most in §C.
+
+| # | Steps | Expected |
+|---|---|---|
+| CB1 | With a kit active on the shared account, use **tray → quick switch** to a different account | Refused, with a message saying to open the window and switch from the account list. The kit stays active and nothing on disk moves. |
+| CB2 | Open the window and do the same switch from a tile | The **Restore X's setup?** prompt appears as in C4 and the switch proceeds. |
+| CB3 | With a kit active, run a **desktop shortcut** for a different account | Same refusal as CB1. Check that `<Steam>\userdata\<shared id32>\570\` is untouched afterwards. |
+| CB4 | With a kit active, run a desktop shortcut for **the account the kit is on** | Allowed — re-selecting the account you are already on is not leaving it. |
+| CB5 | Leave an interrupted transaction unresolved (as in D1), then try a tray switch | Refused, pointing at the window. Resolving the recovery there must then let the tray work again. |
+| CB6 | With **no** kit active and nothing outstanding, tray switch | Works exactly as before. The guard must be invisible in the ordinary case. |
+
 ### C-cloud. Steam Cloud honesty
 
 | # | Steps | Expected |
@@ -158,9 +172,32 @@ Only meaningful if you can arrange it, but please do arrange it.
 | F3 | Tools → Advanced cleaning | Opens; individual options behave; does not sign you out. |
 | F4 | Tools → Refresh avatars / VAC status check | Each runs and reports; rows disable while one is in flight. |
 | F5 | Tools → Open data folder | Explorer opens at the data folder. |
-| F6 | Settings | Everything is on **one** page. No duplicated global block, no per-platform settings page. |
+| F5a | Tools → **Back up Steam config** | Writes a zip under `<data>\Backups\Steam\`; the toast names the file and a file count. |
+| F5b | Tools → **Back up everything** on the same install | A noticeably larger archive than F5a — it drops the extension filter, so screenshots and caches are included. |
+| F5c | With Steam **running**, Tools → **Restore latest backup** | Refused before the confirmation appears, saying to close Steam. Steam rewrites `config/` as it exits and would undo the restore silently. |
+| F5d | Close Steam, Restore latest backup, and decline the confirmation | Nothing is written. Check the modification time on `<Steam>\config\loginusers.vdf`. |
+| F5e | Accept it | `config/` and `userdata/` are restored from the newest archive and the toast names it. Then launch Steam and confirm the account list is intact. |
+| F5f | Tools → **Open backup folder** on a machine that has never backed up | The folder is created and opened rather than erroring. |
+| F5g | Tools → **About SteamSwitch** | Shows the version and the TroubleChute attribution. |
+| F6 | Settings | Everything is on **one** page: Appearance, Steam, Game modules, System, Language. No duplicated global block, no per-platform settings page. |
+| F6a | Settings → Steam → **Pick Steam folder**, choose the real install | The path shown updates and a switch still works. Point it somewhere wrong and confirm the switch fails with an error naming the folder, rather than silently doing nothing. |
+| F6b | Settings → Steam → uncheck **Automatically start Steam on account switch**, then switch | `loginusers.vdf` is updated and Steam is **not** launched. |
+| F6c | Settings → Steam → uncheck each of SteamID / last login / account username, return to the list | The tile's monospaced meta line loses exactly that part. With all three off the line disappears rather than leaving an empty row or a stray `·`. |
+| F6d | Turn on **Note preview under username**, add a note with two paragraphs via the account menu | The preview shows on one line with the newlines collapsed; the tile does not grow to fit it. |
+| F6e | Settings → Steam → **Set method to close Steam** | The dropdown reads in your language, including "TaskKill". It used to be English in every locale. |
+| F6f | Change any Steam setting, quit and relaunch | It stuck. Then open `Settings\SteamSettings.json` and confirm `SteamWebApiKey`, `ForgetAccountEnabled` and `AlwaysSwapOnShortcut` are gone — they had no reader. |
 | F7 | Tray → quick switch | Switches without opening the window. |
 | F8 | Tray while a kit is active | The tooltip reflects it. |
+
+### F-tags. Tags
+
+| # | Steps | Expected |
+|---|---|---|
+| FT1 | Account menu → Advanced → **Tags ▸ Add**, type a new name, press Enter | The tag is created and shows as a bubble on that tile. |
+| FT2 | Open the same menu on a second account | The tag created in FT1 is offered in the Add list rather than needing retyping. |
+| FT3 | **Tags ▸ Modify ▸ <tag> ▸ Add expiry**, set it a minute out | The bubble shows a live countdown. After it lapses, the tag is gone on the next list refresh. |
+| FT4 | **Tags ▸ Remove** | Removes them all from that account; other accounts keep theirs. |
+| FT5 | A tile with three or more tags | The bubbles wrap onto their own row; the Home/Shared and kit badges stay in their own cluster and are not pushed off. |
 
 ## F-modules. Game modules
 

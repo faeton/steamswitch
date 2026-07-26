@@ -133,7 +133,6 @@
     try {
       await PlatformService.SetProtocolEnabled(next);
       protocol.value.set(next);
-      pushToast({ type: "success", message: next ? $t("Toast_ProtocolEnabled") : $t("Toast_ProtocolDisabled"), duration: 6000 });
     } catch (e) {
       pushToast({ type: "error", message: formatToastWithError($t("Toast_SaveFailed"), e), duration: 8000 });
     } finally {
@@ -153,7 +152,6 @@
     animations.loading.set(true);
     try {
       await setAnimationsEnabled(next);
-      pushToast({ type: "success", message: get(t)("Toast_SavedItem", { item: get(t)("Settings_AnimationsEnabled") }), duration: 3000 });
     } catch (e) {
       animations.value.set(get(animationsEnabled));
       pushToast({ type: "error", message: formatToastWithError($t("Toast_SaveFailed"), e), duration: 8000 });
@@ -187,7 +185,6 @@
     try {
       await PlatformService.SetDesktopHomeShortcut(next);
       await refreshDesktopShortcutState();
-      pushToast({ type: "success", message: get(t)("Toast_SavedItem", { item: get(t)("Settings_DesktopShortcut") }), duration: 4000 });
     } catch (e) {
       pushToast({ type: "error", message: formatToastWithError($t("Toast_SaveFailed"), e), duration: 8000 });
     } finally {
@@ -209,7 +206,6 @@
       await PlatformService.SetDiscordRpc(next);
       discordRpc.value.set(next);
       if (!next) discordRpcShare.value.set(false);
-      pushToast({ type: "success", message: get(t)("Toast_SavedItem", { item: get(t)("Settings_DiscordRpc") }), duration: 4000 });
     } catch (e) {
       pushToast({ type: "error", message: formatToastWithError($t("Toast_SaveFailed"), e), duration: 8000 });
     } finally {
@@ -299,7 +295,6 @@
         discordRpc.value.set(false);
         discordRpcShare.value.set(false);
       }
-      pushToast({ type: "success", message: next ? $t("Toast_OfflineModeEnabled") : $t("Toast_OfflineModeDisabled"), duration: 6000 });
     } catch (e) {
       pushToast({ type: "error", message: formatToastWithError($t("Toast_SaveFailed"), e), duration: 8000 });
     } finally {

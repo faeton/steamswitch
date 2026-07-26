@@ -13,15 +13,23 @@ export interface ToggleController extends Readable<{ value: boolean; loading: bo
 /**
  * Creates a reactive toggle for a boolean application setting.
  *
+ * Success is silent (REDESIGN.md §3). A checkbox that fires "Saved X" every time it is
+ * clicked teaches people to dismiss toasts without reading them, which is exactly the habit
+ * that makes the ones that matter — a failed switch, an active kit — get missed. The control
+ * moving is the confirmation.
+ *
+ * Failure still speaks, because the control will have moved either way and would otherwise be
+ * showing a state that is not on disk.
+ *
  * @param getter  Function that fetches the current state from the backend.
  * @param setter  Function that persists the new state to the backend.
- * @param toastLabel  The translated label to show in success toasts.
+ * @param label   Kept for callers that pass a label; no longer used for a success toast.
  * @param guard   Optional guard function — if it returns false, the toggle is blocked.
  */
 export function createToggle(
   getter: () => Promise<boolean>,
   setter: (value: boolean) => Promise<void>,
-  toastLabel: string,
+  label?: string,
   guard?: () => boolean,
 ): ToggleController {
   const value = writable(false);
@@ -39,11 +47,6 @@ export function createToggle(
     try {
       await setter(next);
       value.set(next);
-      pushToast({
-        type: "success",
-        message: get(t)("Toast_SavedItem", { item: toastLabel }),
-        duration: 4000,
-      });
     } catch (e) {
       pushToast({
         type: "error",
