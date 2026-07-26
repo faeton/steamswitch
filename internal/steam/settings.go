@@ -57,6 +57,15 @@ type Settings struct {
 	// encrypted blob.
 	SteamWebApiKey string `json:"Steam_WebApiKey,omitempty"`
 
+	// SteamVaultDeepCheckDays turns on the account vault's scheduled password verification
+	// and sets how many days apart it checks one account. 0 — the default — is off.
+	//
+	// Off by default because this is the one setting in the app that makes it log in to a
+	// Steam account on its own. Each check is a real login, and the first one for an account
+	// emails the user a Steam Guard code; the value is in days, and clamped up to
+	// vault.MinDeepCheckInterval, for that reason.
+	SteamVaultDeepCheckDays int `json:"Steam_VaultDeepCheckDays,omitempty"`
+
 	ShowSteamSwitcher bool `json:"ShowSteamSwitcher"`
 	CollectInfo       bool `json:"CollectInfo"`
 

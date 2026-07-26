@@ -237,6 +237,10 @@ func RunGUI(params RunGUIParams) {
 	// TODO.md for the keep-or-delete decision on the subsystem itself.
 	steam.StartSteamAppListMonitor()
 	params.Dispatch.SteamSvc.StartAutoRefreshScheduler()
+	// GUI only, and deliberately not in main(): the vault's scheduler logs in to Steam
+	// accounts, which a headless `--run-appid=` invocation that exits in a second has no
+	// business starting. It is a no-op unless the user has opted in.
+	steam.ApplyVaultCheckSchedule()
 
 	ctx := wailsApp.Context()
 	go func() {

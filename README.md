@@ -147,6 +147,9 @@ your app-lock password — set one first, or the vault stays unavailable.
   IMAP — read-only, and never marking your mail as read.
 - **Health checks** for bans, profile visibility, account age and idle time. The everyday
   check never logs in; only an explicit "verify password" does.
+- **Optional scheduled password checks**, off by default and clearly labelled — this is the
+  only setting that makes the app log in to a Steam account on its own. One account at a
+  time, never at startup, and it stops for good if Steam ever rate-limits it.
 - Values are shown one at a time behind an explicit Reveal, and hide themselves again.
 
 It cannot sign in for you, and it has no way to hand an account to someone else yet. See

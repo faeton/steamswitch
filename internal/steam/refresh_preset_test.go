@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"steamswitch/internal/paths"
+	"steamswitch/internal/vault"
 )
 
 func TestClampAutoRefreshInterval(t *testing.T) {
@@ -21,6 +22,27 @@ func TestClampAutoRefreshInterval(t *testing.T) {
 	for _, c := range cases {
 		if got := ClampAutoRefreshInterval(c.in); got != c.want {
 			t.Errorf("ClampAutoRefreshInterval(%d) = %d, want %d", c.in, got, c.want)
+		}
+	}
+}
+
+// The vault's scheduled check logs in to a Steam account, so what the settings layer lets
+// through matters more than for the avatar refresh: off has to be the value that survives,
+// and a too-eager cadence has to be raised rather than honoured.
+func TestClampVaultDeepCheckDays(t *testing.T) {
+	floor := int(vault.MinDeepCheckInterval.Hours() / 24)
+	cases := []struct {
+		in, want int
+	}{
+		{0, 0},
+		{-3, 0},
+		{1, floor},
+		{floor, floor},
+		{14, 14},
+	}
+	for _, c := range cases {
+		if got := ClampVaultDeepCheckDays(c.in); got != c.want {
+			t.Errorf("ClampVaultDeepCheckDays(%d) = %d, want %d", c.in, got, c.want)
 		}
 	}
 }

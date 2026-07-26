@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"steamswitch/internal/platform"
+	"steamswitch/internal/vault"
 )
 
 // This file is the one-way bridge from the Steam engine to the account vault.
@@ -58,4 +59,33 @@ func LastLoginTimes() map[string]time.Time {
 		out[u.SteamID64] = time.Unix(sec, 0)
 	}
 	return out
+}
+
+// ClampVaultDeepCheckDays normalises the stored cadence: 0 or negative means off, and
+// anything shorter than the vault's floor is raised to it. Kept here rather than in the
+// vault so the settings layer has one place that decides what a stored value means.
+func ClampVaultDeepCheckDays(days int) int {
+	if days <= 0 {
+		return 0
+	}
+	if min := int(vault.MinDeepCheckInterval.Hours() / 24); days < min {
+		return min
+	}
+	return days
+}
+
+// ApplyVaultCheckSchedule pushes the saved cadence into the vault's scheduler.
+//
+// Called at GUI start and again whenever Steam settings are saved, so a change takes effect
+// without a restart. It only ever starts a timer; the scheduler itself re-checks the lock,
+// offline mode and the rate-limit latch on every tick, because all three can change while
+// it is running.
+func ApplyVaultCheckSchedule() {
+	st, err := LoadSettings()
+	if err != nil {
+		vault.ConfigureScheduler(0)
+		return
+	}
+	days := ClampVaultDeepCheckDays(st.SteamVaultDeepCheckDays)
+	vault.ConfigureScheduler(time.Duration(days) * 24 * time.Hour)
 }

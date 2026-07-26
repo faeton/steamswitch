@@ -254,7 +254,7 @@ separate implementation rather than shared code.
 New in this build, and the least proven part of it. Sections V1–V3 can be run with nothing
 but a throwaway account; **V4 is the only place the Steam login code has ever run against
 Valve's servers**, so treat a failure there as expected-until-proven rather than as a
-surprise.
+surprise. V7 puts that same login on a timer and is only worth running once V4 passes.
 
 ### Before this section
 
@@ -365,6 +365,37 @@ have not themselves completed a real login. Treat V4a as the first real run.
 | V6e | Turn on Offline mode and run a **Check** | Reported as unavailable because of offline mode, not as a timeout. |
 | V6f | Look at `%AppData%\SteamSwitch\` logs after all of the above | No password, seed, Guard code, token or email password appears anywhere in them. |
 | V6g | Trigger a crash report (Tools → Diagnostics) and read what it would send | Same: account identifiers are aliased to `accountN`, and no vault value is present. |
+
+### V7. Scheduled password checks
+
+The one setting that makes the app log in to a Steam account without being asked. It is off
+by default, and **V7a is the test that matters most in this section**: the default has to be
+genuinely inert, not merely quiet.
+
+Only worth running once §V4 passes. This is the same login on a timer, and a scheduler that
+works perfectly while the login underneath it is broken has proved nothing.
+
+Two of these need patience rather than clicking. The first tick is deliberately ~10 minutes
+after launch and the loop looks for work every ~30 minutes, so V7c and V7f are "leave it
+running and come back".
+
+| # | Steps | Expected |
+|---|---|---|
+| V7a | Fresh install, vault holding entries with passwords. Leave **Verify stored passwords automatically** off. Use the app normally for an hour | **No Guard email ever arrives, for any account.** Off must mean nothing runs, not "runs quietly". If a code turns up, stop — that is a release blocker. |
+| V7b | Settings → Account vault, turn the setting on | A day count appears, defaulting to 14. Read the warning text: it should say one account at a time, never at startup, and that the first check of an account emails a Guard code. |
+| V7c | Turn it on, then watch for the first ten minutes | Nothing happens. The first tick is delayed on purpose — a deep check at launch would mean an app that emails you a Guard code every time you open it. |
+| V7d | Set the interval to **1 day**, save, reopen Settings | It stays at 1. That is the floor; anything shorter is raised to it rather than honoured. |
+| V7d2 | Type `0`, or a negative number, and save | It reads as off and the checkbox clears, rather than leaving a schedule with a nonsense interval. |
+| V7e | With the setting on and several accounts stored, let it run for an hour | Checks happen **one account at a time**. Two Guard emails arriving together means it is fanning out, which is the behaviour that gets an app rate-limited. |
+| V7f | Note which account is checked first when several have never been checked | The lowest SteamID64. Run it again on another machine with the same vault and confirm the same account goes first — the order must not depend on Go's map iteration. |
+| V7g | With the setting on, lock the app (quit and relaunch without unlocking) and leave it | Nothing is checked while locked. No Guard email. |
+| V7h | With the setting on, turn on **Offline mode** | Nothing is checked, and no error toast appears either — offline is "not now", not a failure. |
+| V7i | Turn the setting **off** while a schedule is running | It stops. Confirm with a further hour of no Guard emails; the change must not need a restart. |
+| V7j | Trigger a rate limit (§V4d), then leave the scheduler running | It stops for the session and does **not** retry. Settings shows the rate-limited notice. Restarting the app is the only thing that clears it. |
+| V7k | While a scheduled check is running, click **Verify password** by hand | Refused with "a verification is already running" — the same message as V4e. Rude, but honest; the alternative is two logins at once. |
+| V7l | The reverse: start a manual verify, and let a scheduler tick land during it | The tick is skipped, and that account is picked up on the next one. Nothing is lost and nothing doubles up. |
+| V7m | After a scheduled check has run, open the account's health screen | The result is there, with the same detail a manual check produces. A background check that records nothing visible is indistinguishable from one that never ran. |
+| V7n | Let a scheduled check **fail** (stored password wrong), then watch the retry timing | It backs off — hours, then longer — rather than retrying on the configured cadence. Retrying a rejected password on a timer is how an account gets locked out of its own logins. |
 
 ## G. Regression sweep
 

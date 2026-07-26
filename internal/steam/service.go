@@ -337,6 +337,7 @@ func (s *SteamService) GetSteamSettings() (Settings, error) {
 func (s *SteamService) SaveSteamSettings(st Settings) error {
 	s.mu.Lock()
 	st.SteamAutoRefreshIntervalMinutes = ClampAutoRefreshInterval(st.SteamAutoRefreshIntervalMinutes)
+	st.SteamVaultDeepCheckDays = ClampVaultDeepCheckDays(st.SteamVaultDeepCheckDays)
 	err := SaveSettings(st)
 	s.mu.Unlock()
 	if err != nil {
@@ -344,6 +345,9 @@ func (s *SteamService) SaveSteamSettings(st Settings) error {
 	}
 	// Pick up a changed cadence without needing a restart.
 	s.applyAutoRefreshSchedule(st.SteamAutoRefreshOnLaunch, st.SteamAutoRefreshIntervalMinutes)
+	// Same for the vault's scheduled password checks — and this one matters more, because
+	// turning it *off* must take effect immediately rather than at the next launch.
+	ApplyVaultCheckSchedule()
 	return nil
 }
 

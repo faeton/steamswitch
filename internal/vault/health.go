@@ -212,9 +212,19 @@ const (
 
 // nextEligible computes when an account may next be deep-checked. Persisted, so quitting
 // the app is not a way to reset the clock.
+//
+// The gap follows whatever the scheduler is configured with, falling back to
+// DeepCheckInterval when it is off — a manual check should record a sane schedule either
+// way. A failure ignores the configured interval entirely and uses the backoff instead:
+// after something has gone wrong, retrying on the user's chosen cadence is the wrong
+// answer regardless of what that cadence is.
 func nextEligible(now time.Time, failures int) time.Time {
+	return nextEligibleWithin(now, failures, configuredInterval())
+}
+
+func nextEligibleWithin(now time.Time, failures int, interval time.Duration) time.Time {
 	if failures <= 0 {
-		return now.Add(DeepCheckInterval)
+		return now.Add(interval)
 	}
 	d := BackoffBase
 	for i := 1; i < failures && d < BackoffMax; i++ {
@@ -232,14 +242,9 @@ func DueForDeepCheck(steamID64 string, now time.Time) bool {
 	if err != nil {
 		return false
 	}
-	if e.NextEligibleAt == "" {
-		return true
-	}
-	t, err := time.Parse(time.RFC3339, e.NextEligibleAt)
-	if err != nil {
-		// An unparseable timestamp is treated as "not due" rather than "due": failing open
-		// here would let a corrupt field turn into a login attempt per launch.
+	at, ok := eligibleAt(e)
+	if !ok {
 		return false
 	}
-	return !now.Before(t)
+	return !now.Before(at)
 }

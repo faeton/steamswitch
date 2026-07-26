@@ -124,6 +124,7 @@ authenticator seed, email binding and health — sealed under the app-lock passw
 | **Deep check — a real Steam login** to prove the password | Live-unproven | `internal/vault/steamauth` | §V4 |
 | Distinguishing wrong password / no such account / Steam unreachable | Live-unproven | `classifyLoginError` | V4b, V4b2 |
 | Rate-limit latch — says so, disables Verify, does not retry | Built | `deepMu` + latch | V4d, V4e |
+| **Scheduled deep checks** — opt-in, off by default, one account per tick, never at launch | Built | `internal/vault/scheduler.go` | §V7 |
 | Login-details panel — audience, expiry, IP claims, read-only | Built | `TokenDetails` | V4f–V4h |
 | Health dot on the tile, warn/fail only, never colour alone | Built | `AccountTile.svelte` | V5c, V5d, V5g |
 | Vault values kept out of `actionlog` and `slog` | Built | call sites | V6f, V6g |
@@ -133,7 +134,6 @@ authenticator seed, email binding and health — sealed under the app-lock passw
 | | Why |
 |---|---|
 | **Handoff (phase 5)** — giving an account to another person | Not started. It is the only part that can hurt someone other than the user running it, so it is last. Design is settled in `VAULT.md` §9: two modes, never a "lend" button, a file the user moves themselves, no server or relay. The honest premise is that a client-audience refresh token *is* full account access with no revocation, so the UI must not imply one exists. |
-| **Scheduled deep checks** | Partial. The persisted `nextEligibleAt`, the backoff and the rate-limit latch exist and are tested. Nothing *fires* on that schedule — deep checks are user-initiated only. |
 | **Token injection** ("log in for me") | Research-only, unproven, and `VAULT.md` §6.2 says so. Verification proves a password works; it does not sign you in. |
 | **Decoding Steam's `ConnectCache` / `MachineAuth`** | The panel reports presence, size and mtime and stops. On macOS the Keychain-derived key has not been reversed at all. |
 
@@ -231,11 +231,15 @@ first, and use a test account you do not mind locking out.
     asked for the RSA key at all, whether it asked for a Guard code, and whether the
     failure names a rejected password or an unrecognised response. Those three
     distinguish "the account is fine and this code is wrong" from the opposite.
-22. §V6 — the vault against the rest of the app, plus G9 and G10.
+22. §V7 — the scheduler. Only worth running once §V4 passes; it is the same login on a
+    timer, and a scheduler that works perfectly while the login is broken has proved
+    nothing. **V7a is the one that matters**: leave the setting off, run the app for a
+    while, and confirm no Guard email ever arrives.
+23. §V6 — the vault against the rest of the app, plus G9 and G10.
 
 ### Block 6 — macOS specifics
 
-23. §F-macos, M1 through M12. Run after the full plan, not instead of it.
+24. §F-macos, M1 through M12. Run after the full plan, not instead of it.
 
 ---
 
