@@ -147,6 +147,15 @@ func (f *loginUsersFile) applyLoginSelection(selectedID64 string, rememberPasswo
 				setChildValueCI(&blocks[i], field, "1")
 				continue
 			}
+			// A switch owns the *target* account's "keep me signed in" flag and nobody
+			// else's. Upstream cleared it on every other account too; the Steam client
+			// itself does not — a real install with five remembered accounts has
+			// RememberPassword=1 on all five. Clearing it made those accounts differ from
+			// how Steam left them for no gain, in the direction of the failure mode that
+			// matters most here: a switch that looks like a logout.
+			if field == "RememberPassword" {
+				continue
+			}
 			// Only clear a field the block already has. Adding "MostRecent" "0" to every
 			// block of a file that never carried it would be a diff with no meaning.
 			if childValueCI(blocks[i], field) != "" {

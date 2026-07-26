@@ -154,14 +154,19 @@ func TestWriteLoginUsersAndRegistry_FieldSwapping(t *testing.T) {
 
 	users, _ := ParseLoginUsers(loginPath)
 
-	// Non-target accounts get "" for AutoLogin, not "0". Only account 100 carried an
-	// AutoLogin key to begin with, and the writer clears a marker only where the block
-	// already has one — adding `"AutoLogin" "0"` to blocks that never had it would be this
-	// build inventing a field, which is exactly what loginusers_edit.go exists to prevent.
-	// Steam reads an absent AutoLogin as false, so the effect is identical.
+	// Two deliberate departures from upstream here, both in loginusers_edit.go.
+	//
+	// AutoLogin reads "" rather than "0" on the non-target accounts: only account 100 carried
+	// the key to begin with, and the writer clears a marker only where the block already has
+	// one. Adding `"AutoLogin" "0"` to blocks that never had it would be this build inventing
+	// a field. Steam reads an absent AutoLogin as false, so the effect is identical.
+	//
+	// RememberPassword keeps whatever each account already had. A switch owns the target's
+	// "keep me signed in" flag and nobody else's — account 300 started at "0" and stays
+	// there, 200 started at "1" and stays there. Upstream zeroed them all.
 	checks := map[string]struct{ mr, auto, rp string }{
 		"76561198000000100": {"1", "1", "1"},
-		"76561198000000200": {"0", "", "0"},
+		"76561198000000200": {"0", "", "1"},
 		"76561198000000300": {"0", "", "0"},
 	}
 

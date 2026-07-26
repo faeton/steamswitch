@@ -135,6 +135,22 @@ In Steam platform settings:
 Changing either setting re-applies the schedule immediately; no restart needed. The
 scheduler skips runs while the app is locked.
 
+### A switch no longer signs other accounts out
+
+Upstream's swap sets `RememberPassword` to `0` on every account in `loginusers.vdf` that it is
+*not* switching to. This fork sets it only on the target.
+
+The evidence is a real Steam install that SteamSwitch has never touched: five remembered
+accounts, `RememberPassword` `1` on all five. The client does not clear it on a switch. That
+same install has only four `ConnectCache` entries in `local.vdf`, so one account would land on
+a password prompt — with its flag still at `1`, which rules the flag out as the cause but also
+shows how close the failure mode is.
+
+Clearing it therefore bought nothing and pushed the file away from the state Steam maintains,
+in the direction of the worst outcome here: a switch that looks like a logout. Turning off
+**Settings → Steam → Stay signed in after switching** still works, and is still scoped to the
+account being switched to.
+
 ### macOS support (`internal/steam/os_backend*.go`)
 
 Upstream is Windows-only, and reasonably so: it drives 24 platforms, most of which do not

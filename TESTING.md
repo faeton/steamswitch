@@ -78,7 +78,8 @@ leaves nothing behind.
 | B11 | Settings → Steam, hover **Stay signed in after switching** | Checked by default. Tooltip explains the shared-computer case and admits it cannot remove logins Steam already saved. |
 | B12 | Leave it **on**, switch to another account | Steam comes up already signed in, as in B1. |
 | B13 | Turn it **off**, switch to another account | Steam comes up at the **password prompt** for that account rather than signed in. The switch itself still worked — the right account is preselected. |
-| B14 | With it off, open `<Steam>/config/loginusers.vdf` | Every account reads `"RememberPassword" "0"`, including the one just switched to. |
+| B14 | With it off, open `<Steam>/config/loginusers.vdf` | The account just switched to reads `"RememberPassword" "0"`. **Every other account keeps whatever it had.** Opting out of staying signed in is about the account you are switching to, not a machine-wide sign-out of everybody else's saved sessions. |
+| B14a | Record every account's `RememberPassword` before a switch, then switch with the setting **on** | Only the target's changed. A switch that flips other accounts to `0` is the "switch looks like a logout" bug — the Steam client itself leaves them alone. |
 | B15 | With it off, check `HKCU\Software\Valve\Steam` (Windows) or `registry.vdf` (macOS) | `RememberPassword` is `0`, matching the file. The two must never disagree. |
 | B16 | Turn it back **on**, switch again | Signed in automatically once more. |
 | B17 | Compare `loginusers.vdf` before and after any switch | Only `RememberPassword` and the active-account marker change. **No other key is added, removed or reordered** — this is the lossless-write guarantee. |

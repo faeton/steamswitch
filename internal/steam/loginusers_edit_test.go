@@ -209,10 +209,15 @@ func TestApplyLoginSelection_UsesLegacyMostRecentWhenThatIsWhatTheFileHas(t *tes
 	}
 }
 
-func TestApplyLoginSelection_ClearsRememberPasswordOnEveryOtherAccount(t *testing.T) {
-	// Documents inherited upstream behaviour rather than endorsing it: a switch sets
-	// RememberPassword=0 on every account it is not switching to. Pinned here so that if it is
-	// ever changed, it is changed deliberately. See the task on "switch looks like a logout".
+func TestApplyLoginSelection_LeavesOtherAccountsRememberPasswordAlone(t *testing.T) {
+	// Upstream cleared RememberPassword on every account it was not switching to. The Steam
+	// client does not: a real install with five remembered accounts has it set to 1 on all
+	// five, and on that same install one account has no cached credential while its flag is
+	// still 1 — so the flag was never what decided it.
+	//
+	// A switch owns the target account's markers. Touching everyone else's pushed the file
+	// away from the state Steam maintains, in the direction of the worst failure mode here:
+	// a switch that looks like a logout.
 	path := writeTempLoginUsers(t, twoAccountsWithUnknownFields)
 	f, err := readLoginUsersTree(path)
 	if err != nil {
@@ -225,12 +230,9 @@ func TestApplyLoginSelection_ClearsRememberPasswordOnEveryOtherAccount(t *testin
 		t.Fatal(err)
 	}
 	for _, u := range users {
-		want := "0"
-		if u.SteamID64 == "76561198000000002" {
-			want = "1"
-		}
-		if u.RememberPassword != want {
-			t.Fatalf("%s RememberPassword = %q, want %q", u.AccountName, u.RememberPassword, want)
+		if u.RememberPassword != "1" {
+			t.Fatalf("%s RememberPassword = %q, want 1 — the switch must not sign other accounts out",
+				u.AccountName, u.RememberPassword)
 		}
 	}
 }
@@ -238,6 +240,10 @@ func TestApplyLoginSelection_ClearsRememberPasswordOnEveryOtherAccount(t *testin
 func TestApplyLoginSelection_LeavesNoSignedInSessionWhenRememberIsOff(t *testing.T) {
 	// The public-machine case: switch in, play, and Steam asks the next person for a password
 	// instead of handing them the account.
+	//
+	// Scoped to the target. "Don't stay signed in on this account" is not a request to sign
+	// every other account on the machine out — those are someone's saved sessions, and the
+	// switch has no business touching them.
 	path := writeTempLoginUsers(t, twoAccountsWithUnknownFields)
 	f, err := readLoginUsersTree(path)
 	if err != nil {
@@ -251,8 +257,12 @@ func TestApplyLoginSelection_LeavesNoSignedInSessionWhenRememberIsOff(t *testing
 		t.Fatal(err)
 	}
 	for _, u := range users {
-		if u.RememberPassword != "0" {
-			t.Fatalf("%s RememberPassword = %q, want \"0\" for every account", u.AccountName, u.RememberPassword)
+		want := "1"
+		if u.SteamID64 == "76561198000000002" {
+			want = "0"
+		}
+		if u.RememberPassword != want {
+			t.Fatalf("%s RememberPassword = %q, want %q", u.AccountName, u.RememberPassword, want)
 		}
 	}
 	// The switch must still switch — only the remembering is disabled.
