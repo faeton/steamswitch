@@ -26,6 +26,11 @@ func SwapToAccount(steamID64 string, personaState int, extraLaunchArgs []string)
 	if err := requireProcessInspection(); err != nil {
 		return err
 	}
+	// Also before the short circuit: a kit is live on exactly one account, and the check
+	// below is what decides whether this call is allowed to move off it.
+	if err := requireNoActiveKit(steamID64); err != nil {
+		return err
+	}
 	defer func() {
 		if err != nil {
 			platform.EmitActionBarStatusI18n("Status_FailedLog")
