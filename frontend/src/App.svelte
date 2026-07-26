@@ -1,0 +1,498 @@
+<script lang="ts">
+  import { onMount } from "svelte";
+  import { get } from "svelte/store";
+  import { fade } from "svelte/transition";
+  import { cubicOut } from "svelte/easing";
+  import { Events } from "@wailsio/runtime";
+  import { motionEnabled } from "./lib/animation";
+  import { applyAnimationClass } from "./lib/animationClass";
+  import { installInputModalityTracking } from "./lib/inputModality";
+  import { animationsEnabled, loadAnimationsEnabled } from "./stores/animationSettings";
+  import TitleBar from './components/TitleBar.svelte'
+  import UpdateBar from './components/UpdateBar.svelte'
+  import AppModal from './components/AppModal.svelte'
+  import Toast from './components/Toast.svelte'
+  import StabilityPrompt from './components/StabilityPrompt.svelte'
+  import FileDropOverlay from './components/FileDropOverlay.svelte'
+  import UserDataMoveOverlay from './components/UserDataMoveOverlay.svelte'
+  import AppLockOverlay from './components/AppLockOverlay.svelte'
+  import SecurityProgressOverlay from './components/SecurityProgressOverlay.svelte'
+  import ContextMenu from './components/ContextMenu.svelte'
+  import BackgroundDropZones from './components/BackgroundDropZones.svelte'
+  import StatusStrip from './components/StatusStrip.svelte'
+  import { route, applyNavigateJSON, navigateBackLikeButton, navigateForward } from './stores/nav'
+  import { installPageStatsTracking } from "./lib/pageStatsTrack";
+  import { loadPageModule, prefetchCommonPages } from "./lib/pageLoaders";
+  import { narrate, statusStripAction } from './stores/statusStrip'
+  import { t } from "./stores/i18n";
+  import { NotifyLaunchUpdateCheck } from "../bindings/steamswitch/internal/platform/platformservice.js";
+  import * as PlatformService from "../bindings/steamswitch/internal/platform/platformservice.js";
+  import { pushToast } from "./stores/toast";
+  import { formatToastWithError } from "./lib/formatWailsError";
+  import { registerSvgRenderBridge } from "./lib/svgRenderBridge";
+  import { runCrashReportPromptIfNeeded } from "./lib/crashReportPrompt";
+  import { activeModal, openConfirm } from "./stores/modal";
+  import { contextMenu } from "./stores/contextMenu";
+  import {
+    openSearchOverlay,
+    searchOverlayCtrl,
+    searchOverlayPendingAppend,
+  } from "./stores/searchOverlay";
+  import {
+    commandPaletteHotkey,
+    eventMatchesCommandPaletteHotkey,
+    loadCommandPaletteHotkey,
+  } from "./stores/commandPalette";
+  import { platformActionBusy } from "./stores/platformPage";
+  import {
+    listInterruptedRestores,
+    loadSecurityStatus,
+    repairInterruptedRestore,
+    securityStatus,
+    securityStatusLoaded,
+  } from "./stores/security";
+  import { appBgInfo, userOverriddenAppBg } from "./stores/backgroundImage";
+  import type { AppBackgroundInfo } from "./stores/backgroundImage";
+  import { currentThemeBgUrl } from "./lib/themes";
+  import {
+    backgroundObjectPosition,
+    normalizeBackgroundAlignment,
+    normalizeBackgroundFit,
+  } from "./lib/backgroundDisplay";
+  import { applyUserDataMoveProgress } from "./stores/userDataMove";
+  import { createControllerInputController } from "./lib/controllerInput";
+  import { controllerSupportEnabled, loadControllerSupportEnabled } from "./stores/controllerSupport";
+  import { preventUnmodifiedBrowserContextMenu } from "./lib/actions/contextMenu";
+
+  function resolveActiveBg(
+    app: AppBackgroundInfo,
+    themeBgUrl: string,
+    userOverridden: boolean
+  ): AppBackgroundInfo | null {
+    if (app.hasImage) return app;
+    if (!userOverridden && themeBgUrl) {
+      return {
+        hasImage: true,
+        imageUrl: themeBgUrl,
+        opacity: 1.0,
+        blur: 0,
+        alignment: "center",
+        fit: "cover",
+        themeBgOverride: false,
+      };
+    }
+    return null;
+  }
+
+  $: activeBg = resolveActiveBg($appBgInfo, $currentThemeBgUrl, $userOverriddenAppBg);
+  // The strip is the app's status channel, not a page decoration: it is always mounted.
+  $: showStatusStrip = true;
+
+  let restoreRepairPromptOpen = false;
+  let restoreRepairPromptDismissed = false;
+
+  $: if (
+    $securityStatusLoaded &&
+    !$securityStatus.appLocked &&
+    $securityStatus.interruptedRestorePending &&
+    !$activeModal &&
+    !restoreRepairPromptOpen &&
+    !restoreRepairPromptDismissed
+  ) {
+    void promptInterruptedRestoreRepair();
+  }
+
+  function isEditableTarget(t: EventTarget | null): boolean {
+    if (!t || !(t instanceof HTMLElement)) {
+      return false;
+    }
+    if (t.isContentEditable) {
+      return true;
+    }
+    const tag = t.tagName;
+    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+      return true;
+    }
+    return t.closest("input, textarea, select, [contenteditable]") !== null;
+  }
+
+  function escapeHtml(value: string): string {
+    return value
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll("\"", "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  async function promptInterruptedRestoreRepair(): Promise<void> {
+    restoreRepairPromptOpen = true;
+    try {
+      const restores = await listInterruptedRestores().catch(() => []);
+      const labels = restores
+        .map((r) => [r.platformKey, r.accountName || r.uniqueId || r.journalPath].filter(Boolean).join(" / "))
+        .filter(Boolean);
+      const body = [
+        `<p>${escapeHtml($t("Security_InterruptedRestore_Body"))}</p>`,
+        labels.length
+          ? `<p>${escapeHtml($t("Security_InterruptedRestore_Affected"))}</p><ul>${labels
+              .map((label) => `<li>${escapeHtml(label)}</li>`)
+              .join("")}</ul>`
+          : "",
+      ].join("");
+      const ok = await openConfirm({
+        title: $t("Security_InterruptedRestore_Title"),
+        body,
+        positiveLabel: $t("Security_InterruptedRestore_Repair"),
+        negativeLabel: $t("Security_InterruptedRestore_Later"),
+        style: "yesno",
+      });
+      restoreRepairPromptDismissed = !ok;
+      if (!ok) return;
+      await repairInterruptedRestore();
+      pushToast({ type: "success", message: $t("Security_InterruptedRestore_Repaired"), duration: 5000 });
+      await loadSecurityStatus();
+    } catch (e) {
+      restoreRepairPromptDismissed = true;
+      pushToast({
+        type: "error",
+        message: formatToastWithError($t("Security_InterruptedRestore_RepairFailed"), e),
+        duration: 8000,
+      });
+    } finally {
+      restoreRepairPromptOpen = false;
+    }
+  }
+
+  function onGlobalKeydownCapture(e: KeyboardEvent): void {
+    if (get(securityStatus).appLocked) {
+      return;
+    }
+    const r = get(route);
+    if (r.page !== "home") {
+      return;
+    }
+    if (get(activeModal)) {
+      return;
+    }
+    if (get(contextMenu)) {
+      return;
+    }
+    const hotkey = get(commandPaletteHotkey);
+    const isConfiguredCommandHotkey = eventMatchesCommandPaletteHotkey(e, hotkey);
+    if (isConfiguredCommandHotkey) {
+      if (isEditableTarget(e.target)) {
+        return;
+      }
+      e.preventDefault();
+      openSearchOverlay(">");
+      return;
+    }
+    if (e.ctrlKey || e.metaKey || e.altKey) {
+      return;
+    }
+    if (e.key.length !== 1) {
+      return;
+    }
+    const so = get(searchOverlayCtrl);
+    if (so.open) {
+      if (isEditableTarget(e.target)) {
+        return;
+      }
+      e.preventDefault();
+      searchOverlayPendingAppend.set(e.key);
+      return;
+    }
+    if (isEditableTarget(e.target)) {
+      return;
+    }
+    e.preventDefault();
+    openSearchOverlay(e.key);
+  }
+
+  function canHandleGlobalNavInput(target: EventTarget | null): boolean {
+    if (get(securityStatus).appLocked) {
+      return false;
+    }
+    if (get(activeModal) || get(contextMenu)) {
+      return false;
+    }
+    return !isEditableTarget(target);
+  }
+
+  function onGlobalHistoryKeydownCapture(e: KeyboardEvent): void {
+    if (!canHandleGlobalNavInput(e.target)) {
+      return;
+    }
+    const key = e.key;
+    const isBack = key === "BrowserBack" || (e.altKey && key === "ArrowLeft");
+    const isForward = key === "BrowserForward" || (e.altKey && key === "ArrowRight");
+    if (!isBack && !isForward) {
+      return;
+    }
+    e.preventDefault();
+    if (isBack) {
+      navigateBackLikeButton();
+      return;
+    }
+    navigateForward();
+  }
+
+  function onGlobalHistoryMouseUpCapture(e: MouseEvent): void {
+    if (!canHandleGlobalNavInput(e.target)) {
+      return;
+    }
+    if (e.button !== 3 && e.button !== 4) {
+      return;
+    }
+    e.preventDefault();
+    if (e.button === 3) {
+      navigateBackLikeButton();
+      return;
+    }
+    navigateForward();
+  }
+
+  onMount(() => {
+    void loadSecurityStatus();
+    void loadAnimationsEnabled();
+    void loadCommandPaletteHotkey();
+    // Load initial app background state.
+    void PlatformService.GetAppBackground().then((info) => {
+      appBgInfo.set(info);
+    }).catch(() => {});
+
+    const offPageStats = installPageStatsTracking();
+    const offSvgBridge = registerSvgRenderBridge();
+    const offInputModality = installInputModalityTracking();
+    let cleanupAnimationsClass = () => {};
+    const offAnimationsClass = animationsEnabled.subscribe((enabled) => {
+      cleanupAnimationsClass();
+      cleanupAnimationsClass = applyAnimationClass(enabled);
+    });
+    const controllerInput = createControllerInputController();
+    const offControllerSupport = controllerSupportEnabled.subscribe((enabled) => {
+      controllerInput.setEnabled(enabled);
+    });
+    void loadControllerSupportEnabled();
+    const offNav = Events.On("navigate", (ev) => {
+      const raw = typeof ev.data === "string" ? ev.data : "";
+      applyNavigateJSON(raw);
+    });
+    void NotifyLaunchUpdateCheck();
+    void runCrashReportPromptIfNeeded();
+
+    const schedulePrefetch = (): void => {
+      prefetchCommonPages();
+    };
+    if (typeof requestIdleCallback === "function") {
+      requestIdleCallback(schedulePrefetch);
+    } else {
+      setTimeout(schedulePrefetch, 1500);
+    }
+
+    const offUpdateFail = Events.On("update-check-failed", () => {
+      pushToast({
+        type: "error",
+        title: "",
+        message: get(t)("Toast_UpdateCheckFail"),
+        duration: 15000,
+      });
+    });
+
+    const offPlatformsFound = Events.On("platforms-json-update-found", (ev) => {
+      const version = typeof ev.data === "object" && ev.data && "version" in ev.data
+        ? String((ev.data as { version?: string }).version ?? "")
+        : "";
+      pushToast({
+        type: "info",
+        title: "",
+        message: get(t)("Toast_PlatformsJsonUpdateFound", { version }),
+        duration: 8000,
+      });
+    });
+
+    const offPlatformsUpdated = Events.On("platforms-json-updated", (ev) => {
+      const version = typeof ev.data === "object" && ev.data && "version" in ev.data
+        ? String((ev.data as { version?: string }).version ?? "")
+        : "";
+      pushToast({
+        type: "success",
+        title: "",
+        message: get(t)("Toast_PlatformsJsonUpdated", { version }),
+        duration: 8000,
+      });
+    });
+
+    const offUserDataMoveProgress = Events.On("userdata-move-progress", (ev) => {
+      const data = ev.data;
+      if (typeof data !== "object" || !data) return;
+      const payload = data as { phase?: string; done?: number; total?: number };
+      applyUserDataMoveProgress({
+        phase: payload.phase,
+        done: payload.done,
+        total: payload.total,
+      });
+    });
+
+    function parseI18nPayload(raw: string): { key: string; vars?: Record<string, string | number> } {
+      const parts = raw.slice(5).split("\u001f");
+      const key = parts.shift() ?? "";
+      if (parts.length > 1) {
+        const vars: Record<string, string | number> = {};
+        for (let i = 0; i < parts.length; i += 2) {
+          const name = parts[i];
+          if (!name) continue;
+          vars[name] = parts[i + 1] ?? "";
+        }
+        return { key, vars };
+      }
+      if (parts.length === 1) return { key, vars: { platform: parts[0] } };
+      return { key };
+    }
+
+    const off = Events.On("action-bar-status", (ev) => {
+      const raw = typeof ev.data === "string" ? ev.data : "";
+      if (raw.startsWith("i18n:")) {
+        const { key, vars } = parseI18nPayload(raw);
+        narrate(vars ? $t(key, vars) : $t(key));
+      } else {
+        narrate(raw);
+      }
+    });
+
+
+    window.addEventListener("keydown", onGlobalKeydownCapture, true);
+    window.addEventListener("keydown", onGlobalHistoryKeydownCapture, true);
+    window.addEventListener("mouseup", onGlobalHistoryMouseUpCapture, true);
+    window.addEventListener("contextmenu", preventUnmodifiedBrowserContextMenu, true);
+    return () => {
+      window.removeEventListener("keydown", onGlobalKeydownCapture, true);
+      window.removeEventListener("keydown", onGlobalHistoryKeydownCapture, true);
+      window.removeEventListener("mouseup", onGlobalHistoryMouseUpCapture, true);
+      window.removeEventListener("contextmenu", preventUnmodifiedBrowserContextMenu, true);
+      offPageStats();
+      off?.();
+      offNav?.();
+      offUpdateFail?.();
+      offPlatformsFound?.();
+      offPlatformsUpdated?.();
+      offUserDataMoveProgress?.();
+      offSvgBridge?.();
+      offInputModality();
+      offAnimationsClass();
+      cleanupAnimationsClass();
+      offControllerSupport();
+      controllerInput.destroy();
+    };
+  });
+</script>
+
+<div class="container" class:busyCursor={$platformActionBusy.busy} class:animations-disabled={!$animationsEnabled}>
+  <FileDropOverlay />
+  <UserDataMoveOverlay />
+  <ContextMenu />
+  <a class="skip-link" href="#app-main">Skip to content</a>
+  <TitleBar />
+  <UpdateBar />
+  <div class="page">
+    {#key activeBg?.imageUrl}
+      {#if activeBg}
+        <img
+          class="bg-layer"
+          src={activeBg.imageUrl}
+          alt=""
+          aria-hidden="true"
+          in:fade={{ duration: motionEnabled() ? 350 : 0, easing: cubicOut }}
+          out:fade={{ duration: motionEnabled() ? 250 : 0, easing: cubicOut }}
+          style="object-fit: {normalizeBackgroundFit(activeBg.fit)}; object-position: {backgroundObjectPosition(normalizeBackgroundAlignment(activeBg.alignment))}; opacity: {activeBg.opacity}; filter: blur({activeBg.blur}px);"
+        />
+      {/if}
+    {/key}
+    <div class="page-content-wrapper">
+      {#key $route.page}
+        <main id="app-main" class="page-content" tabindex="-1">
+          {#await loadPageModule($route) then { default: Page }}
+            <Page />
+          {/await}
+        </main>
+      {/key}
+      {#if showStatusStrip}
+        <StatusStrip on:action={(e) => statusStripAction.set(e.detail)} />
+      {/if}
+    </div>
+    <BackgroundDropZones />
+    <AppLockOverlay />
+    <SecurityProgressOverlay />
+    <AppModal />
+    <Toast />
+    <StabilityPrompt />
+  </div>
+</div>
+
+<style>
+  .container {
+    background: var(--program-bg);
+    height: 100vh;
+    width: 100vw;
+    display: flex;
+    flex-direction: column;
+  }
+  .container.busyCursor,
+  .container.busyCursor * {
+    cursor: progress !important;
+  }
+  .skip-link {
+    position: absolute;
+    left: 1rem;
+    top: 1rem;
+    z-index: 1000000;
+    transform: translateY(calc(-100% - 1rem));
+    padding: 0.5rem 0.75rem;
+    background: var(--mainContentBackground);
+    color: var(--whiteSecondary);
+    border: 2px solid var(--accent);
+    border-radius: 4px;
+    text-decoration: none;
+  }
+  .skip-link:focus-visible {
+    transform: translateY(0);
+  }
+  .page {
+    position: relative;
+    isolation: isolate;
+    border-left: var(--border-bar-size) solid var(--border-bar-bg);
+    border-right: var(--border-bar-size) solid var(--border-bar-bg);
+    border-bottom: var(--border-bar-size) solid var(--border-bar-bg);
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+  .bg-layer {
+    position: absolute;
+    inset: -24px;
+    z-index: -1;
+    width: calc(100% + 48px);
+    height: calc(100% + 48px);
+    pointer-events: none;
+    will-change: opacity;
+  }
+  .page-content-wrapper {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .page-content {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+</style>

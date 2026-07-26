@@ -1,0 +1,43 @@
+# SteamSwitch Privacy Policy
+
+SteamSwitch is a local desktop application. It has no accounts, no sign-up, and no
+backend service operated by its author.
+
+## What the app does with your data
+
+SteamSwitch works entirely by moving files and registry values that Steam uses to
+remember its last login, while Steam is closed. None of those files, nor any
+information from them, is uploaded anywhere. Everything stays on your computer,
+usually under `%AppData%\SteamSwitch` unless you choose another location in settings.
+
+No passwords are ever handled: the app swaps Steam's own saved-login data; it never
+sees or stores your Steam credentials.
+
+## Network requests the app can make
+
+All outbound requests exist only to display information to you, and all of them can be
+disabled with Offline Mode (a transport-level block inside the app):
+
+- `steamcommunity.com` — per-account profile name, avatar and VAC/limited status
+  (`https://steamcommunity.com/profiles/{SteamId}?xml=1`). Can be disabled in
+  Steam settings ("Collect profile images and VAC ban status").
+- `api.steampowered.com` — Valve's public app-name list, used to show game names.
+- Optional game-statistics providers listed in `GameStats.json` — used only if you
+  explicitly enable a game's stats for an account; the data source is shown when you
+  enable it.
+- Discord Rich Presence talks only to your local Discord client, never the network.
+
+## What the fork removed
+
+The upstream project (TcNo Account Switcher) offered opt-in anonymous statistics,
+crash-report upload, feedback submission and update checks against its own servers.
+This fork removed all of that: there is no telemetry, no crash upload, no feedback
+endpoint and no phone-home update check. Usage statistics and crash logs are still
+written locally for your own use; they never leave your PC.
+
+## License and disclaimer
+
+This project is licensed under the
+[GNU General Public License v3.0](https://github.com/faeton/steamswitch/blob/master/LICENSE).
+See also the [Disclaimer](https://github.com/faeton/steamswitch/blob/master/DISCLAIMER.md):
+the software is provided as-is, without warranty of any kind.

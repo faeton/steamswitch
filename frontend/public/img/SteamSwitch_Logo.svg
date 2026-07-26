@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 768 264" fill="#fff">
+  <!-- Neutral SteamSwitch wordmark. Consumed as <use href="...#logo"/>, so the
+       drawable content must live inside an element with id="logo". -->
+  <g id="logo">
+    <!-- Blocky "S" mark, matching the app icon. -->
+    <path d="M40 44h150v40H80v34h96v40H80v22h110v40H40V44z"/>
+    <path d="M40 44h40v40H40zM150 140h40v80h-40z" opacity=".55"/>
+    <!-- Wordmark. -->
+    <text x="228" y="176" font-family="Segoe UI, Inter, Helvetica, Arial, sans-serif"
+          font-size="112" font-weight="700" letter-spacing="-2">SteamSwitch</text>
+  </g>
+</svg>

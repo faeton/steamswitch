@@ -1,0 +1,209 @@
+/*
+    Built-in appearance base — the product default (REDESIGN.md §6).
+
+    Two axes are independent:
+      - `data-appearance`  = the resolved scheme (light | dark). Always present, so any
+                             component may branch on it regardless of which theme is active.
+      - `data-base-theme`  = present only while no classic theme pack is loaded.
+
+    Everything below is gated on `data-base-theme` so that selecting a classic pack — whose
+    runtime overlay only carries `:root { … }`, i.e. lower specificity than the attribute
+    selectors here — still wins. Removing the attribute is what hands control back.
+*/
+
+/*
+    Accent tokens are deliberately absent from every block in this file. They are owned at
+    runtime by `buildAccentOverlayCss`, which emits plain `:root { … }` — lower specificity
+    than the attribute selectors here, so anything accent-shaped declared below would silently
+    beat the user's chosen accent. `applyResolvedAccent` always writes an overlay while the
+    base theme is active, including for the default accent.
+*/
+
+:root[data-base-theme] {
+    /* Simplistic-but-geeky: hairline borders, no thick window frame bar. */
+    --border-bar-size: 0px;
+
+    --gradientDegree: 135deg;
+    --main-padding: 0.75rem;
+    --notification-border-radius: 8px;
+
+    /* Meta line: IDs, timestamps, kit state (REDESIGN.md §6). */
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", "Segoe UI Mono",
+        "Roboto Mono", Menlo, Consolas, monospace;
+    --font-meta-size: 11px;
+}
+
+/* --------------------------------------------------------------------- dark */
+
+:root[data-base-theme][data-appearance="dark"] {
+    --code: #1b2027;
+    --code-background: #14181e;
+    --slightly-darker-code-background: #121519;
+    --darker-code-background: #101317;
+    --even-darker-code-background: #0b0e11;
+
+    --black: #16191f;
+    --blackSecondary: #2a2f38;
+    --blackTernary: #8b93a1;
+    --blackLight: hsla(220, 15%, 15%, 5%);
+    --white: #e6e9ee;
+    --whiteSecondary: #f5f7fa;
+    --whiteLight: hsla(220, 20%, 96%, 5%);
+
+    --program-bg: #101317;
+    --mainContentBackground: #14181e;
+    --document-canvas-bg: #101317;
+    --border-bar-bg: #232830;
+    --footer-bg: #14181e;
+    --scrollbar-track-bg: #191d23;
+    --button-bg: #232a33;
+    --button-bg-hover: #2c343f;
+    --tooltip-bg: #0b0e11;
+
+    --hairline: #262c35;
+    --hairline-strong: #333b46;
+
+    --green: #4ade80;
+    --orange: #fbbf24;
+    --red: #f87171;
+    --yellow: #facc15;
+    --greenInt: 74, 222, 128;
+    --orangeInt: 251, 191, 36;
+    --redInt: 248, 113, 113;
+
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --text-muted-gray: #b6bcc7;
+    --text-subtle-gray: #8b93a1;
+    --text-dim-gray: #6a7280;
+    --text-body-muted: #7d8592;
+    --tag-default-bg: #2a2f38;
+
+    --surface-row-dark: #191d23;
+    --surface-context-submenu: #1b2027;
+    --surface-context-row: #232a33;
+    --surface-search-result: #1b2027;
+
+    --overlay-panel-bg: #171b21;
+    --overlay-scrim-deep: rgba(6, 8, 11, 0.72);
+    --modal-scrim: rgba(6, 8, 11, 0.6);
+}
+
+/* -------------------------------------------------------------------- light */
+
+:root[data-base-theme][data-appearance="light"] {
+    --code: #eef1f5;
+    --code-background: #f5f7fa;
+    --slightly-darker-code-background: #e9edf2;
+    --darker-code-background: #ffffff;
+    --even-darker-code-background: #ffffff;
+
+    /* `--black`/`--white` are role names, not colours: they stay foreground/background. */
+    --black: #ffffff;
+    --blackSecondary: #d9dfe7;
+    --blackTernary: #5c6470;
+    --blackLight: hsla(220, 15%, 40%, 5%);
+    --white: #1b2027;
+    --whiteSecondary: #0f1318;
+    --whiteLight: hsla(220, 20%, 20%, 4%);
+
+    --program-bg: #f5f7fa;
+    --mainContentBackground: #ffffff;
+    --document-canvas-bg: #f5f7fa;
+    --border-bar-bg: #dfe4ea;
+    --footer-bg: #ffffff;
+    --scrollbar-track-bg: #e9edf2;
+    --button-bg: #e7ebf1;
+    --button-bg-hover: #dbe1e9;
+    --tooltip-bg: #1b2027;
+
+    --hairline: #e2e6ec;
+    --hairline-strong: #ccd3dc;
+
+    --green: #15803d;
+    --orange: #b45309;
+    --red: #b91c1c;
+    --yellow: #a16207;
+    --greenInt: 21, 128, 61;
+    --orangeInt: 180, 83, 9;
+    --redInt: 185, 28, 28;
+
+    --shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
+    --shadow-color-heavy: rgba(16, 24, 40, 0.28);
+    --shadow-color-60: rgba(16, 24, 40, 0.22);
+    --shadow-color-55-text: rgba(16, 24, 40, 0.2);
+    --shadow-color-50: rgba(16, 24, 40, 0.18);
+    --shadow-color-45: rgba(16, 24, 40, 0.16);
+    --shadow-color-40: rgba(16, 24, 40, 0.14);
+    --shadow-color-35: rgba(16, 24, 40, 0.12);
+    --shadow-color-30: rgba(16, 24, 40, 0.1);
+
+    /* The white-on-dark alpha ramps invert wholesale in light mode. */
+    --overlay-white-06: rgba(16, 24, 40, 0.04);
+    --overlay-white-08: rgba(16, 24, 40, 0.05);
+    --overlay-white-12: rgba(16, 24, 40, 0.07);
+    --overlay-white-14: rgba(16, 24, 40, 0.08);
+    --overlay-white-15: rgba(16, 24, 40, 0.09);
+    --text-white-40: rgba(27, 32, 39, 0.4);
+    --text-white-50: rgba(27, 32, 39, 0.5);
+    --text-white-60: rgba(27, 32, 39, 0.6);
+    --text-white-65: rgba(27, 32, 39, 0.65);
+    --text-white-88: rgba(27, 32, 39, 0.88);
+    --text-white-90: rgba(27, 32, 39, 0.9);
+    --text-white-92: rgba(27, 32, 39, 0.92);
+
+    --text-muted-gray: #4b5462;
+    --text-subtle-gray: #5c6470;
+    --text-dim-gray: #7b8492;
+    --text-body-muted: #6b7480;
+    --tag-default-bg: #d9dfe7;
+
+    --surface-row-dark: #f0f3f7;
+    --surface-glass-06-15: linear-gradient(145deg, rgba(16, 24, 40, 0.03), rgba(16, 24, 40, 0.06));
+    --surface-steam-popover: #ffffff;
+    --surface-context-submenu: #ffffff;
+    --surface-context-row: #f0f3f7;
+    --surface-search-result: #f0f3f7;
+
+    --form-checkbox-border: #9aa3b0;
+    --input-number-border: #b7bfc9;
+    --preview-control-border: #9aa3b0;
+    --window-control-hover-bg: #e2e6ec;
+
+    --error-text-soft: #b91c1c;
+    --error-bg-dim: rgba(185, 28, 28, 0.06);
+    --error-bg-hover: rgba(185, 28, 28, 0.1);
+    --error-border-soft: rgba(185, 28, 28, 0.3);
+    --success-solid: #15803d;
+    --error-solid: #b91c1c;
+    --success-soft-bg: rgba(21, 128, 61, 0.1);
+    --error-soft-bg: rgba(185, 28, 28, 0.1);
+
+    --overlay-panel-bg: #ffffff;
+    --overlay-scrim-deep: rgba(16, 24, 40, 0.35);
+    --modal-scrim: rgba(16, 24, 40, 0.32);
+    --backdrop-scrim-55: rgba(16, 24, 40, 0.3);
+    --backdrop-scrim-65: rgba(16, 24, 40, 0.4);
+    --backdrop-dark-20: rgba(16, 24, 40, 0.06);
+    --backdrop-dark-25: rgba(16, 24, 40, 0.08);
+    --backdrop-dark-35: rgba(16, 24, 40, 0.12);
+    --black-alpha-12: rgba(16, 24, 40, 0.06);
+    --black-alpha-15: rgba(16, 24, 40, 0.08);
+
+    --context-menu-hotkey: #fff3cd;
+}
+
+/* Base-theme chrome tweaks that apply to both schemes. */
+:root[data-base-theme] {
+    --modal-border: var(--hairline);
+    --notification-border: var(--hairline);
+    --context-menu-border: var(--hairline);
+    --role-tile-border: var(--hairline);
+    --role-field-border: var(--hairline-strong);
+}
+
+/* Monospace meta utility (IDs, timestamps, `kit:dota local+cloud · snap:a3f2`). */
+.meta-mono {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: var(--font-meta-size, 11px);
+    letter-spacing: 0.01em;
+}

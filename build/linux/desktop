@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=SteamSwitch
+Comment=A Steam-only account switcher with Dota 2 config management.
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/SteamSwitch %u
+Terminal=false
+Type=Application
+Icon=SteamSwitch
+Categories=Utility;
+StartupWMClass=SteamSwitch
+
+ 

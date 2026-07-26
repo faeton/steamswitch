@@ -1,0 +1,27 @@
+{
+	"fixed": {
+		"file_version": "0.1.0"
+	},
+	"info": {
+		"0000": {
+			"ProductVersion": "0.1.0",
+			"CompanyName": "Ivan Faeton Danishevskyi",
+			"FileDescription": "SteamSwitch",
+			"InternalName": "SteamSwitch",
+			"LegalCopyright": "© 2026 Ivan Faeton Danishevskyi. Derived from TcNo Account Switcher, © 2019-2026 TroubleChute (Wesley Pyburn). GPL-3.0.",
+			"OriginalFilename": "SteamSwitch.exe",
+			"ProductName": "SteamSwitch",
+			"Comments": "A fast account switcher for Steam, with Dota 2 config management."
+		},
+		"0409": {
+			"ProductVersion": "0.1.0",
+			"CompanyName": "Ivan Faeton Danishevskyi",
+			"FileDescription": "SteamSwitch",
+			"InternalName": "SteamSwitch",
+			"LegalCopyright": "© 2026 Ivan Faeton Danishevskyi. Derived from TcNo Account Switcher, © 2019-2026 TroubleChute (Wesley Pyburn). GPL-3.0.",
+			"OriginalFilename": "SteamSwitch.exe",
+			"ProductName": "SteamSwitch",
+			"Comments": "A fast account switcher for Steam, with Dota 2 config management."
+		}
+	}
+}

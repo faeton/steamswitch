@@ -1,0 +1,43 @@
+old
+.task
+.codegraph/
+bin
+frontend/dist
+frontend/node_modules
+build/linux/appimage/build
+build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
+todo.txt
+/frontend/bindings
+SteamSwitch.exe
+*.af
+*.af~lock~
+*.syso
+.fallowrc.json
+basic.test.exe
+/frontend/.vite
+
+updater-key
+/docs
+
+docs/RELEASING.md
+/.cache
+/.pnpm-store
+/.vite
+/.pnpm-store
+/.codex-cache
+.codex-state-matrix-rerun.json
+/.cursor
+/.codex
+/.fallow
+/.vscode
+# Local codanna symbol index (rebuild with: codanna index internal frontend/src --force)
+.codanna/
+# Symlink to the machine-local embedding model cache (~/.codanna/models)
+.fastembed_cache
+
+# Planning and agent docs — kept local, not part of the published product
+CLAUDE.md
+REDESIGN.md
+TODO.md
+VAULT.md
+results.md
