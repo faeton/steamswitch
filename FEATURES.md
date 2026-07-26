@@ -102,7 +102,8 @@ Fork-only. The thing upstream structurally could not do: copy account → accoun
 Newest and least proven. An encrypted store for what an account *is* — its password,
 authenticator seed, email binding and health — sealed under the app-lock password.
 
-**Phases 1–4 are built. Phase 5 (handoff) is not started.**
+**All five phases are built.** None of the network-facing half has run for real yet — see the
+confidence column.
 
 | Feature | Status | Where | Test |
 |---|---|---|---|
@@ -125,6 +126,12 @@ authenticator seed, email binding and health — sealed under the app-lock passw
 | Distinguishing wrong password / no such account / Steam unreachable | Live-unproven | `classifyLoginError` | V4b, V4b2 |
 | Rate-limit latch — says so, disables Verify, does not retry | Built | `deepMu` + latch | V4d, V4e |
 | **Scheduled deep checks** — opt-in, off by default, one account per tick, never at launch | Built | `internal/vault/scheduler.go` | §V7 |
+| **Handoff** — give an account to another person as a passphrase-sealed file | Built | `internal/vault/handoff.go` | §V8 |
+| Two modes, never a "lend": session access vs. ownership | Built | `ModeGrant` / `ModeTransfer` | V8b, V8n, V8o |
+| Bundle envelope reveals nothing — not the account, label or mode | Built | `sealedBundle` | V8d |
+| Inspect before accept; inspect writes nothing | Built | `Inspect` / `Accept` | V8l, V8m |
+| Advisory expiry and single-use, labelled as advisory | Built | recipient-side ledger | V8s–V8v |
+| Local export audit log, never uploaded | Built | `Doc.Exports` | V8x |
 | Login-details panel — audience, expiry, IP claims, read-only | Built | `TokenDetails` | V4f–V4h |
 | Health dot on the tile, warn/fail only, never colour alone | Built | `AccountTile.svelte` | V5c, V5d, V5g |
 | Vault values kept out of `actionlog` and `slog` | Built | call sites | V6f, V6g |
@@ -134,7 +141,8 @@ authenticator seed, email binding and health — sealed under the app-lock passw
 
 | | Why |
 |---|---|
-| **Handoff (phase 5)** — giving an account to another person | Not started. It is the only part that can hurt someone other than the user running it, so it is last. Design is settled in `VAULT.md` §9: two modes, never a "lend" button, a file the user moves themselves, no server or relay. The honest premise is that a client-audience refresh token *is* full account access with no revocation, so the UI must not imply one exists. |
+| **Revocation of a handoff** | Impossible without a server, and there is no server. A client-audience refresh token *is* full account access; once someone has the bundle and the passphrase, the only real levers are changing the password and Steam's Sign out of all devices, both outside this app. The UI states this rather than offering a button that would lie. Expiry and single-use exist, and are labelled as enforced by the recipient's copy of SteamSwitch rather than by cryptography. |
+| **Key exchange, recipient keys, a directory, a revocation list** | Each needs either a server or a PKI. A passphrase sent by a second channel is the whole trust model, stated plainly. |
 | **Token injection** ("log in for me") | Research-only, unproven, and `VAULT.md` §6.2 says so. Verification proves a password works; it does not sign you in. |
 | **Decoding Steam's `ConnectCache` / `MachineAuth`** | The panel reports presence, size and mtime and stops. On macOS the Keychain-derived key has not been reversed at all. |
 
@@ -237,10 +245,15 @@ first, and use a test account you do not mind locking out.
     nothing. **V7a is the one that matters**: leave the setting off, run the app for a
     while, and confirm no Guard email ever arrives.
 23. §V6 — the vault against the rest of the app, plus G9 and G10.
+24. §V8 — handoff. **This one needs two machines**, or at least a second data folder with a
+    different app password; a bundle that only ever round-trips where it was written has
+    not been tested. Use a throwaway account — a transfer cannot be undone from inside the
+    app. V8d (the file reveals nothing) and V8v (expiry is labelled as advisory) are the
+    two that matter.
 
 ### Block 6 — macOS specifics
 
-24. §F-macos, M1 through M12. Run after the full plan, not instead of it.
+25. §F-macos, M1 through M12. Run after the full plan, not instead of it.
 
 ---
 

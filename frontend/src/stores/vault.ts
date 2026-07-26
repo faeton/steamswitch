@@ -176,3 +176,53 @@ export async function discoverIMAP(address: string, password: string): Promise<s
 export async function tokenDetails(steamId64: string) {
   return VaultService.GetTokenDetails(steamId64);
 }
+
+/**
+ * Handoff (VAULT.md §9). The bundle bytes never come through here — Export returns the path
+ * it wrote, and the import calls address a file by name inside the handoff folder. Putting a
+ * passphrase-sealed blob of full account access into JavaScript would be a strictly worse
+ * trade than passing a filename.
+ */
+export async function exportHandoff(req: {
+  steamId64: string;
+  mode: string;
+  label: string;
+  passphrase: string;
+  expiresInDays: number;
+  singleUse: boolean;
+  confirm: string;
+}) {
+  vaultBusy.set(true);
+  try {
+    return await VaultService.ExportHandoff(req as never);
+  } finally {
+    vaultBusy.set(false);
+  }
+}
+
+export async function listHandoffBundles() {
+  return VaultService.ListHandoffBundles();
+}
+
+export async function inspectHandoffBundle(name: string, passphrase: string) {
+  return VaultService.InspectHandoffBundle(name, passphrase);
+}
+
+export async function acceptHandoffBundle(name: string, passphrase: string) {
+  vaultBusy.set(true);
+  try {
+    const info = await VaultService.AcceptHandoffBundle(name, passphrase);
+    await refreshVault();
+    return info;
+  } finally {
+    vaultBusy.set(false);
+  }
+}
+
+export async function handoffLog() {
+  return VaultService.GetHandoffLog();
+}
+
+export async function handoffFolder(): Promise<string> {
+  return VaultService.GetHandoffFolder();
+}

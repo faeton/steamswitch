@@ -399,6 +399,48 @@ running and come back".
 | V7m | After a scheduled check has run, open the account's health screen | The result is there, with the same detail a manual check produces. A background check that records nothing visible is indistinguishable from one that never ran. |
 | V7n | Let a scheduled check **fail** (stored password wrong), then watch the retry timing | It backs off — hours, then longer — rather than retrying on the configured cadence. Retrying a rejected password on a timer is how an account gets locked out of its own logins. |
 
+### V8. Handoff — giving an account to someone else
+
+The only part of the app that can hurt somebody other than the person running it, which is
+why it was built last. Everything in this section is about whether the app tells the truth
+about what it is doing.
+
+**Two machines.** A handoff that only ever round-trips on the machine that wrote it has not
+been tested — the whole point is that the file opens somewhere that shares no state with the
+exporter. A second PC, a VM, or a second data folder with a *different* app password all
+count.
+
+Use a throwaway account. A transfer is not reversible from inside this app.
+
+| # | Steps | Expected |
+|---|---|---|
+| V8a | Account menu → Advanced → **Give this account to someone…** | The first thing on screen says there is no way to take it back, and names changing the password / Steam's Sign out of all devices as the only real levers. |
+| V8b | Read every label on the screen | The word **"lend"** appears nowhere, in any wording. It implies a recall that cannot be implemented without a server. |
+| V8c | Choose **Session access**, set a passphrase, create the file | It writes into `<data>\Handoff\` and names the path. Nothing is uploaded — check with a network monitor if you like. |
+| V8d | Open the written file in a text editor | **A JSON envelope and nothing else.** Search it for the account name, the SteamID64, the label, the word `grant`, the password and the token. None may appear — a bundle found on a shared drive must say only that somebody uses SteamSwitch. |
+| V8e | Check the file's permissions | Owner-only, as in V1d. |
+| V8f | Try a passphrase under 10 characters | Refused, with a reason. The passphrase is the only thing in front of the file. |
+| V8g | Enter mismatched passphrases | Refused before anything is written. |
+| V8h | Try **Session access** on an account that has never been verified | Refused with "nothing stored to hand over yet" rather than writing an empty file that fails on the recipient's machine for reasons neither of you can see. |
+| V8i | Choose **Ownership**, and try to create the file without typing the account name | Refused. A typed confirmation, not a checkbox — this can lock you out of your own account. |
+| V8j | Type the account name in the wrong case | Accepted. It is a speed bump, not a spelling test. |
+| V8k | Move a **Session access** bundle to the second machine, Tools → **Accept an account someone gave you** | The file is listed. Before the passphrase is entered, nothing about it is shown — not the account, not the mode. |
+| V8l | Enter the passphrase, press **See what's in it** | It states plainly that this is sign-in access and does not include the password, and lists what the bundle carries. |
+| V8m | At that point, check the recipient's vault | **Nothing has been written.** Inspect is read-only; that is what makes "see it before accepting" true. |
+| V8n | Press **Accept it**, then look at the account | The entry exists with the session but **no password and no authenticator seed**. If a grant carried either, the two modes are the same thing with different labels. |
+| V8o | Repeat with an **Ownership** bundle | Password, seed and email binding all arrive. Reveal each and compare against the source machine. |
+| V8p | Enter the wrong passphrase | "That passphrase does not open this file." Not a crash, not a partial import. |
+| V8q | Corrupt one character inside `"ciphertext"` and try again with the right passphrase | The **same** message as a wrong passphrase. The two must not be distinguishable. |
+| V8r | Rename a random `.txt` to `.sshandoff`, drop it in the folder, try to import | "Not a handoff file, or damaged." |
+| V8s | Export with **Only let it be imported once** ticked, import it, then import the same file again | Refused the second time. |
+| V8t | After V8s, delete the imported vault entry and import the file a third time | Still refused. The marker is keyed to the file, not the account — deleting the entry must not reset it. |
+| V8u | Export with an expiry of 1 day, then set the recipient machine's clock past it and import | Refused as expired. |
+| V8v | Read what the app says about expiry and single-use | It says both are enforced by the recipient's copy of SteamSwitch, **not by the encryption**. If the wording implies they are a control, that is the bug — anyone who patches their build ignores both. |
+| V8w | Import a bundle for an account the recipient already has in their vault | It warns that accepting will overwrite, **before** the write, not after. |
+| V8x | On the exporting machine, check the export log | It lists what was exported, to which label and when. It does **not** contain the passphrase, and nothing in it would let that machine open the bundle. |
+| V8y | Search the whole data folder and the logs for the passphrase you typed | It appears nowhere. |
+| V8z | Import a grant, then on the *original* machine change the account's Steam password | The recipient's access stops working. This is the only revocation there is, and the app should never have implied otherwise. |
+
 ## G. Regression sweep
 
 | # | Steps | Expected |

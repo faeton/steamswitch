@@ -113,6 +113,20 @@
   }
 
   /**
+   * Accepting a handoff bundle someone gave you. The export half lives on the account menu,
+   * because it is about one account; importing is not, since the account it carries may be
+   * one this machine has never seen.
+   */
+  async function openVaultImport(): Promise<void> {
+    const body = await import("../components/modals/VaultImportModalBody.svelte");
+    await openAlert({
+      title: get(t)("Tools_VaultImport_Title"),
+      dismissLabel: get(t)("Button_Close"),
+      bodyComponent: body.default,
+    });
+  }
+
+  /**
    * Backup writes a zip of Steam's `config/` and `userdata/` into the data folder; the report
    * names the archive, because a backup you cannot find is not a backup.
    */
@@ -203,6 +217,11 @@
           titleKey: "Tools_VaultList_Title",
           descKey: "Tools_VaultList_Desc",
           action: openVaultOverview,
+        },
+        {
+          titleKey: "Tools_VaultImport_Title",
+          descKey: "Tools_VaultImport_Desc",
+          action: openVaultImport,
         },
       ],
     },

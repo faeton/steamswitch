@@ -33,6 +33,12 @@ const (
 
 	kdfTargetMillis = 300
 	kdfMaxTime      = 8
+
+	// Ceilings for parameters that may have arrived from another machine — see
+	// normalizeKDFParams. 1 GB and 8 threads are far above anything calibrate produces and
+	// far below anything that takes a desktop down.
+	kdfMaxMemoryKB = 1024 * 1024
+	kdfMaxThreads  = 8
 )
 
 var (
@@ -369,6 +375,31 @@ func normalizeKDFParams(p KDFParams) KDFParams {
 	}
 	if p.TargetMillis == 0 {
 		p.TargetMillis = def.TargetMillis
+	}
+
+	// Upper bounds, not just defaults for zeros. These parameters do not always come from
+	// this machine: a handoff bundle carries its own so the recipient can re-derive, and a
+	// bundle is a file that arrived from somebody else. Argon2 does exactly what it is told,
+	// so a bundle claiming 4 TB of memory and a million passes is a way to hang or OOM the
+	// importer before they have agreed to anything.
+	//
+	// Clamping down rather than rejecting is deliberate: the wrong parameters simply derive
+	// the wrong key, and a wrong key is already an indistinguishable failure. The bound only
+	// has to stop the machine falling over.
+	if p.Time > kdfMaxTime {
+		p.Time = kdfMaxTime
+	}
+	if p.MemoryKB > kdfMaxMemoryKB {
+		p.MemoryKB = kdfMaxMemoryKB
+	}
+	if p.Threads > kdfMaxThreads {
+		p.Threads = kdfMaxThreads
+	}
+	if p.KeyLen != vaultKeyBytes {
+		// Every consumer of this key wants 32 bytes for AES-256. A bundle asking for
+		// anything else is either corrupt or probing, and honouring it produces a key
+		// nothing can use.
+		p.KeyLen = vaultKeyBytes
 	}
 	return p
 }

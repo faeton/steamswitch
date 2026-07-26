@@ -23,6 +23,31 @@ const Version = 1
 type Doc struct {
 	Version int              `json:"version"`
 	Entries map[string]Entry `json:"entries"` // keyed by SteamID64
+
+	// Exports is the local handoff audit log (VAULT.md §9.3): what left this machine, under
+	// which label, when. It lives inside the sealed blob rather than beside it because the
+	// labels are the user's own words about their accounts, and it never leaves the machine
+	// that wrote it.
+	Exports []ExportRecord `json:"exports,omitempty"`
+
+	// ImportedBundles is how the advisory single-use marker is enforced — bundle id to the
+	// time it was accepted. Kept keyed by id rather than by account so that deleting the
+	// entry does not make a single-use bundle importable again.
+	ImportedBundles map[string]string `json:"importedBundles,omitempty"`
+}
+
+// ExportRecord is one line of the handoff audit log. It records that an export happened and
+// what shape it had. It does not record the passphrase, and there is nothing in it that
+// would let this machine open the bundle it describes.
+type ExportRecord struct {
+	BundleID   string `json:"bundleId"`
+	SteamID64  string `json:"steamId64"`
+	Mode       string `json:"mode"`
+	Label      string `json:"label,omitempty"`
+	ExportedAt string `json:"exportedAt"`
+	ExpiresAt  string `json:"expiresAt,omitempty"`
+	SingleUse  bool   `json:"singleUse,omitempty"`
+	Path       string `json:"path,omitempty"`
 }
 
 // Entry is everything the vault knows about one account.

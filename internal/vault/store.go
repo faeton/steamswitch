@@ -235,9 +235,23 @@ func mutate(fn func(doc *Doc) error) error {
 	}
 	// Copy before mutating: a fn that fails halfway must not leave the cached document
 	// holding changes that were never written.
-	next := &Doc{Version: doc.Version, Entries: make(map[string]Entry, len(doc.Entries))}
+	//
+	// Every field has to be copied, not just Entries. This once copied Version and Entries
+	// alone, which meant any write — saving an entry, recording a health check — silently
+	// dropped whatever else the document held. Adding a field to Doc and forgetting a line
+	// here does not fail to compile and does not fail to save; it just quietly erases data
+	// on the next unrelated write.
+	next := &Doc{
+		Version:         doc.Version,
+		Entries:         make(map[string]Entry, len(doc.Entries)),
+		Exports:         append([]ExportRecord(nil), doc.Exports...),
+		ImportedBundles: make(map[string]string, len(doc.ImportedBundles)),
+	}
 	for k, v := range doc.Entries {
 		next.Entries[k] = v
+	}
+	for k, v := range doc.ImportedBundles {
+		next.ImportedBundles[k] = v
 	}
 	if err := fn(next); err != nil {
 		return err

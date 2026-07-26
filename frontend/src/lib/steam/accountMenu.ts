@@ -198,6 +198,11 @@ export function buildAccountMenu(deps: AccountMenuDeps): MenuItemDef[] {
           action: () => void openVaultLoginDetails(deps),
         },
         {
+          label: t("Vault_Menu_Handoff"),
+          disabled: !deps.hasVaultEntry,
+          action: () => void openVaultHandoff(deps),
+        },
+        {
           label: t("Kit_Settings"),
           action: () => deps.onNavigate("settings"),
         },
@@ -213,7 +218,7 @@ export function buildAccountMenu(deps: AccountMenuDeps): MenuItemDef[] {
 }
 
 /**
- * The four vault surfaces, all opened the same way: an alert-shaped modal whose body owns
+ * The five vault surfaces, all opened the same way: an alert-shaped modal whose body owns
  * its own actions. They are dynamic imports so a build that never opens the vault never
  * loads any of it.
  */
@@ -254,6 +259,19 @@ async function openVaultLoginDetails(deps: AccountMenuDeps): Promise<void> {
     dismissLabel: deps.t("Button_Close"),
     bodyComponent: body.default,
     bodyProps: { steamId64: deps.account.steamId64 },
+  });
+}
+
+async function openVaultHandoff(deps: AccountMenuDeps): Promise<void> {
+  const [{ openAlert }, body] = await Promise.all([
+    import("../../stores/modal"),
+    import("../../components/modals/VaultHandoffModalBody.svelte"),
+  ]);
+  await openAlert({
+    title: deps.t("Vault_Menu_Handoff"),
+    dismissLabel: deps.t("Button_Close"),
+    bodyComponent: body.default,
+    bodyProps: { steamId64: deps.account.steamId64, accountName: deps.account.accountName ?? "" },
   });
 }
 

@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"steamswitch/internal/paths"
 	"steamswitch/internal/security"
@@ -322,6 +323,44 @@ func TestLockedVaultRefusesAndForgets(t *testing.T) {
 	}
 	if Has("76561198000000010") {
 		t.Fatal("Has answered from a cache that should have been dropped")
+	}
+}
+
+// mutate copies the document before applying a change. It once copied only Version and
+// Entries, which meant every write silently erased anything else the document held — the
+// handoff audit log and the single-use ledger both vanished on the next unrelated save.
+//
+// The failure mode is what makes this worth pinning: it does not fail to compile, does not
+// fail to save, and leaves no error anywhere. It just loses data.
+func TestMutate_PreservesEveryFieldOfTheDocument(t *testing.T) {
+	newVault(t)
+
+	if err := mutate(func(doc *Doc) error {
+		doc.Exports = append(doc.Exports, ExportRecord{BundleID: "b1", SteamID64: "76561198000000900", Mode: ModeGrant})
+		doc.ImportedBundles = map[string]string{"b0": "2026-07-26T00:00:00Z"}
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	// A completely unrelated write, of the kind that happens constantly.
+	if err := Put(Draft{SteamID64: "76561198000000901", Label: ptr("unrelated")}); err != nil {
+		t.Fatal(err)
+	}
+	if err := recordHealth("76561198000000901", HealthReport{Verdict: VerdictOK}, time.Time{}, 0); err != nil {
+		t.Fatal(err)
+	}
+
+	DropCache()
+	doc, err := load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Exports) != 1 || doc.Exports[0].BundleID != "b1" {
+		t.Fatalf("the export log did not survive an unrelated write: %+v", doc.Exports)
+	}
+	if _, ok := doc.ImportedBundles["b0"]; !ok {
+		t.Fatalf("the single-use ledger did not survive an unrelated write: %+v", doc.ImportedBundles)
 	}
 }
 

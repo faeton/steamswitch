@@ -237,6 +237,73 @@ func (s *VaultService) DiscoverIMAP(address, password string) (string, error) {
 // will be refused.
 func (s *VaultService) IsRateLimited() bool { return RateLimited() }
 
+// --- handoff (VAULT.md §9) ---------------------------------------------------------------
+
+// ExportHandoff writes a bundle for another person to import.
+//
+// The one method here that hands out account access, so it takes the unlock gate like
+// everything else and the mode is validated in Export rather than trusted from the caller.
+func (s *VaultService) ExportHandoff(req ExportRequest) (ExportResult, error) {
+	if err := security.RequireUnlocked(); err != nil {
+		return ExportResult{}, ErrLocked
+	}
+	return Export(req)
+}
+
+// ListHandoffBundles enumerates importable files in the handoff folder. It reads only the
+// directory — there is nothing readable inside a bundle without its passphrase.
+func (s *VaultService) ListHandoffBundles() ([]AvailableBundle, error) {
+	if err := security.RequireUnlocked(); err != nil {
+		return nil, ErrLocked
+	}
+	return ListBundles()
+}
+
+// InspectHandoffBundle decrypts a bundle and describes it without writing anything, so the
+// import screen can state what is about to be accepted before it is accepted.
+//
+// name is a filename in the handoff folder, not a path: resolveBundlePath refuses anything
+// that would read outside it.
+func (s *VaultService) InspectHandoffBundle(name, passphrase string) (BundleInfo, error) {
+	if err := security.RequireUnlocked(); err != nil {
+		return BundleInfo{}, ErrLocked
+	}
+	path, err := resolveBundlePath(name)
+	if err != nil {
+		return BundleInfo{}, err
+	}
+	return Inspect(path, passphrase)
+}
+
+// AcceptHandoffBundle imports a bundle into this machine's vault.
+func (s *VaultService) AcceptHandoffBundle(name, passphrase string) (BundleInfo, error) {
+	if err := security.RequireUnlocked(); err != nil {
+		return BundleInfo{}, ErrLocked
+	}
+	path, err := resolveBundlePath(name)
+	if err != nil {
+		return BundleInfo{}, err
+	}
+	return Accept(path, passphrase)
+}
+
+// GetHandoffLog returns the local export audit log, newest first. It never left this
+// machine and it never will.
+func (s *VaultService) GetHandoffLog() ([]ExportRecord, error) {
+	if err := security.RequireUnlocked(); err != nil {
+		return nil, ErrLocked
+	}
+	return ExportLog()
+}
+
+// GetHandoffFolder is what the "open the folder" action needs.
+func (s *VaultService) GetHandoffFolder() (string, error) {
+	if err := security.RequireUnlocked(); err != nil {
+		return "", ErrLocked
+	}
+	return HandoffDir()
+}
+
 // ErrVaultDisabled is returned when a vault operation is attempted with no app password
 // set. There is no master key without one, so this is a precondition rather than a failure.
 var ErrVaultDisabled = errors.New("Toast_Vault_NeedsAppPassword")

@@ -152,8 +152,12 @@ your app-lock password — set one first, or the vault stays unavailable.
   time, never at startup, and it stops for good if Steam ever rate-limits it.
 - Values are shown one at a time behind an explicit Reveal, and hide themselves again.
 
-It cannot sign in for you, and it has no way to hand an account to someone else yet. See
-[`FEATURES.md`](FEATURES.md) for exactly which parts are proven and which are not.
+- **Handing an account to someone else** as a passphrase-sealed file you move yourself —
+  nothing is uploaded. Two kinds: sign-in access, or the account outright. Neither can be
+  taken back afterwards, and the app says so rather than pretending otherwise.
+
+It cannot sign in to Steam for you. See [`FEATURES.md`](FEATURES.md) for exactly which parts
+are proven and which are not.
 
 ### Appearance
 - System / Light / Dark, following the OS by default. One accent colour.
