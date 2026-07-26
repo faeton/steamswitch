@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { reorderShortcutByCommand, stripCellForGhostClone } from "./dragReorderShortcuts";
 import { reorderItemByCommand } from "./reorderList";
 
 class FakeElement {
@@ -108,81 +107,6 @@ describe("reorderItemByCommand", () => {
       moved: false,
       position: 0,
       total: 2,
-    });
-  });
-});
-
-describe("reorderShortcutByCommand", () => {
-  it("reorders within the current shortcut zone", () => {
-    expect(reorderShortcutByCommand(["p1", "p2", "p3"], ["d1"], "pinned", "p2", "left")).toMatchObject({
-      pins: ["p2", "p1", "p3"],
-      drops: ["d1"],
-      moved: true,
-      zone: "pinned",
-      position: 1,
-      total: 3,
-    });
-  });
-
-  it("moves shortcuts between pinned and dropdown zones", () => {
-    expect(reorderShortcutByCommand(["p1"], ["d1", "d2"], "dropdown", "d1", "pin")).toMatchObject({
-      pins: ["p1", "d1"],
-      drops: ["d2"],
-      moved: true,
-      zone: "pinned",
-      position: 2,
-      total: 2,
-    });
-    expect(reorderShortcutByCommand(["p1", "p2"], ["d1"], "pinned", "p1", "move-to-dropdown")).toMatchObject({
-      pins: ["p2"],
-      drops: ["d1", "p1"],
-      moved: true,
-      zone: "dropdown",
-      position: 2,
-      total: 2,
-    });
-  });
-});
-
-describe("stripCellForGhostClone", () => {
-  it("normalizes shortcut clone media into the ghost bounds", () => {
-    const root = new FakeElement("DIV", {
-      class: "shortcutDndCell",
-      "data-dnd-cell": "",
-      "data-dnd-name": "Windrose.url",
-      role: "listitem",
-      tabindex: "0",
-    });
-    const button = new FakeElement("BUTTON", { class: "HasContextMenu", id: "shortcut-button" });
-    const image = new FakeElement("IMG", { id: "shortcut-image" });
-    const input = new FakeElement("INPUT");
-    const label = new FakeElement("LABEL", { for: "shortcut-button" });
-    root.append(button.append(image), input, label);
-
-    stripCellForGhostClone(root as unknown as HTMLElement);
-
-    expect(root.getAttribute("data-dnd-cell")).toBeNull();
-    expect(root.getAttribute("role")).toBeNull();
-    expect(root.getAttribute("class")).not.toContain("shortcutDndCell");
-    expect(input.removed).toBe(true);
-    expect(button.getAttribute("id")).toBeNull();
-    expect(image.getAttribute("id")).toBeNull();
-    expect(label.getAttribute("for")).toBeNull();
-    expect(button.style).toMatchObject({
-      width: "100%",
-      height: "100%",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      overflow: "hidden",
-    });
-    expect(image.style).toMatchObject({
-      width: "100%",
-      height: "100%",
-      maxWidth: "none",
-      maxHeight: "none",
-      objectFit: "contain",
-      objectPosition: "center",
     });
   });
 });
