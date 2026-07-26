@@ -4,7 +4,6 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -15,6 +14,7 @@ import (
 	"steamswitch/internal/actionlog"
 	"steamswitch/internal/paths"
 	"steamswitch/internal/security"
+	"steamswitch/internal/vault/probe"
 )
 
 // Handoff — giving an account to another person. VAULT.md §9.
@@ -67,11 +67,17 @@ var (
 	ErrBundleExpired   = errors.New("Toast_Handoff_Expired")
 	ErrAlreadyImported = errors.New("Toast_Handoff_AlreadyImported")
 	ErrConfirmMismatch = errors.New("Toast_Handoff_ConfirmMismatch")
+	ErrTokenExpired    = errors.New("Toast_Handoff_TokenExpired")
+	ErrTokenNotClient  = errors.New("Toast_Handoff_TokenNotClient")
 )
 
-// MinPassphraseLength is the shortest passphrase the exporter will accept. The bundle is
-// full account access sitting in a file; the passphrase is the only thing in front of it.
-const MinPassphraseLength = 10
+// MinPassphraseLength is the shortest passphrase the exporter will accept.
+//
+// The bundle is full account access sitting in a file, its KDF parameters and salt are in
+// the clear beside it, and Argon2id only slows guessing down — it does not make a short
+// low-entropy secret adequate. Ten was the first value here and it was too low for what this
+// file is; the UI now asks for several unrelated words rather than a "password".
+const MinPassphraseLength = 16
 
 // sealedBundle is the file. Nothing outside the ciphertext identifies the account — not the
 // SteamID, not the label, not the mode. A bundle found on a shared drive says only that
@@ -185,6 +191,9 @@ func Export(req ExportRequest) (ExportResult, error) {
 			// can see.
 			return ExportResult{}, ErrNothingToExport
 		}
+		if err := usableForGrant(e.RefreshToken, now); err != nil {
+			return ExportResult{}, err
+		}
 		p.RefreshToken = e.RefreshToken
 		p.TokenExpiresAt = e.TokenExpiresAt
 		// GuardData is deliberately withheld from a grant. It is this machine's
@@ -233,7 +242,7 @@ func Export(req ExportRequest) (ExportResult, error) {
 	if err != nil {
 		return ExportResult{}, err
 	}
-	path := filepath.Join(dir, bundleFileName(p, now))
+	path := filepath.Join(dir, bundleFileName(p))
 	if err := security.WriteSecretFile(path, out); err != nil {
 		return ExportResult{}, err
 	}
@@ -251,6 +260,10 @@ func Export(req ExportRequest) (ExportResult, error) {
 		SingleUse:  p.SingleUse,
 		Path:       path,
 	}); err != nil {
+		// The file exists and the log does not, so take the file back out. An unrecorded
+		// bundle sitting on disk is the worse of the two failures: the user sees an error,
+		// assumes nothing was created, and a file granting account access stays there.
+		_ = os.Remove(path)
 		return ExportResult{}, err
 	}
 	actionlog.Record("vault.handoff.export", req.SteamID64, req.Mode, nil)
@@ -258,25 +271,26 @@ func Export(req ExportRequest) (ExportResult, error) {
 	return ExportResult{Path: path, Mode: p.Mode, ExpiresAt: p.ExpiresAt, SingleUse: p.SingleUse}, nil
 }
 
-// unsafeFileChars keeps a user-chosen label from steering the path. The label is free text
-// from the export dialog and the result is used as a filename.
-var unsafeFileChars = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
-
-func bundleFileName(p bundlePayload, now time.Time) string {
-	name := strings.TrimSpace(p.Label)
-	if name == "" {
-		name = p.AccountName
+// bundleFileName names the file after the bundle's own random id and nothing else.
+//
+// It used to embed the label (or the account name) and the mode, which quietly made the
+// opacity claim false: the envelope revealed nothing, but `For-Kev-transfer-20260726.sshandoff`
+// sitting on a shared drive told anyone who saw it who, what and when — without a passphrase.
+// The contents test did not catch it because it only ever read the file.
+//
+// The exporter does not lose anything: the audit log maps id to label, and the export screen
+// shows the path the moment it is written.
+func bundleFileName(p bundlePayload) string {
+	id := unsafeFileChars.ReplaceAllString(p.BundleID, "")
+	if id == "" {
+		// Only reachable if the id generator changed shape. A fixed name is still opaque.
+		id = "bundle"
 	}
-	name = unsafeFileChars.ReplaceAllString(name, "-")
-	name = strings.Trim(name, "-.")
-	if name == "" {
-		name = "account"
-	}
-	if len(name) > 40 {
-		name = name[:40]
-	}
-	return fmt.Sprintf("%s-%s-%s%s", name, p.Mode, now.Format("20060102-150405"), BundleExt)
+	return "steamswitch-" + id + BundleExt
 }
+
+// unsafeFileChars strips anything that could steer a path out of a value used as a filename.
+var unsafeFileChars = regexp.MustCompile(`[^A-Za-z0-9._-]+`)
 
 // HandoffDir is where exports land and where imports are looked for. A folder rather than a
 // file dialog: the design is "a file the user moves themselves", and a known folder is the
@@ -307,7 +321,8 @@ type BundleInfo struct {
 	Expired         bool `json:"expired"`
 	AlreadyImported bool `json:"alreadyImported"`
 	// Replaces reports that a vault entry for this account already exists, so the UI can say
-	// "this will overwrite what you have" rather than discovering it afterwards.
+	// what accepting will do to it *before* it does it. What that is depends on the mode:
+	// a transfer replaces the entry outright, a grant only adds its session to it.
 	Replaces bool `json:"replaces"`
 
 	HasPassword     bool `json:"hasPassword"`
@@ -316,18 +331,8 @@ type BundleInfo struct {
 	HasEmail        bool `json:"hasEmail"`
 }
 
-// Inspect opens a bundle and describes it without writing anything.
-//
-// Accept re-derives from the same file and passphrase rather than this returning a handle to
-// decrypted material. Argon2 twice for one import is a fraction of a second on a rare
-// operation, and the alternative — parking somebody's full account access in a map keyed by
-// a token the frontend holds — is a worse trade in every direction.
-func Inspect(path, passphrase string) (BundleInfo, error) {
-	p, err := openBundle(path, passphrase)
-	if err != nil {
-		return BundleInfo{}, err
-	}
-	info := BundleInfo{
+func describe(p bundlePayload, now time.Time) BundleInfo {
+	return BundleInfo{
 		Mode:            p.Mode,
 		Label:           p.Label,
 		SteamID64:       p.SteamID64,
@@ -335,83 +340,125 @@ func Inspect(path, passphrase string) (BundleInfo, error) {
 		IssuedAt:        p.IssuedAt,
 		ExpiresAt:       p.ExpiresAt,
 		SingleUse:       p.SingleUse,
+		Expired:         bundleExpired(p, now),
+		AlreadyImported: bundleAlreadyImported(p.BundleID),
+		Replaces:        Has(p.SteamID64),
 		HasPassword:     p.Password != "",
 		HasRefreshToken: p.RefreshToken != "",
 		HasSharedSecret: p.SharedSecret != "",
 		HasEmail:        p.Email != nil && p.Email.Address != "",
 	}
-	info.Expired = bundleExpired(p, time.Now())
-	info.AlreadyImported = bundleAlreadyImported(p.BundleID)
-	info.Replaces = Has(p.SteamID64)
-	return info, nil
+}
+
+// Inspect opens a bundle and describes it without writing anything.
+//
+// Accept re-derives from the same file and passphrase rather than this returning a handle to
+// decrypted material: parking somebody's full account access in a map keyed by a token the
+// frontend holds is a worse trade in every direction. That costs one extra Argon2 derivation
+// per import — one in Inspect, one in Accept, and no more, which is why Accept builds its own
+// answer rather than calling back here.
+func Inspect(path, passphrase string) (BundleInfo, error) {
+	p, err := openBundle(path, passphrase)
+	if err != nil {
+		return BundleInfo{}, err
+	}
+	return describe(p, time.Now()), nil
 }
 
 // Accept imports a bundle into the vault.
+//
+// Every durable change happens inside one mutate. Three separate writes — the entry, the
+// session, the single-use ledger — meant a disk-full between them left the vault holding
+// somebody's password with no session, or a fully imported single-use bundle still marked
+// unused, and returned an error either way so the user believed nothing had happened.
+//
+// Doing the ledger check inside the same mutate also closes the race: two concurrent Accepts
+// of one single-use bundle could both read the ledger as empty before either wrote to it.
 func Accept(path, passphrase string) (BundleInfo, error) {
 	p, err := openBundle(path, passphrase)
 	if err != nil {
 		return BundleInfo{}, err
 	}
-	// Both of these are advisory — enforced here, by the recipient's own copy, and by
-	// nothing else. They are checked at accept time as well as at inspect time so that a
-	// bundle which lapses between the two is not let through by a stale answer.
+	// Advisory — enforced here, by the recipient's own copy, and by nothing else. Re-checked
+	// at accept time as well as at inspect time so a bundle that lapses between the two is
+	// not let through by a stale answer.
 	if bundleExpired(p, time.Now()) {
 		return BundleInfo{}, ErrBundleExpired
 	}
-	if p.SingleUse && bundleAlreadyImported(p.BundleID) {
-		return BundleInfo{}, ErrAlreadyImported
-	}
 
-	d := Draft{
-		SteamID64: p.SteamID64,
-		Label:     ptrIfSet(p.Label),
-		Source:    strPtr("handoff"),
-	}
-	if p.AccountName != "" {
-		d.AccountName = strPtr(p.AccountName)
-	}
-	if p.Password != "" {
-		d.Password = strPtr(p.Password)
-	}
-	if p.SharedSecret != "" {
-		d.SharedSecret = strPtr(p.SharedSecret)
-	}
-	if p.IdentitySecret != "" {
-		d.IdentitySecret = strPtr(p.IdentitySecret)
-	}
-	if p.SecretNote != "" {
-		d.SecretNote = strPtr(p.SecretNote)
-	}
-	if p.Email != nil {
-		applyEmailToDraft(&d, p.Email)
-	}
-	if err := Put(d); err != nil {
-		return BundleInfo{}, err
-	}
-
-	// The session material goes through recordSession rather than the draft, because that is
-	// the one path that also decodes and stores the token's expiry.
-	if p.RefreshToken != "" {
-		if err := recordSession(p.SteamID64, p.RefreshToken, p.GuardData, p.TokenExpiresAt); err != nil {
-			return BundleInfo{}, err
+	id := normID(p.SteamID64)
+	now := time.Now().UTC().Format(time.RFC3339)
+	err = mutate(func(doc *Doc) error {
+		if p.SingleUse {
+			if _, used := doc.ImportedBundles[p.BundleID]; used {
+				return ErrAlreadyImported
+			}
 		}
-	}
 
-	if err := markBundleImported(p.BundleID, p.SteamID64); err != nil {
+		// A transfer says "this account is yours now", so it replaces the entry rather than
+		// merging into it. Merging would leave the recipient with the previous owner's stale
+		// seed or email binding silently surviving underneath the new credentials — a hybrid
+		// entry that matches neither side, while the UI said it would be replaced.
+		//
+		// A grant is the opposite: it adds a session to whatever the recipient already has,
+		// and must not disturb credentials of their own.
+		e, existing := doc.Entries[id]
+		if p.Mode == ModeTransfer || !existing {
+			e = Entry{SteamID64: id, Email: EmailBinding{Source: EmailSourceNone}}
+		}
+		e.SteamID64 = id
+		if p.AccountName != "" {
+			e.AccountName = p.AccountName
+		}
+		if p.Label != "" {
+			e.Label = p.Label
+		}
+		e.Source = "handoff"
+		if p.Mode == ModeTransfer {
+			e.Password = p.Password
+			e.SharedSecret = p.SharedSecret
+			e.IdentitySecret = p.IdentitySecret
+			e.SecretNote = p.SecretNote
+			if p.Email != nil {
+				e.Email = *p.Email
+			}
+			if e.Email.Source == "" {
+				e.Email.Source = EmailSourceNone
+			}
+		}
+		if p.RefreshToken != "" {
+			e.RefreshToken = p.RefreshToken
+			e.TokenExpiresAt = p.TokenExpiresAt
+			e.GuardData = p.GuardData
+		}
+		// The schedule and the previous owner's health verdict do not describe this machine.
+		e.Health = nil
+		e.NextEligibleAt = ""
+		e.CheckFailures = 0
+		e.UpdatedAt = now
+		doc.Entries[id] = e
+
+		if doc.ImportedBundles == nil {
+			doc.ImportedBundles = map[string]string{}
+		}
+		doc.ImportedBundles[p.BundleID] = now
+		return nil
+	})
+	if err != nil {
 		return BundleInfo{}, err
 	}
 	actionlog.Record("vault.handoff.import", p.SteamID64, p.Mode, nil)
 
-	return Inspect(path, passphrase)
+	return describe(p, time.Now()), nil
 }
 
 func openBundle(path, passphrase string) (bundlePayload, error) {
 	if strings.TrimSpace(passphrase) == "" {
 		return bundlePayload{}, ErrNoPassphrase
 	}
-	raw, err := os.ReadFile(path)
+	raw, err := readBundleFile(path)
 	if err != nil {
-		return bundlePayload{}, ErrBadBundle
+		return bundlePayload{}, err
 	}
 	var sb sealedBundle
 	if err := json.Unmarshal(raw, &sb); err != nil || sb.Ciphertext == "" || sb.Salt == "" || sb.Nonce == "" {
@@ -443,7 +490,65 @@ func openBundle(path, passphrase string) (bundlePayload, error) {
 	if p.SteamID64 == "" || (p.Mode != ModeGrant && p.Mode != ModeTransfer) {
 		return bundlePayload{}, ErrBadBundle
 	}
-	return p, nil
+	// Every honest export sets an id, and the single-use ledger is keyed by it. An empty one
+	// would make the marker a no-op — the file could be imported for ever while the UI said
+	// it was single-use — so it is a malformed bundle, not a tolerable omission.
+	if p.BundleID == "" {
+		return bundlePayload{}, ErrBadBundle
+	}
+	return enforceMode(p), nil
+}
+
+// enforceMode strips whatever the declared mode does not permit.
+//
+// Without this the mode is only a promise the *exporter* keeps. Anyone who can write a
+// bundle — the format is documented and the passphrase is theirs — could seal one saying
+// `mode: "grant"` while carrying the password, seed and email. Inspect would show the
+// recipient "session access, does not include the password", and Accept would import
+// ownership material anyway. That inverts the one distinction the whole feature rests on.
+//
+// It runs in openBundle, so Inspect and Accept see the same payload and cannot disagree
+// about what a bundle contains.
+func enforceMode(p bundlePayload) bundlePayload {
+	if p.Mode != ModeGrant {
+		return p
+	}
+	p.Password = ""
+	p.SharedSecret = ""
+	p.IdentitySecret = ""
+	p.SecretNote = ""
+	p.Email = nil
+	// guard_data is the exporting machine's trusted-device marker. A grant never carries it,
+	// so one that claims to is not a grant.
+	p.GuardData = ""
+	return p
+}
+
+// MaxBundleBytes caps what will be read from the handoff folder. A bundle is a small JSON
+// envelope; anything larger is not one, and reading it to find that out is how a
+// multi-gigabyte file dropped in the folder becomes an out-of-memory crash on Inspect.
+const MaxBundleBytes = 1 << 20 // 1 MiB
+
+func readBundleFile(path string) ([]byte, error) {
+	// Lstat, not Stat: the extension and base-name checks in resolveBundlePath confine the
+	// *name* to the handoff folder, but a symlink placed there with a valid name would still
+	// have os.ReadFile follow it anywhere on disk. Refusing links keeps the confinement the
+	// comment claims.
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, ErrBadBundle
+	}
+	if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+		return nil, ErrBadBundle
+	}
+	if info.Size() > MaxBundleBytes {
+		return nil, ErrBadBundle
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, ErrBadBundle
+	}
+	return raw, nil
 }
 
 func bundleExpired(p bundlePayload, now time.Time) bool {
@@ -588,6 +693,28 @@ func resolveBundlePath(name string) (string, error) {
 		return "", ErrBadBundle
 	}
 	return filepath.Join(dir, clean), nil
+}
+
+// usableForGrant refuses to export a session that will not be one.
+//
+// A grant is *only* a token, so a token that cannot sign a client in makes the whole bundle
+// empty while still looking like access to both parties. Two ways that happens: the stored
+// token is web-audience (issued for a browser session, useless to a Steam client), or it has
+// already expired. Both are visible here and invisible to the recipient until they try.
+func usableForGrant(token string, now time.Time) error {
+	claims, err := probe.DecodeToken(token)
+	if err != nil {
+		// Undecodable is not necessarily unusable — the format is Valve's and may change —
+		// so this is deliberately not a refusal. The recipient still learns what it carries.
+		return nil
+	}
+	if claims.Expired(now) {
+		return ErrTokenExpired
+	}
+	if !claims.IsClientAudience() {
+		return ErrTokenNotClient
+	}
+	return nil
 }
 
 // --- envelope helpers ---------------------------------------------------------------------

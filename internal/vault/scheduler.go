@@ -183,6 +183,15 @@ func schedulerStep(ctx context.Context) bool {
 		// Deliberately not the error text: it can quote Steam's own message, which may
 		// contain the account name.
 		slog.Warn("vault: scheduled deep check could not run", "steamId64", id)
+		// A check that did not advance the account's schedule leaves it due again in thirty
+		// minutes — and again, and again, each one a real login. Rather than trust that every
+		// failure path persisted a backoff, confirm it did, and stop the scheduler if not.
+		// An unwritable vault is not a condition to keep logging in through.
+		if !DueForDeepCheck(id, time.Now()) {
+			return !RateLimited()
+		}
+		slog.Warn("vault: scheduler stopping, the schedule could not be advanced", "steamId64", id)
+		return false
 	}
 	return !RateLimited()
 }
@@ -207,7 +216,7 @@ func nextDue(now time.Time) (string, bool) {
 		if e.Password == "" || e.AccountName == "" {
 			continue
 		}
-		at, ok := eligibleAt(e)
+		at, ok := effectiveEligibility(e, schedulerInterval())
 		if !ok || now.Before(at) {
 			continue
 		}
@@ -226,6 +235,32 @@ func nextDue(now time.Time) (string, bool) {
 		return due[i].at.Before(due[j].at)
 	})
 	return due[0].id, true
+}
+
+// effectiveEligibility applies the *current* cadence to a timestamp that was computed under
+// whatever the cadence was at the time of the last check.
+//
+// Without this, lengthening the interval did nothing to accounts already scheduled: set one
+// day, let an account be checked, then change to thirty days, and it would still be logged
+// into a day later — while the setting said "how many days apart" and the code claimed the
+// change took effect immediately.
+//
+// The correction only ever pushes a check *later*. Shortening the interval does not pull one
+// forward, and a backing-off entry is left alone entirely — in both of those directions the
+// safe answer is to wait, and this is a feature whose unit of error is a real login.
+func effectiveEligibility(e Entry, interval time.Duration) (time.Time, bool) {
+	at, ok := eligibleAt(e)
+	if !ok || interval <= 0 || e.CheckFailures > 0 || e.Health == nil {
+		return at, ok
+	}
+	probed, err := time.Parse(time.RFC3339, e.Health.ProbedAt)
+	if err != nil {
+		return at, ok
+	}
+	if next := probed.Add(interval); next.After(at) {
+		return next, true
+	}
+	return at, ok
 }
 
 // eligibleAt reads an entry's persisted schedule. The second return is whether the entry may

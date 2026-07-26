@@ -136,8 +136,11 @@
         {:else if info.singleUse && info.alreadyImported}
           <p class="warn">{$t("Handoff_Import_AlreadyUsed")}</p>
         {:else if info.replaces}
-          <!-- Said before the write, not discovered after it. -->
-          <p class="warn">{$t("Handoff_Import_WillReplace")}</p>
+          <!-- Said before the write, not discovered after it — and it has to say the right
+               one: a transfer replaces the entry, a grant only adds its session to it. -->
+          <p class="warn">
+            {info.mode === "transfer" ? $t("Handoff_Import_WillReplace") : $t("Handoff_Import_WillMerge")}
+          </p>
         {/if}
 
         {#if accepted}

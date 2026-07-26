@@ -248,7 +248,7 @@ func mutate(fn func(doc *Doc) error) error {
 		ImportedBundles: make(map[string]string, len(doc.ImportedBundles)),
 	}
 	for k, v := range doc.Entries {
-		next.Entries[k] = v
+		next.Entries[k] = cloneEntry(v)
 	}
 	for k, v := range doc.ImportedBundles {
 		next.ImportedBundles[k] = v
@@ -257,6 +257,40 @@ func mutate(fn func(doc *Doc) error) error {
 		return err
 	}
 	return save(next)
+}
+
+// cloneEntry deep-copies the pointers hanging off an Entry.
+//
+// Copying the struct alone is not the transactional copy mutate's comment promises: Email.IMAP,
+// Email.Mailbox and Health are pointers shared with the cached document, so a fn that edits
+// one of them and then fails to save has already changed what the cache returns. Reveal would
+// hand back a password that was never written to disk, and the next unrelated successful
+// write would quietly persist it.
+func cloneEntry(e Entry) Entry {
+	if e.Email.IMAP != nil {
+		imap := *e.Email.IMAP
+		e.Email.IMAP = &imap
+	}
+	if e.Email.Mailbox != nil {
+		mb := *e.Email.Mailbox
+		e.Email.Mailbox = &mb
+	}
+	if e.Health != nil {
+		h := *e.Health
+		h.Signals = append([]Signal(nil), e.Health.Signals...)
+		for i, s := range h.Signals {
+			if s.Params == nil {
+				continue
+			}
+			params := make(map[string]string, len(s.Params))
+			for k, v := range s.Params {
+				params[k] = v
+			}
+			h.Signals[i].Params = params
+		}
+		e.Health = &h
+	}
+	return e
 }
 
 func normID(id string) string { return strings.TrimSpace(id) }

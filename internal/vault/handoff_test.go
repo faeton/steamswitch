@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"os"
@@ -10,7 +11,7 @@ import (
 	"time"
 )
 
-const goodPassphrase = "a passphrase long enough"
+const goodPassphrase = "a passphrase long enough to pass the floor"
 
 // seedExportable puts an entry in the vault with everything a transfer would carry.
 func seedExportable(t *testing.T, id string) {
@@ -408,23 +409,242 @@ func TestExportLog(t *testing.T) {
 	}
 }
 
-// A label is free text from a dialog and ends up in a filename. Without sanitising, one
-// containing a path separator steers where the bundle is written.
-func TestBundleFileName_SanitisesTheLabel(t *testing.T) {
-	now := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
-	for _, label := range []string{"../../etc/passwd", `..\..\windows`, "/absolute", "with spaces & symbols!"} {
-		got := bundleFileName(bundlePayload{Label: label, Mode: ModeGrant, AccountName: "acct"}, now)
-		if strings.ContainsAny(got, `/\`) {
-			t.Fatalf("bundleFileName(%q) = %q; it contains a path separator", label, got)
+// The filename is part of the opacity claim and used not to be.
+//
+// It embedded the label (or account name) and the mode, so `For-Kev-transfer-….sshandoff` on
+// a shared drive told anyone who walked past who, what and when — with the envelope itself
+// perfectly opaque. The contents-only test missed it entirely, which is why this one reads
+// the name.
+func TestBundleFileName_RevealsNothing(t *testing.T) {
+	for _, p := range []bundlePayload{
+		{BundleID: "abc123", Label: "For Kev", Mode: ModeTransfer, AccountName: "smurf_one"},
+		{BundleID: "xyz789", Label: "../../etc/passwd", Mode: ModeGrant, AccountName: "acct"},
+		{BundleID: "def456", Label: `..\..\windows`, Mode: ModeGrant},
+	} {
+		got := bundleFileName(p)
+		for _, leak := range []string{p.Label, p.AccountName, p.Mode} {
+			if leak == "" {
+				continue
+			}
+			if strings.Contains(strings.ToLower(got), strings.ToLower(leak)) {
+				t.Fatalf("bundleFileName = %q; it leaks %q", got, leak)
+			}
 		}
-		if strings.Contains(got, "..") {
-			t.Fatalf("bundleFileName(%q) = %q; it contains a parent reference", label, got)
+		if strings.ContainsAny(got, `/\`) || strings.Contains(got, "..") {
+			t.Fatalf("bundleFileName = %q; it can steer a path", got)
+		}
+		if !strings.HasSuffix(got, BundleExt) || strings.HasPrefix(got, ".") {
+			t.Fatalf("bundleFileName = %q is not a usable name", got)
 		}
 	}
-	// An empty label still produces a usable name rather than a file called ".sshandoff".
-	got := bundleFileName(bundlePayload{Mode: ModeGrant}, now)
-	if !strings.HasSuffix(got, BundleExt) || strings.HasPrefix(got, ".") {
-		t.Fatalf("bundleFileName with no label = %q", got)
+}
+
+// The mode is the whole feature, and until enforceMode existed it was only a promise the
+// *exporter* kept. A hand-sealed bundle saying "grant" while carrying the password would be
+// described to the recipient as session-only and then imported as ownership.
+func TestOpenBundle_GrantCannotSmuggleOwnership(t *testing.T) {
+	newVault(t)
+	const id = "76561198000000601"
+	seedExportable(t, id)
+	res, err := Export(ExportRequest{SteamID64: id, Mode: ModeGrant, Passphrase: goodPassphrase})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Re-seal a payload that claims to be a grant but carries everything a transfer would.
+	rewritePayload(t, res.Path, func(p *bundlePayload) {
+		p.Mode = ModeGrant
+		p.Password = "smuggled"
+		p.SharedSecret = "MTIzNDU2Nzg5MDEyMzQ1Njc4OTA="
+		p.IdentitySecret = "smuggled-identity"
+		p.GuardData = "smuggled-guard"
+		p.SecretNote = "smuggled-note"
+		p.Email = &EmailBinding{Address: "smuggled@example.test", Source: EmailSourceIMAP}
+	})
+
+	p, err := openBundle(res.Path, goodPassphrase)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p.Password != "" || p.SharedSecret != "" || p.IdentitySecret != "" || p.Email != nil ||
+		p.SecretNote != "" || p.GuardData != "" {
+		t.Fatalf("a grant smuggled ownership material through: %+v", p)
+	}
+
+	// And the import must agree with what Inspect showed.
+	info, err := Inspect(res.Path, goodPassphrase)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if info.HasPassword || info.HasSharedSecret || info.HasEmail {
+		t.Fatalf("inspect advertised ownership material on a grant: %+v", info)
+	}
+	if _, err := Accept(res.Path, goodPassphrase); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Get(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := Reveal(id, FieldPassword); v == "smuggled" {
+		t.Fatalf("the smuggled password was imported: %+v", got)
+	}
+}
+
+// A bundle with no id would make the single-use marker a silent no-op — the file could be
+// imported for ever while the UI said it was single-use.
+func TestOpenBundle_RejectsAnEmptyBundleID(t *testing.T) {
+	newVault(t)
+	const id = "76561198000000602"
+	seedExportable(t, id)
+	res, err := Export(ExportRequest{SteamID64: id, Mode: ModeGrant, Passphrase: goodPassphrase, SingleUse: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rewritePayload(t, res.Path, func(p *bundlePayload) { p.BundleID = "" })
+	if _, err := openBundle(res.Path, goodPassphrase); !errors.Is(err, ErrBadBundle) {
+		t.Fatalf("a bundle with no id = %v, want ErrBadBundle", err)
+	}
+}
+
+// A transfer says "this account is yours now". Merging would leave the previous owner's stale
+// seed or email binding alive underneath the new credentials, while the UI said replaced.
+func TestAccept_TransferReplacesRatherThanMerges(t *testing.T) {
+	newVault(t)
+	const id = "76561198000000603"
+	seedExportable(t, id)
+	res, err := Export(ExportRequest{
+		SteamID64: id, Mode: ModeTransfer, Passphrase: goodPassphrase, Confirm: "smurf_one",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The incoming bundle carries a password but no seed and no email.
+	rewritePayload(t, res.Path, func(p *bundlePayload) {
+		p.Password = "new-owner-password"
+		p.SharedSecret = ""
+		p.IdentitySecret = ""
+		p.Email = nil
+	})
+	if _, err := Accept(res.Path, goodPassphrase); err != nil {
+		t.Fatal(err)
+	}
+	got, err := Get(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.HasSharedSecret || got.HasIdentitySecret || got.HasEmailAuth {
+		t.Fatalf("the previous entry's secrets survived a transfer: %+v", got)
+	}
+	if v, _ := Reveal(id, FieldPassword); v != "new-owner-password" {
+		t.Fatalf("password = %q, want the transferred one", v)
+	}
+}
+
+// A grant is the opposite: it adds a session to whatever the recipient already has and must
+// not disturb credentials of their own.
+func TestAccept_GrantMergesWithoutClobbering(t *testing.T) {
+	newVault(t)
+	const id = "76561198000000604"
+	seedExportable(t, id)
+	res, err := Export(ExportRequest{SteamID64: id, Mode: ModeGrant, Passphrase: goodPassphrase})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Accept(res.Path, goodPassphrase); err != nil {
+		t.Fatal(err)
+	}
+	if v, _ := Reveal(id, FieldPassword); v != "hunter2" {
+		t.Fatalf("a grant clobbered the recipient's own password: %q", v)
+	}
+}
+
+// A symlink with a valid name sitting in the folder would otherwise have ReadFile follow it
+// anywhere on disk, which is not the confinement the code claims.
+func TestOpenBundle_RefusesASymlink(t *testing.T) {
+	newVault(t)
+	dir, err := HandoffDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	outside := filepath.Join(t.TempDir(), "outside.json")
+	if err := os.WriteFile(outside, []byte(`{"version":1}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "linked"+BundleExt)
+	if err := os.Symlink(outside, link); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+	if _, err := openBundle(link, goodPassphrase); !errors.Is(err, ErrBadBundle) {
+		t.Fatalf("a symlinked bundle = %v, want ErrBadBundle", err)
+	}
+}
+
+// A bundle is a small JSON envelope. Reading a multi-gigabyte file to discover it is not one
+// is how a file dropped in the folder becomes an out-of-memory crash.
+func TestOpenBundle_RefusesAnOversizedFile(t *testing.T) {
+	newVault(t)
+	dir, err := HandoffDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	big := filepath.Join(dir, "big"+BundleExt)
+	if err := os.WriteFile(big, make([]byte, MaxBundleBytes+1), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := openBundle(big, goodPassphrase); !errors.Is(err, ErrBadBundle) {
+		t.Fatalf("an oversized bundle = %v, want ErrBadBundle", err)
+	}
+}
+
+// A grant is only a token, so a token that cannot sign a client in makes the bundle empty
+// while still looking like access to both parties.
+func TestExport_GrantRefusesAnUnusableToken(t *testing.T) {
+	newVault(t)
+	const id = "76561198000000605"
+	if err := Put(Draft{SteamID64: id, AccountName: ptr("acct"), Password: ptr("pw")}); err != nil {
+		t.Fatal(err)
+	}
+	// A well-formed JWT whose audience is web rather than client, and one already expired.
+	if err := recordSession(id, jwtWithAudience(t, []string{"web"}, time.Now().Add(time.Hour)), "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Export(ExportRequest{SteamID64: id, Mode: ModeGrant, Passphrase: goodPassphrase}); !errors.Is(err, ErrTokenNotClient) {
+		t.Fatalf("a web-audience token = %v, want ErrTokenNotClient", err)
+	}
+	if err := recordSession(id, jwtWithAudience(t, []string{"client"}, time.Now().Add(-time.Hour)), "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Export(ExportRequest{SteamID64: id, Mode: ModeGrant, Passphrase: goodPassphrase}); !errors.Is(err, ErrTokenExpired) {
+		t.Fatalf("an expired token = %v, want ErrTokenExpired", err)
+	}
+	// A valid client token exports fine.
+	if err := recordSession(id, jwtWithAudience(t, []string{"client", "web"}, time.Now().Add(24*time.Hour)), "", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := Export(ExportRequest{SteamID64: id, Mode: ModeGrant, Passphrase: goodPassphrase}); err != nil {
+		t.Fatalf("a valid client token was refused: %v", err)
+	}
+}
+
+func jwtWithAudience(t *testing.T, aud []string, exp time.Time) string {
+	t.Helper()
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"typ":"JWT","alg":"none"}`))
+	claims, err := json.Marshal(map[string]any{"aud": aud, "exp": exp.Unix(), "sub": "76561198000000605"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return header + "." + base64.RawURLEncoding.EncodeToString(claims) + ".sig"
+}
+
+// The passphrase floor is the only thing in front of an offline attack on a file that is full
+// account access.
+func TestExport_PassphraseFloor(t *testing.T) {
+	newVault(t)
+	const id = "76561198000000606"
+	seedExportable(t, id)
+	short := strings.Repeat("a", MinPassphraseLength-1)
+	if _, err := Export(ExportRequest{SteamID64: id, Mode: ModeGrant, Passphrase: short}); !errors.Is(err, ErrNoPassphrase) {
+		t.Fatalf("a %d-character passphrase = %v, want ErrNoPassphrase", len(short), err)
 	}
 }
 

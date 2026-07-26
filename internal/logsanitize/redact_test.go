@@ -109,6 +109,30 @@ func TestRedactEmails_LeavesNonAddressesAlone(t *testing.T) {
 	}
 }
 
+// `scheme://user@host` is not an email address, and masking the whole thing destroyed the
+// endpoint a crash report exists to show. The userinfo still goes — it can be a real address
+// — but the host has to survive.
+func TestRedactEmails_KeepsURIHostsReadable(t *testing.T) {
+	cases := []struct{ in, want string }{
+		{"ssh://git@example.com/repository", "ssh://[redacted]@example.com/repository"},
+		{"postgres://admin@db.example.com/database", "postgres://[redacted]@db.example.com/database"},
+		{"imaps://smurf1@mail.example.test:993", "imaps://[redacted]@mail.example.test:993"},
+	}
+	for _, tc := range cases {
+		if got := redactEmails(tc.in); got != tc.want {
+			t.Fatalf("redactEmails(%q) = %q, want %q", tc.in, got, tc.want)
+		}
+	}
+	// A bare address next to a URI is still masked.
+	got := redactEmails("ssh://git@example.com/repo failed for smurf@example.test")
+	if strings.Contains(got, "smurf@example.test") {
+		t.Fatalf("the bare address survived: %q", got)
+	}
+	if !strings.Contains(got, "example.com/repo") {
+		t.Fatalf("the URI host was destroyed: %q", got)
+	}
+}
+
 // Redact must apply both passes. With no identifiers on disk the account alias pass is a
 // no-op, but the email pass never is.
 func TestRedact_MasksEmailsWithNoKnownAccounts(t *testing.T) {

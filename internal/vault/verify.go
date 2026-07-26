@@ -37,6 +37,17 @@ func RateLimited() bool {
 	return rateLimited
 }
 
+// quickRateLimited reports whether any cheap signal came back rate-limited. The signals
+// carry an i18n key rather than the error, so this matches on the key the probe helpers set.
+func quickRateLimited(rep HealthReport) bool {
+	for _, s := range rep.Signals {
+		if s.Detail == "Vault_Signal_RateLimited" {
+			return true
+		}
+	}
+	return false
+}
+
 func markRateLimited() {
 	rateLimitMu.Lock()
 	rateLimited = true
@@ -57,7 +68,12 @@ var ErrNoPassword = errors.New("Toast_Vault_NoPasswordStored")
 // DeepCheck verifies that an account's stored password still works.
 //
 // This is the expensive tier: it performs a real login, which for most accounts sends a
-// Steam Guard email. It is never batched and never runs implicitly — see VAULT.md §5.1.
+// Steam Guard email. It is never batched — one account at a time, process-wide.
+//
+// It runs when the user asks for it, and on the opt-in schedule in scheduler.go, which is
+// off by default. (This comment used to say "never runs implicitly"; the scheduler made that
+// false, and a stale safety claim on the most dangerous path in the package is worse than no
+// comment at all.)
 //
 // It is not a way to sign the Steam client in. The only thing it does with the session it
 // obtains is record the refresh token and throw the rest away.
@@ -82,8 +98,23 @@ func DeepCheck(ctx context.Context, steamID64 string, in QuickCheckInput) (Healt
 
 	// The cheap signals run first and unconditionally: if the account is VAC-banned there
 	// is no point spending a Guard code to learn the password still works.
-	rep, _ := QuickCheck(ctx, steamID64, in)
+	rep, quickErr := QuickCheck(ctx, steamID64, in)
 	rep.Deep = true
+
+	// A 429 from the cheap Web API calls is Steam saying it has had enough of this client.
+	// Walking past it into a credential login is exactly the escalation VAULT.md §5.3 forbids
+	// — the quick tier's rate limit used to be recorded as an "unknown" signal and otherwise
+	// ignored, so the latch only ever tripped if the login *itself* was refused.
+	if quickRateLimited(rep) {
+		markRateLimited()
+		return rep, steamauth.ErrRateLimited
+	}
+	// A quick check that could not be persisted means the schedule cannot be advanced either.
+	// Logging in anyway leaves the account due on the next tick and every tick after it, which
+	// turns one unwritable disk into a credential login every thirty minutes.
+	if quickErr != nil {
+		return rep, quickErr
+	}
 
 	ctx, cancel := context.WithTimeout(ctx, DeepCheckTimeout)
 	defer cancel()

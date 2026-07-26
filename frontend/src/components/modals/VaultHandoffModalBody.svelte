@@ -27,7 +27,7 @@
   export let accountName = "";
 
   /** Matches vault.MinPassphraseLength. The Go side enforces it regardless. */
-  const MIN_PASSPHRASE = 10;
+  const MIN_PASSPHRASE = 16;
 
   let mode: "grant" | "transfer" = "grant";
   let label = "";

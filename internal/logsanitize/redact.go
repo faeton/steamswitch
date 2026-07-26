@@ -34,7 +34,19 @@ func Redact(text string) string {
 // Conservative on purpose: a local part, an @, and a domain that ends in a real alphabetic
 // TLD. Version strings like `wails/v3@v3.0.0-alpha2.117` in a stack trace have no such
 // ending and are left alone.
+//
+// Known misses, accepted rather than chased: quoted local parts (`"john doe"@example.com`),
+// domain literals (`user@[192.0.2.1]`), non-ASCII locals and IDN domains, addresses split
+// across wrapped log lines, and URL-encoded `%40` forms. Each would need a materially more
+// aggressive pattern, and the ones that matter here — what the vault stores and what an IMAP
+// error quotes — are ordinary ASCII addresses. `TODO.md` records the gap.
 var emailRe = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
+
+// uriCredentialRe matches the `scheme://user@host` shape, which is not an email address and
+// is destroyed by masking it: `ssh://git@example.com/repo` became `ssh://email1@redacted/repo`,
+// taking the endpoint a crash report exists to show with it. The userinfo is still worth
+// masking — it can be a real address — but the host must survive.
+var uriCredentialRe = regexp.MustCompile(`([A-Za-z][A-Za-z0-9+.\-]*://)([A-Za-z0-9._%+\-]+)@`)
 
 // redactEmails replaces each distinct address with emailN@redacted, numbered in order of
 // first appearance so the same address reads the same throughout one report — otherwise a
@@ -47,6 +59,11 @@ func redactEmails(text string) string {
 	if !strings.Contains(text, "@") {
 		return text
 	}
+	// URI userinfo first, so the host it precedes is no longer sitting after an `@` for the
+	// address pattern to swallow.
+	// The placeholder ends in `]`, which is not a local-part character, so the address pattern
+	// below cannot match across it and re-mask the host we just preserved.
+	text = uriCredentialRe.ReplaceAllString(text, "${1}[redacted]@")
 	seen := map[string]string{}
 	return emailRe.ReplaceAllStringFunc(text, func(addr string) string {
 		key := strings.ToLower(addr)

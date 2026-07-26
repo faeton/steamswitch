@@ -203,10 +203,16 @@ func lastUsedSignal(lastUsed time.Time) Signal {
 // from an attack on their own account.
 const DeepCheckInterval = 14 * 24 * time.Hour
 
-// BackoffBase is the first retry delay after a failed deep check; it doubles per
-// consecutive failure up to BackoffMax.
+// BackoffBase is the first retry delay after a failed deep check; it doubles per consecutive
+// failure up to BackoffMax.
+//
+// It is deliberately equal to MinDeepCheckInterval rather than shorter. It was six hours,
+// which meant the floor the user cannot configure their way below — one check per account per
+// day — did not apply to the failure path, and a wrong stored password produced four real
+// logins a day indefinitely. A failure is not a reason to check *more* often than the
+// configured minimum allows.
 const (
-	BackoffBase = 6 * time.Hour
+	BackoffBase = MinDeepCheckInterval
 	BackoffMax  = 30 * 24 * time.Hour
 )
 

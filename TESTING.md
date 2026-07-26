@@ -418,8 +418,9 @@ Use a throwaway account. A transfer is not reversible from inside this app.
 | V8b | Read every label on the screen | The word **"lend"** appears nowhere, in any wording. It implies a recall that cannot be implemented without a server. |
 | V8c | Choose **Session access**, set a passphrase, create the file | It writes into `<data>\Handoff\` and names the path. Nothing is uploaded — check with a network monitor if you like. |
 | V8d | Open the written file in a text editor | **A JSON envelope and nothing else.** Search it for the account name, the SteamID64, the label, the word `grant`, the password and the token. None may appear — a bundle found on a shared drive must say only that somebody uses SteamSwitch. |
+| V8d2 | Look at the **filename** | It is `steamswitch-<random>.sshandoff` and nothing more. The label, the account name and the mode must not appear in it — a file called `For-Kev-transfer-….sshandoff` tells anyone who walks past who, what and when, with the envelope perfectly opaque. |
 | V8e | Check the file's permissions | Owner-only, as in V1d. |
-| V8f | Try a passphrase under 10 characters | Refused, with a reason. The passphrase is the only thing in front of the file. |
+| V8f | Try a passphrase under 16 characters | Refused, and the message asks for several unrelated words rather than a password. The KDF parameters and salt sit in the clear beside the ciphertext, so a short passphrase can be attacked offline for as long as the attacker likes. |
 | V8g | Enter mismatched passphrases | Refused before anything is written. |
 | V8h | Try **Session access** on an account that has never been verified | Refused with "nothing stored to hand over yet" rather than writing an empty file that fails on the recipient's machine for reasons neither of you can see. |
 | V8i | Choose **Ownership**, and try to create the file without typing the account name | Refused. A typed confirmation, not a checkbox — this can lock you out of your own account. |
@@ -436,7 +437,10 @@ Use a throwaway account. A transfer is not reversible from inside this app.
 | V8t | After V8s, delete the imported vault entry and import the file a third time | Still refused. The marker is keyed to the file, not the account — deleting the entry must not reset it. |
 | V8u | Export with an expiry of 1 day, then set the recipient machine's clock past it and import | Refused as expired. |
 | V8v | Read what the app says about expiry and single-use | It says both are enforced by the recipient's copy of SteamSwitch, **not by the encryption**. If the wording implies they are a control, that is the bug — anyone who patches their build ignores both. |
-| V8w | Import a bundle for an account the recipient already has in their vault | It warns that accepting will overwrite, **before** the write, not after. |
+| V8w | Import a **transfer** for an account the recipient already has, where their entry has a seed and email the bundle does not carry | It warns before the write that the entry will be replaced — and afterwards the old seed and email are **gone**. A transfer that leaves the previous owner's secrets alive underneath is a hybrid entry matching neither side. |
+| V8w2 | Import a **grant** for an account the recipient already has | Different warning: it adds the session and leaves their own password and seed alone. Confirm afterwards that their password is untouched. |
+| V8w3 | Take a valid grant bundle, and by hand seal a payload that says `mode: "grant"` but also carries a password and seed. Inspect and accept it | Inspect describes it as session-only, and the import brings in **no** password or seed. Otherwise the mode is only a promise the sender keeps, and the one distinction the feature rests on is decorative. |
+| V8w4 | Drop a symlink named `x.sshandoff` in the folder pointing at a file outside it, and a 5 MB file named `y.sshandoff`. Try both | Both refused as unreadable. Neither is followed or loaded. |
 | V8x | On the exporting machine, check the export log | It lists what was exported, to which label and when. It does **not** contain the passphrase, and nothing in it would let that machine open the bundle. |
 | V8y | Search the whole data folder and the logs for the passphrase you typed | It appears nowhere. |
 | V8z | Import a grant, then on the *original* machine change the account's Steam password | The recipient's access stops working. This is the only revocation there is, and the app should never have implied otherwise. |
