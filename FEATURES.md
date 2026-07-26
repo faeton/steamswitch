@@ -128,6 +128,7 @@ authenticator seed, email binding and health — sealed under the app-lock passw
 | Login-details panel — audience, expiry, IP claims, read-only | Built | `TokenDetails` | V4f–V4h |
 | Health dot on the tile, warn/fail only, never colour alone | Built | `AccountTile.svelte` | V5c, V5d, V5g |
 | Vault values kept out of `actionlog` and `slog` | Built | call sites | V6f, V6g |
+| Email addresses masked in crash reports, by shape rather than by value | Built | `internal/logsanitize/redact.go` | V6h, V6i |
 
 ### Vault: what is deliberately missing
 

@@ -365,6 +365,8 @@ have not themselves completed a real login. Treat V4a as the first real run.
 | V6e | Turn on Offline mode and run a **Check** | Reported as unavailable because of offline mode, not as a timeout. |
 | V6f | Look at `%AppData%\SteamSwitch\` logs after all of the above | No password, seed, Guard code, token or email password appears anywhere in them. |
 | V6g | Trigger a crash report (Tools → Diagnostics) and read what it would send | Same: account identifiers are aliased to `accountN`, and no vault value is present. |
+| V6h | In that report, search for the `@` of any email address you have stored | Every address reads `emailN@redacted` — **domain included**. For bought accounts the domain says which provider they came from, so masking only the local part would not be masking. |
+| V6i | Check that a stack trace in the same report is still readable | Module paths like `wails/v3@v3.0.0-alpha2.117` are untouched. The email pass matches by shape, so over-matching would turn every crash report into noise. |
 
 ### V7. Scheduled password checks
 

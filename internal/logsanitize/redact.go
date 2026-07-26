@@ -2,6 +2,7 @@ package logsanitize
 
 import (
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 )
@@ -11,17 +12,51 @@ type secretReplacement struct {
 	replacement string
 }
 
-// Redact replaces known account identifiers in text with accountN aliases (best-effort).
+// Redact replaces account identifiers in text with stable aliases (best-effort).
+//
+// Two passes, and they work differently on purpose:
+//
+//   - Email addresses are matched by shape. The vault's addresses are inside an encrypted
+//     blob that this package cannot read and must not try to — it runs on the crash path,
+//     where the vault is often locked and there is no master key to derive. Anything that
+//     looks like an address is therefore aliased whether or not it is one we know about,
+//     which is also what catches addresses that reached a log from somewhere else entirely.
+//   - Account names and IDs are matched by value, against the identifiers actually on disk.
 func Redact(text string) string {
+	out := redactEmails(text)
 	reps := collectReplacements()
-	if len(reps) == 0 {
-		return text
-	}
-	out := text
 	for _, r := range reps {
 		out = replaceCI(out, r.secret, r.replacement)
 	}
 	return out
+}
+
+// Conservative on purpose: a local part, an @, and a domain that ends in a real alphabetic
+// TLD. Version strings like `wails/v3@v3.0.0-alpha2.117` in a stack trace have no such
+// ending and are left alone.
+var emailRe = regexp.MustCompile(`[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}`)
+
+// redactEmails replaces each distinct address with emailN@redacted, numbered in order of
+// first appearance so the same address reads the same throughout one report — otherwise a
+// log that shows a code arriving at one inbox and a login failing for another becomes
+// impossible to follow.
+//
+// The domain goes too. For bought accounts it is often a single provider's vanity domain,
+// which identifies where the accounts came from as surely as the local part identifies who.
+func redactEmails(text string) string {
+	if !strings.Contains(text, "@") {
+		return text
+	}
+	seen := map[string]string{}
+	return emailRe.ReplaceAllStringFunc(text, func(addr string) string {
+		key := strings.ToLower(addr)
+		if alias, ok := seen[key]; ok {
+			return alias
+		}
+		alias := fmt.Sprintf("email%d@redacted", len(seen)+1)
+		seen[key] = alias
+		return alias
+	})
 }
 
 func collectReplacements() []secretReplacement {
