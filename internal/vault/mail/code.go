@@ -1,7 +1,9 @@
 // Package mail retrieves a Steam Guard login code from wherever the user's mail lives.
 //
 // There is exactly one operation: "get me one code that is newer than this instant". It is
-// not a mail client, it does not keep a background loop, and it never marks anything read.
+// not a mail client and keeps no background loop. Reads never mark mail \Seen (bodies are
+// peeked); the one exception is the opt-in IMAPConfig.PurgeConsumed, which deletes a code once
+// it has been read, and is documented for a throwaway per-account inbox only.
 package mail
 
 import (
@@ -48,13 +50,21 @@ const PollInterval = 5 * time.Second
 // a lookalike from anywhere else.
 const SenderDomain = "steampowered.com"
 
-// Steam's login mail contains the code on its own line under a "Login Code" label. Anchoring
-// on the label and bounding the window is what stops the regex matching an unrelated
-// 5-character run elsewhere in the message — the body also contains order numbers, support
-// links and the recipient's own account name.
+// Steam labels the code and puts it near that label; anchoring on the label and bounding the
+// window is what stops the regex matching an unrelated 5-character run elsewhere in the
+// message — the body also contains order numbers, support links and the recipient's own
+// account name.
+//
+// The label is NOT always "Login Code". The most common email in practice — "Access from new
+// computer" — labels it **"Steam Guard code"**, and puts the literal words "login code" only
+// in the boilerplate *after* the code ("The login code contained in this email is required").
+// A regex anchored on "login code" alone therefore misses the very email it will meet most
+// often, and was caught doing exactly that against a live account. The anchor now covers
+// "guard code" and "login code" both; the earliest label in the text wins, which is the real
+// one, because the boilerplate mention comes later.
 //
 // The alphabet is Steam's: uppercase letters and digits, no lowercase.
-// Two details here are load-bearing and were both got wrong first time round.
+// Two more details are load-bearing and were both got wrong first time round.
 //
 // The case-insensitive flag is scoped to the label only. Applied to the whole pattern it
 // makes `[A-Z0-9]{5}` match lowercase, and the first thing it then finds in Steam's HTML
@@ -63,10 +73,11 @@ const SenderDomain = "steampowered.com"
 //
 // The window is 500 characters, not the 120 that seemed sufficient. Steam's HTML mail puts
 // a substantial run of tags, inline styles and quoted-printable soft wraps between the
-// label and the code; 500 is the figure a long-running deployment settled on, and anything
-// tighter silently fails on real mail while passing on hand-written test bodies.
+// label and the code (and the new-device email adds a "Request made from <place>" line in
+// between); 500 is the figure a long-running deployment settled on, and anything tighter
+// silently fails on real mail while passing on hand-written test bodies.
 var (
-	loginCodeRe    = regexp.MustCompile(`(?s)(?i:login\s*code).{1,500}?\b([A-Z0-9]{5})\b`)
+	loginCodeRe    = regexp.MustCompile(`(?s)(?i:(?:steam\s*)?guard\s*code|login\s*code).{1,500}?\b([A-Z0-9]{5})\b`)
 	bareCodeRe     = regexp.MustCompile(`(?m)^\s*([A-Z0-9]{5})\s*$`)
 	recoveryCodeRe = regexp.MustCompile(`(?s)(?i:(?:recovery|verification)\s*code).{1,500}?\b([A-Z0-9]{5})\b`)
 )

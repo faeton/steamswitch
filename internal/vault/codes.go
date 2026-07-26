@@ -39,12 +39,13 @@ func sourceFor(e Entry) (mail.CodeSource, error) {
 			return nil, mail.ErrBadConfig
 		}
 		return mail.NewIMAP(mail.IMAPConfig{
-			Host:     e.Email.IMAP.Host,
-			Port:     e.Email.IMAP.Port,
-			User:     e.Email.IMAP.User,
-			Password: e.Email.IMAP.Password,
-			UseTLS:   e.Email.IMAP.UseTLS,
-			Address:  e.Email.Address,
+			Host:          e.Email.IMAP.Host,
+			Port:          e.Email.IMAP.Port,
+			User:          e.Email.IMAP.User,
+			Password:      e.Email.IMAP.Password,
+			UseTLS:        e.Email.IMAP.UseTLS,
+			Address:       e.Email.Address,
+			PurgeConsumed: e.Email.IMAP.PurgeConsumed,
 		})
 	case EmailSourceMailbox:
 		if e.Email.Mailbox == nil {
@@ -85,6 +86,12 @@ func GuardCode(ctx context.Context, steamID64 string) (CodeResult, error) {
 	if code, ok := takePrewarmed(steamID64); ok {
 		return CodeResult{Code: code, Method: MethodMailbox}, nil
 	}
+
+	// The pre-warm did not have a code ready. Cancel any still-running pre-warm before fetching
+	// directly: leaving it alive races this fetch for the same single-use code, and a late
+	// pre-warm result would be stashed for a *later* request that would then hand over a code
+	// this login already spent.
+	CancelPrewarm(steamID64)
 
 	src, err := sourceFor(e)
 	if err != nil {

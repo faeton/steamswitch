@@ -115,6 +115,11 @@ type IMAPCreds struct {
 	User     string `json:"user"`
 	Password string `json:"password"`
 	UseTLS   bool   `json:"useTls"`
+	// PurgeConsumed tries to delete each Guard code from the inbox once it has been read.
+	// Deletion is best-effort (a failure is swallowed, so the mailbox is not guaranteed clean).
+	// Off by default and meant only for a throwaway inbox dedicated to this account's codes,
+	// never a shared or personal one; see mail.IMAPConfig.PurgeConsumed.
+	PurgeConsumed bool `json:"purgeConsumed,omitempty"`
 }
 
 // MailboxRef points at a mailbox API the user runs. There is no default host: shipping one

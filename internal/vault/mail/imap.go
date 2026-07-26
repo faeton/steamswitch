@@ -7,6 +7,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -32,6 +33,14 @@ type IMAPConfig struct {
 	// Address is the mailbox the code must be addressed to. Shared inboxes are common with
 	// bought accounts, so this is a filter, not a label.
 	Address string
+
+	// PurgeConsumed deletes a Guard code from the mailbox once it has been read. It is opt-in
+	// because deleting mail is destructive: it is meant for a throwaway inbox dedicated to a
+	// single account's codes (the common shape for a bought account), never a personal one
+	// where the Guard mail is history the user may want. When set, a successful fetch marks
+	// the message \Deleted and expunges it — keeping a code-only mailbox from silting up and
+	// removing any chance a future poll mistakes an old code for a new one.
+	PurgeConsumed bool
 }
 
 // dialTimeout bounds the TCP+TLS handshake. Separate from the poll budget: a host that will
@@ -62,7 +71,13 @@ func NewIMAP(cfg IMAPConfig) (CodeSource, error) {
 // *net.Dialer — with anything else (a SOCKS dialer, once egress lands) the timeout silently
 // does nothing, and a black-holed host would hang a switch with no way out but killing the
 // app. Dialing here means that seam is already the right shape.
-func (s *imapSource) connect() (*client.Client, error) {
+func (s *imapSource) connect() (*client.Client, error) { return s.connectSelect(true) }
+
+// connectSelect is connect with control over whether INBOX is opened read-only. The poll uses
+// read-write only when it will purge; everything else stays read-only so it can never mark the
+// user's mail read (Peek is used regardless, so \Seen is safe either way — this is belt and
+// braces for a server that misbehaves).
+func (s *imapSource) connectSelect(readonly bool) (*client.Client, error) {
 	addr := net.JoinHostPort(s.cfg.Host, strconv.Itoa(s.cfg.Port))
 	d := &net.Dialer{Timeout: dialTimeout}
 
@@ -86,21 +101,24 @@ func (s *imapSource) connect() (*client.Client, error) {
 	// re-arms it before every command; a one-shot conn deadline would expire partway
 	// through a long poll and turn a working mailbox into a connection error.
 	c.Timeout = ioTimeout
-	// STARTTLS for the plaintext port, so "not 993" does not silently mean "credentials in
-	// the clear".
+	// On the plaintext port, upgrade with STARTTLS — and refuse to go on without it. Sending
+	// LOGIN over an un-upgraded connection puts the password (and then a Guard code) on the wire
+	// in the clear; a server that does not offer STARTTLS is not one we will authenticate to.
 	if !s.cfg.UseTLS {
-		if ok, _ := c.SupportStartTLS(); ok {
-			if err := c.StartTLS(&tls.Config{ServerName: s.cfg.Host, MinVersion: tls.VersionTLS12}); err != nil {
-				_ = c.Logout()
-				return nil, ErrConnect
-			}
+		if ok, _ := c.SupportStartTLS(); !ok {
+			_ = c.Logout()
+			return nil, ErrConnect
+		}
+		if err := c.StartTLS(&tls.Config{ServerName: s.cfg.Host, MinVersion: tls.VersionTLS12}); err != nil {
+			_ = c.Logout()
+			return nil, ErrConnect
 		}
 	}
 	if err := c.Login(s.cfg.User, s.cfg.Password); err != nil {
 		_ = c.Logout()
 		return nil, ErrAuth
 	}
-	if _, err := c.Select("INBOX", true); err != nil { // read-only: never touch \Seen
+	if _, err := c.Select("INBOX", readonly); err != nil {
 		_ = c.Logout()
 		return nil, ErrConnect
 	}
@@ -125,85 +143,154 @@ func (s *imapSource) Probe(ctx context.Context) error {
 	}
 }
 
+// FetchCode blocks until a fresh Steam Guard code shows up in the mailbox, or ctx ends.
+//
+// Two provider quirks, both confirmed against a live account (notletters.com), shape it:
+//
+//   - It opens a fresh connection for every poll. That is load-bearing, not tidiness: this
+//     provider freezes a connection's view of the mailbox at SELECT time and never refreshes it —
+//     not even on a re-SELECT. A held connection reported the same message count for four solid
+//     minutes while a freshly-opened one saw the code six seconds after it was sent. Reconnecting
+//     each poll is what makes newly-arrived mail visible at all.
+//   - It does not use a server-side SEARCH. The same provider returns nothing for a SINCE or a
+//     From-header search; fetching the last few messages by sequence number and filtering in Go
+//     is what a broken search engine cannot defeat.
+//
+// Freshness is judged by the message's own Date header against notBefore — the moment the login
+// that triggers the mail was started — with a small skew (see FreshEnough). This provider returns
+// a zero IMAP *ENVELOPE* date, but its raw Date header is correct, so the date is read from the
+// parsed header, not from ENVELOPE. Anchoring on notBefore rather than on an inbox watermark is
+// deliberate: a watermark has to be captured before the mail is sent, an ordering no CodeSource
+// caller can be forced to honour (verify.go begins the login and only then fetches), so a code
+// landing between "login" and "first poll" would be misclassified as stale. A date window keyed
+// on notBefore has no such ordering hazard.
 func (s *imapSource) FetchCode(ctx context.Context, notBefore time.Time) (string, error) {
-	c, err := s.connect()
+	return pollUntil(ctx, func(context.Context) (string, error) {
+		return s.scanOnce(notBefore)
+	})
+}
+
+// scanOnce is one poll: a fresh connection (see FetchCode for why fresh), a scan of the newest
+// messages, and — if PurgeConsumed is set and a code was found — deletion of that message before
+// the connection closes.
+func (s *imapSource) scanOnce(notBefore time.Time) (string, error) {
+	c, err := s.connectSelect(!s.cfg.PurgeConsumed) // read-write only when we will delete
 	if err != nil {
 		return "", err
 	}
 	defer func() { _ = c.Logout() }()
 
-	return pollUntil(ctx, func(ctx context.Context) (string, error) {
-		return s.searchOnce(c, notBefore)
-	})
+	code, uid, seqNum, err := s.scanForCode(c, notBefore)
+	if err != nil {
+		return "", err
+	}
+	if s.cfg.PurgeConsumed {
+		s.deleteConsumed(c, uid, seqNum) // best-effort: the code is in hand
+	}
+	return code, nil
 }
 
-// maxCandidates bounds how many recent messages are examined per poll. Steam sends one mail
-// per login; anything beyond a handful is another account's code or an unrelated mail, and
-// fetching a whole inbox on a 5-second timer is not acceptable behaviour towards the host.
-const maxCandidates = 5
-
-func (s *imapSource) searchOnce(c *client.Client, notBefore time.Time) (string, error) {
-	crit := imap.NewSearchCriteria()
-	// The server searches on INTERNALDATE (when it received the message) while the
-	// freshness check below compares Envelope.Date (what the sender stamped). Those differ
-	// by relay delay and clock skew, so the search casts the wider net and Go re-filters
-	// precisely. Since is also date-granular, so this is effectively "today and yesterday".
-	crit.Since = notBefore.Add(-StaleSkew)
-	crit.Header = map[string][]string{"From": {SenderDomain}}
-
-	ids, err := c.Search(crit)
-	if err != nil {
-		return "", ErrConnect
-	}
-	if len(ids) == 0 {
-		return "", ErrNoCode
-	}
-	if len(ids) > maxCandidates {
-		ids = ids[len(ids)-maxCandidates:]
-	}
-
+// deleteConsumed removes a code that was just read, when PurgeConsumed is set. Best-effort by
+// contract: the code is already in hand, and failing the fetch over a bookkeeping call would be a
+// bad trade for a user standing at a Guard prompt — so every error here is swallowed, and callers
+// must not assume the mailbox is left clean.
+//
+// It deletes by UID when the server gave one, else by sequence number. The trailing EXPUNGE
+// removes EVERY message currently flagged \Deleted, not only this one: go-imap 1.2 exposes no UID
+// EXPUNGE. That is safe only under PurgeConsumed's documented precondition — a throwaway inbox
+// dedicated to one account's codes, where no other client marks mail \Deleted. It must never be
+// enabled on a shared or personal mailbox.
+func (s *imapSource) deleteConsumed(c *client.Client, uid, seqNum uint32) {
 	set := new(imap.SeqSet)
-	set.AddNum(ids...)
+	item := imap.FormatFlagsOp(imap.AddFlags, true) // +FLAGS.SILENT
+	flags := []interface{}{imap.DeletedFlag}
+	var err error
+	switch {
+	case uid > 0:
+		set.AddNum(uid)
+		err = c.UidStore(set, item, flags, nil)
+	case seqNum > 0:
+		set.AddNum(seqNum)
+		err = c.Store(set, item, flags, nil)
+	default:
+		return
+	}
+	if err != nil {
+		return
+	}
+	_ = c.Expunge(nil)
+}
 
-	// Peek, so reading a code never marks the user's mail as read. A support ticket that
-	// begins "the app is marking my mail read" is entirely avoidable here.
-	section := &imap.BodySectionName{Peek: true}
+// maxCandidates bounds how many recent messages are examined per poll. Steam sends one mail per
+// login, so the target is almost always among the newest few; the bound keeps a 5-second timer
+// from fetching a whole inbox. The residual cost is on a busy *shared* catch-all inbox: if enough
+// unrelated mail arrives after the code but before a poll, the code can fall outside this window
+// and be missed. A dedicated per-account code mailbox — the intended shape, and what
+// PurgeConsumed keeps clean — never hits that.
+const maxCandidates = 15
+
+// scanForCode fetches the newest messages by sequence number and returns the freshest Steam Guard
+// code among them, with its UID and sequence number so the caller can delete it.
+//
+// It reads mailbox state from the (freshly connected) client rather than re-selecting: on this
+// connection the SELECT already ran in connectSelect, and re-selecting is precisely the operation
+// the notletters bug makes a no-op. It does not use a server-side SEARCH — the same provider that
+// zeroes ENVELOPE dates returns nothing for a SINCE search; fetching the last few by sequence
+// number and filtering in Go is what a broken search engine cannot defeat.
+func (s *imapSource) scanForCode(c *client.Client, notBefore time.Time) (code string, uid, seqNum uint32, err error) {
+	status := c.Mailbox()
+	if status == nil {
+		return "", 0, 0, ErrConnect
+	}
+	if status.Messages == 0 {
+		return "", 0, 0, ErrNoCode
+	}
+	from := uint32(1)
+	if status.Messages > maxCandidates {
+		from = status.Messages - maxCandidates + 1
+	}
+	set := new(imap.SeqSet)
+	set.AddRange(from, status.Messages)
+
+	section := &imap.BodySectionName{Peek: true} // never marks the user's mail read
 	messages := make(chan *imap.Message, maxCandidates)
 	fetchErr := make(chan error, 1)
 	go func() {
-		fetchErr <- c.Fetch(set, []imap.FetchItem{imap.FetchEnvelope, imap.FetchInternalDate, section.FetchItem()}, messages)
+		fetchErr <- c.Fetch(set, []imap.FetchItem{imap.FetchUid, imap.FetchEnvelope, imap.FetchInternalDate, section.FetchItem()}, messages)
 	}()
 
-	// Newest first, so the freshest matching code wins even if several qualify.
-	var found []*imap.Message
+	var candidates []*imap.Message
 	for m := range messages {
-		found = append(found, m)
+		candidates = append(candidates, m)
 	}
-	if err := <-fetchErr; err != nil {
-		return "", ErrConnect
+	if ferr := <-fetchErr; ferr != nil {
+		return "", 0, 0, ErrConnect
 	}
 
-	for i := len(found) - 1; i >= 0; i-- {
-		code, ok := s.codeFromMessage(found[i], section, notBefore)
-		if ok {
-			return code, nil
+	// Newest first, so the freshest code wins when several fall inside the skew window. UID is
+	// arrival order on a compliant server and a sound proxy on this one; sequence number is the
+	// fallback when the server reports no UID.
+	sort.Slice(candidates, func(i, j int) bool {
+		if candidates[i].Uid != candidates[j].Uid {
+			return candidates[i].Uid > candidates[j].Uid
+		}
+		return candidates[i].SeqNum > candidates[j].SeqNum
+	})
+	for _, m := range candidates {
+		if found, ok := s.codeFromMessage(m, section, notBefore); ok {
+			return found, m.Uid, m.SeqNum, nil
 		}
 	}
-	return "", ErrNoCode
+	return "", 0, 0, ErrNoCode
 }
 
 func (s *imapSource) codeFromMessage(m *imap.Message, section *imap.BodySectionName, notBefore time.Time) (string, bool) {
 	if m == nil || m.Envelope == nil {
+		// FromSteam and AddressedTo below are security gates; without an envelope there is no
+		// trustworthy sender or recipient to check, so the message cannot be read for a code.
 		return "", false
 	}
 	if !FromSteam(envelopeFrom(m.Envelope)) {
-		return "", false
-	}
-	sent := m.Envelope.Date
-	if sent.IsZero() {
-		sent = m.InternalDate
-	}
-	if !FreshEnough(sent, notBefore) {
 		return "", false
 	}
 	if !AddressedTo(envelopeTo(m.Envelope), s.cfg.Address) {
@@ -213,11 +300,32 @@ func (s *imapSource) codeFromMessage(m *imap.Message, section *imap.BodySectionN
 	if body == nil {
 		return "", false
 	}
-	text, err := readableText(body)
+	text, hdrDate, err := readableText(body)
 	if err != nil {
 		return "", false
 	}
+	if !fresh(hdrDate, m, notBefore) {
+		return "", false
+	}
 	return ExtractCode(text)
+}
+
+// fresh reports whether a message is recent enough to belong to the login started at notBefore.
+//
+// The date is taken from the message's own Date header (hdrDate) first, because that is the one
+// timestamp this provider was seen to report correctly while its IMAP ENVELOPE date came back as
+// zero. ENVELOPE date and INTERNALDATE are fallbacks for a message whose header would not parse. A
+// message with no usable date at all is rejected by FreshEnough: an unknown date is not evidence
+// of freshness, and accepting it is how a stale, single-use code gets handed over.
+func fresh(hdrDate time.Time, m *imap.Message, notBefore time.Time) bool {
+	sent := hdrDate
+	if sent.IsZero() {
+		sent = m.Envelope.Date
+	}
+	if sent.IsZero() {
+		sent = m.InternalDate
+	}
+	return FreshEnough(sent, notBefore)
 }
 
 func envelopeFrom(e *imap.Envelope) string {
@@ -250,15 +358,24 @@ func envelopeTo(e *imap.Envelope) []string {
 // readableText flattens a message to text, walking MIME parts so a code that only appears
 // in the HTML alternative is still found. Non-text parts are skipped rather than failing
 // the walk — Steam's mail carries images, and one unreadable part must not lose the code.
-func readableText(r io.Reader) (string, error) {
+//
+// It also returns the message's Date header, parsed from the MIME header rather than taken from
+// the IMAP ENVELOPE — the live provider zeroes the latter but sends the former correctly, and
+// this is the timestamp freshness is judged on. A zero time means the date could not be read.
+func readableText(r io.Reader) (string, time.Time, error) {
 	mr, err := mail.CreateReader(r)
 	if err != nil {
-		// Not MIME at all: treat the whole thing as text rather than giving up.
+		// Not MIME at all: treat the whole thing as text rather than giving up. No parsed header,
+		// so no date — the caller falls back to the ENVELOPE/INTERNALDATE.
 		rest, rerr := io.ReadAll(r)
 		if rerr != nil {
-			return "", rerr
+			return "", time.Time{}, rerr
 		}
-		return string(rest), nil
+		return string(rest), time.Time{}, nil
+	}
+	var date time.Time
+	if d, derr := mr.Header.Date(); derr == nil {
+		date = d
 	}
 	var sb strings.Builder
 	for {
@@ -281,7 +398,7 @@ func readableText(r io.Reader) (string, error) {
 			// Attachment. Never read; a code is not in one, and reading it wastes the poll.
 		}
 	}
-	return sb.String(), nil
+	return sb.String(), date, nil
 }
 
 // AutoconfigCandidates returns the hosts worth trying for a domain, in order.

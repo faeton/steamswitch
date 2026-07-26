@@ -161,13 +161,16 @@ func runCredentialLogin(ctx context.Context, e Entry) (Signal, *steamauth.Result
 	s := Signal{Name: SignalPassword, Status: VerdictUnknown, Detail: "Vault_Signal_PasswordUnknown"}
 	client := &steamauth.Client{}
 
+	// Capture the login-start instant before Begin, which is what triggers the Guard email. The
+	// mailbox fetch judges freshness against this, so it must precede the mail, not follow it.
+	loginStart := time.Now()
 	sess, err := client.Begin(ctx, e.AccountName, e.Password, e.GuardData)
 	if err != nil {
 		return classifyLoginError(s, err), nil
 	}
 
 	if sess.Guard != steamauth.GuardNone {
-		code, cerr := guardCodeForLogin(ctx, e, sess)
+		code, cerr := guardCodeForLogin(ctx, e, sess, loginStart)
 		if cerr != nil {
 			// Reaching the Guard step proves the password was accepted — Steam does not
 			// ask for a second factor otherwise. That is the question this check exists to
@@ -190,7 +193,7 @@ func runCredentialLogin(ctx context.Context, e Entry) (Signal, *steamauth.Result
 
 // guardCodeForLogin answers Steam's challenge from the authenticator seed when the account
 // has one, and from the bound mailbox otherwise.
-func guardCodeForLogin(ctx context.Context, e Entry, sess *steamauth.Session) (string, error) {
+func guardCodeForLogin(ctx context.Context, e Entry, sess *steamauth.Session, loginStart time.Time) (string, error) {
 	if sess.Guard == steamauth.GuardDeviceCode || e.SharedSecret != "" {
 		if e.SharedSecret == "" {
 			return "", totp.ErrEmptySecret
@@ -205,7 +208,9 @@ func guardCodeForLogin(ctx context.Context, e Entry, sess *steamauth.Session) (s
 	if err != nil {
 		return "", err
 	}
-	return src.FetchCode(ctx, time.Now())
+	// loginStart, not time.Now(): the email was triggered by Begin above, and freshness is judged
+	// against the instant before it was sent.
+	return src.FetchCode(ctx, loginStart)
 }
 
 // classifyLoginError turns a login failure into a signal.

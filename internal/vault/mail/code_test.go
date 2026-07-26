@@ -6,6 +6,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/emersion/go-imap"
 )
 
 // The body shapes below are the ones that actually turn up: Steam's HTML mail, its
@@ -72,6 +74,23 @@ func TestExtractCode(t *testing.T) {
 			name: "label far beyond the window",
 			body: "Login Code" + strings.Repeat("x", 600) + " ZZZZZ ",
 			ok:   false,
+		},
+		{
+			// The real "Access from new computer" email, captured from a live account. Its
+			// label is "Steam Guard code", NOT "Login Code" — and the words "login code"
+			// appear only in the boilerplate *after* the code, so a regex anchored on that
+			// phrase misses this entirely. The code also sits after an intervening
+			// "Request made from <place>" line. This is the template the switcher will meet
+			// most often, and the original anchor did not handle it.
+			name: "real new-device email, Steam Guard code label",
+			body: "testuser, It looks like you are trying to log in from a new device. " +
+				"Here is the Steam Guard code you need to access your account: " +
+				"Request made from Spain BHMVY   If this wasnt you This email was sent " +
+				"because someone attempted to log in to your Steam account. The login attempt " +
+				"included your correct account name and password. The login code contained in " +
+				"this email is required to access your account. Do not share this code with anyone.",
+			want: "BHMVY",
+			ok:   true,
 		},
 	}
 	for _, tc := range cases {
@@ -283,5 +302,42 @@ func TestPreferredCertName(t *testing.T) {
 				t.Fatalf("preferredCertName(%v) = %q, %v; want %q, %v", tc.names, got, ok, tc.want, tc.ok)
 			}
 		})
+	}
+}
+
+// fresh() decides "belongs to the login started at notBefore" from the message date, preferring
+// the parsed Date header (hdrDate) over the IMAP ENVELOPE date. The live provider (notletters.com)
+// zeroes the ENVELOPE date but sends the header date correctly, so the header path is the
+// load-bearing one; the ENVELOPE and INTERNALDATE fields are fallbacks.
+func TestFresh(t *testing.T) {
+	env := func(date, internal time.Time) *imap.Message {
+		return &imap.Message{Envelope: &imap.Envelope{Date: date}, InternalDate: internal}
+	}
+	zero := time.Time{}
+	login := time.Date(2026, 7, 26, 12, 0, 0, 0, time.UTC)
+
+	// Header date is authoritative: a fresh header date is accepted even when the ENVELOPE date
+	// is zero (exactly the notletters shape), and a stale header date is rejected even when the
+	// zeroed ENVELOPE date would otherwise be ignored.
+	if !fresh(login.Add(time.Second), env(zero, zero), login) {
+		t.Fatal("a message with a fresh header date was rejected")
+	}
+	if fresh(login.Add(-time.Hour), env(zero, zero), login) {
+		t.Fatal("a message with a stale header date was accepted")
+	}
+	// Within the skew window (clock difference between us and the mail server) is still fresh.
+	if !fresh(login.Add(-StaleSkew/2), env(zero, zero), login) {
+		t.Fatal("a message dated inside the skew window was rejected")
+	}
+	// No header date: fall back to the ENVELOPE date, then INTERNALDATE.
+	if !fresh(zero, env(login.Add(time.Second), zero), login) {
+		t.Fatal("fell through to ENVELOPE date but rejected a fresh one")
+	}
+	if !fresh(zero, env(zero, login.Add(time.Second)), login) {
+		t.Fatal("fell through to INTERNALDATE but rejected a fresh one")
+	}
+	// No usable date anywhere is not evidence of freshness, so it is rejected.
+	if fresh(zero, env(zero, zero), login) {
+		t.Fatal("a message with no usable date was accepted")
 	}
 }
