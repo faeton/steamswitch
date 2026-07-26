@@ -886,7 +886,18 @@ func planFor(plans []ModulePlan, moduleID string) (ModulePlan, bool) {
 // Read-only, so it is safe while Steam runs — and it must stay that way: re-applying with
 // Steam up would just be clobbered again. A mismatch is recorded and surfaced; the re-apply
 // is offered only once Steam is closed.
+//
+// Read-only is not the same as safe to run unsynchronized, which is what this used to do. It
+// reads the journal and then hashes the live tree, and `Enter`, `Leave`, `Resolve` and a bare
+// swap all replace those directories by rename. Racing one produced either a spurious I/O
+// error or — worse — a "Steam Cloud reverted your kit" verdict that was really just a
+// directory being swapped underneath the hash. It takes the transaction lock like every other
+// engine entry point; the cost is that a status check waits for a switch in flight, which is
+// the right way round.
 func (e *Engine) VerifyCloudRisk(ctx context.Context) (bool, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
 	j, err := e.activeJournal()
 	if err != nil || j == nil {
 		return true, err
