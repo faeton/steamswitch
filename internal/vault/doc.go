@@ -91,6 +91,13 @@ type Entry struct {
 	NextEligibleAt string `json:"nextEligibleAt,omitempty"`
 	CheckFailures  int    `json:"checkFailures,omitempty"`
 
+	// SessionSkips counts how many scheduled deep checks in a row a live session token has
+	// stood in for (see scheduler.go). It bounds that substitution: a live token defers the
+	// credential login that verifies the password, but only so many times before a real deep
+	// check is forced, so a wrong stored password behind a perpetually-live token is still
+	// caught. Reset to zero by any deep check.
+	SessionSkips int `json:"sessionSkips,omitempty"`
+
 	EgressID  string `json:"egressId,omitempty"` // reserved, see TODO.md
 	UpdatedAt string `json:"updatedAt"`
 }

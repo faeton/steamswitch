@@ -87,6 +87,11 @@ func DeepCheck(ctx context.Context, steamID64 string, in QuickCheckInput) (Healt
 		return HealthReport{}, ErrDeepCheckBusy
 	}
 	defer deepMu.Unlock()
+	// Re-check under the lock: another login can have tripped the latch between the check above
+	// and acquiring deepMu, and the hard stop must hold rather than allow one more login through.
+	if RateLimited() {
+		return HealthReport{}, steamauth.ErrRateLimited
+	}
 
 	e, err := entry(steamID64)
 	if err != nil {
@@ -153,6 +158,10 @@ func DeepCheck(ctx context.Context, steamID64 string, in QuickCheckInput) (Healt
 	if err := recordHealth(steamID64, rep, nextEligible(time.Now(), failures), failures); err != nil {
 		return rep, err
 	}
+	// A real credential login just ran, so the scheduler's deferral budget is renewed: a live
+	// token may again stand in for future checks. Best-effort — a stale non-zero counter only
+	// costs one extra deep check, it never causes a wrong one.
+	_ = resetSessionSkips(steamID64)
 	return rep, nil
 }
 
@@ -169,11 +178,12 @@ const SessionCheckTimeout = 30 * time.Second
 // needs no Guard email it is the check to prefer whenever an account has a stored token, at the
 // cost of briefly signing the account in.
 //
-// It records only the session report; it deliberately leaves CheckFailures and the deep-check
-// schedule alone, because those are the credential login's backoff state, not this check's. Like
-// DeepCheck it serialises through deepMu and honours the rate-limit latch: the CM logon shares
-// Steam's login rate limit, so a scan of many accounts must run one at a time and stop the moment
-// Steam pushes back.
+// The report it records is a superset of the cheap tier plus the session row (buildSessionHealth),
+// not a session-only stub — running it must not blank out the ban/profile signals a prior check
+// recorded. It deliberately leaves CheckFailures and the deep-check schedule alone, because those
+// are the credential login's backoff state, not this check's. Like DeepCheck it serialises through
+// deepMu and honours the rate-limit latch: the CM logon shares Steam's login rate limit, so a scan
+// of many accounts must run one at a time and stop the moment Steam pushes back.
 func CheckSession(ctx context.Context, steamID64 string) (HealthReport, error) {
 	if RateLimited() {
 		return HealthReport{}, steamauth.ErrRateLimited
@@ -184,31 +194,68 @@ func CheckSession(ctx context.Context, steamID64 string) (HealthReport, error) {
 		return HealthReport{}, ErrDeepCheckBusy
 	}
 	defer deepMu.Unlock()
+	// Re-check under the lock, as DeepCheck does: the latch can be tripped between the check above
+	// and taking deepMu, and a session probe is a login too, so the hard stop must hold.
+	if RateLimited() {
+		return HealthReport{}, steamauth.ErrRateLimited
+	}
 
 	e, err := entry(steamID64)
 	if err != nil {
 		return HealthReport{}, err
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, SessionCheckTimeout)
-	defer cancel()
-
-	rep := HealthReport{ProbedAt: time.Now().UTC().Format(time.RFC3339), Verdict: VerdictUnknown}
-	add := func(s Signal) {
-		rep.Signals = append(rep.Signals, s)
-		rep.Verdict = worst(rep.Verdict, s.Status)
-	}
-	add(tokenSignal(e)) // local context: what the stored token says about its own expiry
-	add(sessionSignal(ctx, steamID64, e))
+	rep := buildSessionHealth(ctx, steamID64, e)
 	// The action log rides on crash reports, so only the outcome and the (aliased) account id.
 	actionlog.Record("vault.sessioncheck", steamID64, rep.Verdict, nil)
 
-	// Store the report only: the existing failure count is passed back unchanged and nextEligible
-	// is zero, so recordHealth leaves CheckFailures and the deep-check schedule untouched.
-	if err := recordHealth(steamID64, rep, time.Time{}, e.CheckFailures); err != nil {
+	// recordHealthOnly leaves CheckFailures and the deep-check schedule untouched — this check does
+	// not test the password, so it neither advances the schedule nor may overwrite the failure count.
+	if err := recordHealthOnly(steamID64, rep); err != nil {
 		return rep, err
 	}
 	return rep, nil
+}
+
+// buildSessionHealth produces one complete health report for a session check — the cheap signals
+// plus a live session-liveness row — without persisting it, so the caller writes exactly once.
+//
+// It runs the cheap tier first so a session check never blanks out the ban/profile/idle signals a
+// prior full check recorded (a token-only report would hide, say, a VAC ban that landed since),
+// then appends the session probe. No credential login happens, so the report is marked not-Deep.
+// The caller must hold deepMu: the session probe is a real CM sign-in and shares Steam's login
+// rate limit.
+func buildSessionHealth(ctx context.Context, steamID64 string, e Entry) HealthReport {
+	rep, _, err := quickReport(ctx, steamID64, checkInput(steamID64))
+	if err != nil {
+		// The cheap tier could not even be built (e.g. the entry vanished mid-read). Fall back to a
+		// minimal report carrying just the local token context, so the session row still has a home.
+		rep = HealthReport{ProbedAt: time.Now().UTC().Format(time.RFC3339), Verdict: VerdictUnknown}
+		ts := tokenSignal(e)
+		rep.Signals = append(rep.Signals, ts)
+		rep.Verdict = worst(rep.Verdict, ts.Status)
+	}
+	rep.Deep = false // no credential login happens on this path; the report must not claim one
+
+	// A cheap-tier 429 is Steam telling this client it has had enough — the same signal DeepCheck
+	// treats as a hard stop. Do NOT escalate to a CM login on top of it: latch the process and skip
+	// the session probe, recording an unknown session row. Gating here (before sessionSignal) is
+	// what stops the probe from running past a rate limit, and latching regardless of the outcome
+	// is what keeps a non-live result from falling through to a deep login on a limited client.
+	if quickRateLimited(rep) {
+		markRateLimited()
+		s := Signal{Name: SignalSession, Status: VerdictUnknown, Detail: "Vault_Signal_RateLimited"}
+		rep.Signals = append(rep.Signals, s)
+		rep.Verdict = worst(rep.Verdict, s.Status)
+		return rep
+	}
+
+	sctx, cancel := context.WithTimeout(ctx, SessionCheckTimeout)
+	defer cancel()
+	sig := sessionSignal(sctx, steamID64, e)
+	rep.Signals = append(rep.Signals, sig)
+	rep.Verdict = worst(rep.Verdict, sig.Status)
+	return rep
 }
 
 // sessionSignal probes the stored refresh token's liveness. It briefly logs the account on to a

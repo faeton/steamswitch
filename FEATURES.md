@@ -120,15 +120,18 @@ confidence column.
 | IMAP host detection, including vanity domains served by another host | Live-proven | cert-SAN probe | V3e, V3e2 |
 | Code extraction that rejects stale, misaddressed and lookalike-sender mail | Built | `internal/vault/mail/code.go` | V3j, V3k, `FromSteam` tests |
 | Mailbox-service source, HTTPS-only | Built | `internal/vault/mail/mailbox.go` | V3m |
+| **Guard codes — manual entry** for an inbox that can't be IMAP-checked: the login prompts the user, blocks, and takes a typed code | Live-proven | `internal/vault/manualcode.go`, `VaultGuardCodePrompt` | §V4-manual |
+| — gated on an *emailed* Guard step (no prompt for mobile-approval), one-shot `RequestID` so a stale prompt can't feed a later login | Built | `guardCodeForLogin`, `SubmitManualGuardCode` | V4m3, V4m5 |
 | Pre-warm — the code fetch starts when the switch starts, not when you ask | Built | `vault.Prewarm` in the swap gate | V3n, V3o |
 | **Cheap health check** — bans, profile, account age, idle days. Never logs in. | Built | `internal/vault/health.go`, `probe/` | V5a–V5g |
 | Check every stored account, serialised | Built | Tools → Account vault | V5h, V5i |
 | **Deep check — a real Steam login** to prove the password | Live-proven | `internal/vault/steamauth` | §V4 |
 | Distinguishing wrong password / no such account / Steam unreachable | Live-proven | `classifyLoginError` | V4b, V4b2 |
-| **Session check — is the stored token still valid?** A brief CM logon, no password or Guard email; the only way (Steam's HTTP token endpoints refuse a client token) | Live-proven | `internal/vault/session`, `CheckSession` | §V4s |
+| **Session check — is the stored token still valid?** A brief CM logon, no password or Guard email; the only way (Steam's HTTP token endpoints refuse a client token). Surfaced as **Check session** in the health modal when a token is stored | Live-proven | `internal/vault/session`, `CheckSession`, `RunSessionCheck` | §V4s |
 | — revoked vs. transient split, verifies the authenticated SteamID, serialises through `deepMu`, offline-gated | Live-proven | `classifySessionError`, `session.Check` | V4s2 |
 | Rate-limit latch — says so, disables Verify, does not retry | Built | `deepMu` + latch | V4d, V4e |
-| **Scheduled deep checks** — opt-in, off by default, one account per tick, never at launch | Built | `internal/vault/scheduler.go` | §V7 |
+| **Scheduled deep checks** — opt-in, off by default, one account per tick, never at launch. A live session token defers the tick's credential login (no Guard email) | Built | `internal/vault/scheduler.go`, `sessionCheckSatisfiesSchedule` | §V7, §V7s |
+| — records the cheap tier **plus** a session row (never a token-only stub, so a ban stays visible); the scheduled skip is bounded (`MaxSessionSkips`), never taken while backing off a bad password, and runs as one atomic `deepMu`-held write | Built | `buildSessionHealth`, `SessionSkips`, `recordSessionSkip` | V7s2, V7s5, V7s6 |
 | **Handoff** — give an account to another person as a passphrase-sealed file | Built | `internal/vault/handoff.go` | §V8 |
 | Two modes, never a "lend": session access vs. ownership | Built | `ModeGrant` / `ModeTransfer` | V8b, V8n, V8o |
 | Bundle envelope reveals nothing — not the account, label or mode | Built | `sealedBundle` | V8d |

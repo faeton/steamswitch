@@ -172,6 +172,20 @@ func schedulerStep(ctx context.Context) bool {
 		return true
 	}
 
+	// Cheap before expensive: an account due for a deep check that still has a stored session
+	// token gets a brief CM sign-in first. If Steam still honours the token the account is
+	// reachable, we advance the schedule and skip the credential login — no Guard email spent.
+	// Only a token that is gone, revoked, or unconfirmable falls through to the deep check.
+	if sessionCheckSatisfiesSchedule(ctx, id) {
+		return !RateLimited()
+	}
+	// The session probe shares Steam's login rate limit and may have tripped the latch. Stop
+	// here rather than walking into a deep check that would only draw on the same limit.
+	if RateLimited() {
+		slog.Warn("vault: scheduler stopping, Steam rate-limited the session probe")
+		return false
+	}
+
 	rep, err := DeepCheck(ctx, id, checkInput(id))
 	switch {
 	case err == nil:
@@ -194,6 +208,92 @@ func schedulerStep(ctx context.Context) bool {
 		return false
 	}
 	return !RateLimited()
+}
+
+// MaxSessionSkips bounds how many scheduled deep checks in a row a live session token may stand
+// in for before a real credential login is forced. A live token means the account is reachable,
+// so re-verifying the password every cycle would spend a Guard email to learn something the
+// switcher does not need — but a wrong stored password hidden behind a perpetually-live token
+// must still be caught eventually, which is what this cap guarantees (at most this many intervals
+// of deferral).
+const MaxSessionSkips = 3
+
+// sessionCheckSatisfiesSchedule runs the cheap session probe for a due account and, when Steam
+// still honours the stored token, advances the deep-check schedule so the credential login is
+// skipped this cycle. It returns true only when it ran the probe, confirmed a live session, and
+// recorded that progress.
+//
+// It declines (returns false, so the caller falls through to the deep check) in every other case:
+//   - no stored token — nothing to probe;
+//   - the account is backing off a failed deep check (CheckFailures > 0) — a suspect password
+//     must be re-verified, never deferred behind a live token, and its backoff must not be erased;
+//   - the deferral cap is reached (SessionSkips >= MaxSessionSkips) — force a real check so a
+//     wrong password behind a perpetually-live token is still caught;
+//   - the session is revoked (a fresh token is needed and only the deep path can mint one),
+//     unconfirmable (rate limit, CM down, timeout — we learned nothing), or the write failed.
+//
+// The whole transaction runs under deepMu, held from the eligibility read through the single
+// write. That is what makes the skip atomic: nothing else can start a login (a concurrent deep
+// check would be the only writer of CheckFailures) or clobber the schedule in the window between
+// the probe and the write. It also means exactly one health write happens — the merged report —
+// so no thin intermediate report is ever persisted, even on a crash. recordSessionSkip re-checks
+// the eligibility under the write lock as a second line of defence.
+func sessionCheckSatisfiesSchedule(ctx context.Context, steamID64 string) bool {
+	// Fail closed on the rate-limit latch, before and after taking the login lock, as the manual
+	// checks do — the probe below is a login and must honour the hard stop.
+	if RateLimited() {
+		return false
+	}
+	if !deepMu.TryLock() {
+		// A manual check holds the login slot; let the caller fall through — its DeepCheck will
+		// find the slot busy too and report it, and this account is still due next tick.
+		return false
+	}
+	defer deepMu.Unlock()
+	if RateLimited() {
+		return false
+	}
+
+	e, err := entry(steamID64)
+	if err != nil || e.RefreshToken == "" {
+		return false
+	}
+	if e.CheckFailures > 0 || e.SessionSkips >= MaxSessionSkips {
+		return false
+	}
+
+	// One report, cheap signals plus the session probe, built without persisting anything.
+	// buildSessionHealth latches (and skips the CM login) on a cheap-tier 429, so a rate-limited
+	// tick lands here as a non-live session and is caught by the confirmed-live gate below; the
+	// outer schedulerStep's RateLimited() check then makes it a hard stop rather than a deep login.
+	rep := buildSessionHealth(ctx, steamID64, e)
+	if !sessionConfirmedLive(rep) {
+		// Revoked, or unconfirmable (rate limit, CM down, timeout). Record nothing here — let the
+		// deep path run and record a full result — so a non-live tick never overwrites stored health
+		// with a report that lacks a credential verdict.
+		return false
+	}
+
+	if err := recordSessionSkip(steamID64, rep, nextEligible(time.Now(), 0)); err != nil {
+		if !errors.Is(err, errSkipSuperseded) {
+			slog.Warn("vault: could not record the session-check schedule", "steamId64", steamID64)
+		}
+		return false
+	}
+	slog.Info("vault: scheduled session check confirmed a live token; deferring the credential login", "steamId64", steamID64, "skips", e.SessionSkips+1)
+	return true
+}
+
+// sessionConfirmedLive reports whether the report's session signal came back explicitly live —
+// not merely non-failing. An absent or unknown session signal is not a confirmation, so the
+// caller must not treat it as one and skip the deep check on it.
+func sessionConfirmedLive(rep HealthReport) bool {
+	for _, s := range rep.Signals {
+		if s.Name == SignalSession {
+			return s.Status == VerdictOK
+		}
+	}
+	return false
 }
 
 // nextDue picks the single account most overdue for a deep check.

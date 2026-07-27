@@ -161,6 +161,28 @@ export async function quickCheckAll(): Promise<void> {
 }
 
 /**
+ * Probe whether the stored session token is still live. The middle tier: it signs in briefly
+ * with the saved token to confirm Steam still honours it — no password, no Steam Guard email —
+ * so it is safe to offer for any account that has a token. It still creates a real (brief)
+ * Steam session, so like deepCheck it is only ever triggered by a click, never on a timer here.
+ */
+export async function sessionCheck(steamId64: string): Promise<VaultHealth> {
+  vaultBusy.set(true);
+  try {
+    const rep = await VaultService.RunSessionCheck(steamId64);
+    vaultHealth.update((h) => ({ ...h, [steamId64]: rep }));
+    // A session probe is a login and can trip the rate-limit latch, so refresh status too — the
+    // "Check session"/"Verify" buttons gate on rateLimited, and a stale flag would let the user
+    // keep firing checks that are already being refused.
+    await loadVaultStatus();
+    await loadVaultEntries();
+    return rep;
+  } finally {
+    vaultBusy.set(false);
+  }
+}
+
+/**
  * Verify credentials against Steam. This one logs in for real and usually costs the user a
  * Steam Guard email, so it is never called on a timer or in a loop from the UI.
  */
@@ -169,6 +191,8 @@ export async function deepCheck(steamId64: string): Promise<VaultHealth> {
   try {
     const rep = await VaultService.RunDeepCheck(steamId64);
     vaultHealth.update((h) => ({ ...h, [steamId64]: rep }));
+    // Deep check can trip the rate-limit latch; refresh status so the buttons reflect it at once.
+    await loadVaultStatus();
     await loadVaultEntries();
     return rep;
   } finally {

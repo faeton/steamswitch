@@ -351,6 +351,23 @@ the **UI path** — the prompt appearing, accepting the code, and the login cont
 | V4m5 | On an account that uses the **mobile authenticator approval** (approve-on-phone), verify | It does **not** pop the type-a-code dialog — there is no code to type. It reports "password OK, Guard step unavailable". |
 | V4m6 | On an account with a stored authenticator **seed**, verify even with the manual source set | It uses the seed automatically and never prompts. The seed always wins. |
 
+#### V4s. Session check (is the stored token still live?)
+
+The middle tier: a brief CM sign-in with the stored refresh token — no password, no Guard
+email. It is the only thing that validates a client-audience token (Steam's HTTP endpoints
+refuse one). Proven live against `ggcr-bot-fleet` accounts on both the valid and revoked
+branches; these steps confirm the **UI surface**.
+
+| # | Steps | Expected |
+|---|---|---|
+| V4s1 | On an account that has been verified once (so a token is stored), open Advanced → **Account health…** | A **Check session** button sits between Check and Verify, and is enabled. |
+| V4s2 | On an account with **no** stored token, open the health screen | **Check session** is disabled — there is nothing to probe. |
+| V4s3 | Press **Check session** on a token-bearing account | A "Session" row appears reading that the stored session is still valid, within a couple of seconds. **No Guard email arrives** — confirm in your webmail. |
+| V4s4 | On the account used in V4s3, sign out of all devices from Steam (or change the password), then **Check session** again | The Session row now reads that Steam has invalidated the session, marked as a blocker — distinct from "could not be confirmed". |
+| V4s5 | Turn on Offline mode, then **Check session** | Reported as unavailable because of offline mode, not as a dead session. A network block must never read as a revoked token. |
+| V4s6 | While a **Check session** is running, click **Verify password** (or the reverse) | The second is refused with "a verification is already running" — the session probe and the deep check share the one login slot. |
+| V4s7 | On an account that has a **ban** (or any prior blocker) on record, press **Check session** | The report still shows the ban row and the tile's warning dot alongside the session row — a session check refreshes the cheap signals rather than replacing the report with a bare token+session stub. |
+
 ### V5. Health checks
 
 | # | Steps | Expected |
@@ -410,6 +427,23 @@ running and come back".
 | V7l | The reverse: start a manual verify, and let a scheduler tick land during it | The tick is skipped, and that account is picked up on the next one. Nothing is lost and nothing doubles up. |
 | V7m | After a scheduled check has run, open the account's health screen | The result is there, with the same detail a manual check produces. A background check that records nothing visible is indistinguishable from one that never ran. |
 | V7n | Let a scheduled check **fail** (stored password wrong), then watch the retry timing | It backs off — hours, then longer — rather than retrying on the configured cadence. Retrying a rejected password on a timer is how an account gets locked out of its own logins. |
+
+#### V7s. The scheduler prefers a live session over a Guard email
+
+When a due account still has a live session token, the scheduled tick confirms it with a cheap
+session check and **skips the credential login**, so the timer does not email a Guard code for
+an account that is plainly still reachable. Only a revoked or unconfirmable token falls through
+to the deep check.
+
+| # | Steps | Expected |
+|---|---|---|
+| V7s1 | With the scheduler on and an account that has a **live** stored token due for a check, let the tick land | The account's health updates (a Session row, "still valid") and **no Guard email arrives**. The cheap probe stood in for the deep check this cycle. |
+| V7s2 | Note the account's next scheduled time after V7s1 | It advanced by the configured interval — the account is not left due, so it is **not** re-probed on the next 30-minute tick. |
+| V7s3 | Revoke that account's session (sign out everywhere), then let the next scheduled tick for it land | The session check reports revoked, so the tick **falls through to the credential login** — which is exactly when a Guard email (to mint a fresh token) is warranted. |
+| V7s4 | Have a due account with a password but **no** stored token, let the tick land | It goes straight to the deep check as before — there is no token to probe, so nothing changes for token-less accounts. |
+| V7s5 | Leave a live-token account on the schedule across **several** intervals (or shorten the interval to force it) | After a bounded number of session-check skips (`MaxSessionSkips`, currently 3), a **real deep check runs** — one Guard email — even though the token is still live. A live token defers password verification, it must not cancel it forever. A wrong stored password behind a good token is caught within that bound. |
+| V7s6 | Give a live-token account a **VAC-banned** history (or any prior blocker from a deep check), then let a session-check tick skip its deep check | The ban row and the tile's warning dot **survive** — the skip refreshes the cheap signals rather than replacing the report with a bare token+session stub. A ban must not vanish because the session was confirmed live. |
+| V7s7 | Set an account's stored password to something wrong so a deep check fails (it enters backoff), while its token is still live. Let later ticks run | Each due tick runs the **credential login**, not a session skip — a backing-off account's suspect password is re-verified, and its backoff is never erased by a live token. |
 
 ### V8. Handoff — giving an account to someone else
 

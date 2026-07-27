@@ -1,18 +1,20 @@
 <script lang="ts">
   /**
-   * The health report for one account, and the two ways to refresh it (VAULT.md §5).
+   * The health report for one account, and the three ways to refresh it (VAULT.md §5).
    *
-   * The split between the buttons is the point of the whole screen: **Check** is free and
-   * has no side effect, **Verify** logs in for real and usually costs the user a Steam Guard
-   * email. They are labelled and warned about differently for that reason, and Verify is
-   * never triggered by anything but a click.
+   * The split between the buttons is the point of the whole screen, ordered by cost:
+   * **Check** is free and has no side effect; **Check session** signs in briefly with the
+   * stored token to confirm it is still honoured (no password, no Guard email), so it is only
+   * offered when a token is stored; **Verify** logs in for real and usually costs the user a
+   * Steam Guard email. They are labelled and warned about differently for that reason, and
+   * neither Check session nor Verify is ever triggered by anything but a click.
    */
   import { onMount } from "svelte";
   import { t } from "../../stores/i18n";
   import { pushToast } from "../../stores/toast";
   import { formatToastWithError } from "../../lib/formatWailsError";
   import { rankedSignals, verdictLabelKey } from "../../lib/vault/health";
-  import { deepCheck, quickCheck, vaultHealth, vaultStatus, vaultEntryFor } from "../../stores/vault";
+  import { deepCheck, sessionCheck, quickCheck, vaultHealth, vaultStatus, vaultEntryFor } from "../../stores/vault";
   import type { HealthReport } from "../../../bindings/steamswitch/internal/vault/models";
 
   export let steamId64: string;
@@ -27,22 +29,32 @@
     // Only if nothing has ever been recorded. Re-running on every open would spend the
     // user's API quota to redraw a screen they just closed.
     if (!report) {
-      void run(false);
+      void run("quick");
     }
   });
 
-  async function run(deep: boolean): Promise<void> {
+  type CheckMode = "quick" | "session" | "deep";
+
+  const failedToastKey: Record<CheckMode, string> = {
+    quick: "Toast_Vault_CheckFailed",
+    session: "Toast_Vault_SessionCheckFailed",
+    deep: "Toast_Vault_VerifyFailed",
+  };
+
+  async function run(mode: CheckMode): Promise<void> {
     busy = true;
     try {
-      if (deep) {
+      if (mode === "deep") {
         await deepCheck(steamId64);
+      } else if (mode === "session") {
+        await sessionCheck(steamId64);
       } else {
         await quickCheck(steamId64);
       }
     } catch (e) {
       pushToast({
         type: "error",
-        message: formatToastWithError($t(deep ? "Toast_Vault_VerifyFailed" : "Toast_Vault_CheckFailed"), e),
+        message: formatToastWithError($t(failedToastKey[mode]), e),
         duration: 8000,
       });
     } finally {
@@ -99,13 +111,21 @@
   {/if}
 
   <div class="actions">
-    <button type="button" disabled={busy} on:click={() => run(false)}>{$t("Vault_Action_QuickCheck")}</button>
+    <button type="button" disabled={busy} on:click={() => run("quick")}>{$t("Vault_Action_QuickCheck")}</button>
+    <button
+      type="button"
+      disabled={busy || $vaultStatus.rateLimited || !entry?.hasRefreshToken}
+      title={$t("Vault_Action_SessionCheckTooltip")}
+      on:click={() => run("session")}
+    >
+      {$t("Vault_Action_SessionCheck")}
+    </button>
     <button
       type="button"
       class="danger"
       disabled={busy || $vaultStatus.rateLimited || !entry?.hasPassword}
       title={$t("Vault_Action_DeepCheckTooltip")}
-      on:click={() => run(true)}
+      on:click={() => run("deep")}
     >
       {$t("Vault_Action_DeepCheck")}
     </button>

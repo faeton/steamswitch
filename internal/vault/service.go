@@ -220,6 +220,19 @@ func (s *VaultService) RunDeepCheck(steamID64 string) (HealthReport, error) {
 	return DeepCheck(context.Background(), steamID64, checkInput(steamID64))
 }
 
+// RunSessionCheck probes whether an account's stored session token is still live.
+//
+// It is the middle tier between Check (local signals only) and Verify (a full credential
+// login that emails a Guard code): a brief CM sign-in with the saved refresh token, no
+// password and no email. It only makes sense for an account that has a stored token; the UI
+// disables the action otherwise.
+func (s *VaultService) RunSessionCheck(steamID64 string) (HealthReport, error) {
+	if err := security.RequireUnlocked(); err != nil {
+		return HealthReport{}, ErrLocked
+	}
+	return CheckSession(context.Background(), steamID64)
+}
+
 // GetTokenDetails backs the login debug panel's Tier 2. The token itself stays behind
 // Reveal.
 func (s *VaultService) GetTokenDetails(steamID64 string) (TokenDetails, error) {

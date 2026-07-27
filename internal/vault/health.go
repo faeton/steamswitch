@@ -44,9 +44,27 @@ type QuickCheckInput struct {
 // consumes a Guard code, and has no side effect on the account — which is what makes it
 // safe to run across every account at once.
 func QuickCheck(ctx context.Context, steamID64 string, in QuickCheckInput) (HealthReport, error) {
-	e, err := entry(steamID64)
+	rep, _, err := quickReport(ctx, steamID64, in)
 	if err != nil {
 		return HealthReport{}, err
+	}
+	// recordHealthOnly, not recordHealth: the cheap tier does not test the password, so it must
+	// not write CheckFailures at all — it runs without deepMu, and a stale snapshot of the count
+	// would clobber a failure a concurrent deep check recorded.
+	if err := recordHealthOnly(steamID64, rep); err != nil {
+		return rep, err
+	}
+	return rep, nil
+}
+
+// quickReport builds the cheap-signal report without persisting it, and returns the entry it read
+// so a caller can record with the entry's own CheckFailures. QuickCheck records it as-is; the
+// session-liveness paths (manual and scheduled) merge a session row onto it and record once, so a
+// session check leaves stored health as complete as a full check rather than a token-only stub.
+func quickReport(ctx context.Context, steamID64 string, in QuickCheckInput) (HealthReport, Entry, error) {
+	e, err := entry(steamID64)
+	if err != nil {
+		return HealthReport{}, Entry{}, err
 	}
 
 	ctx, cancel := context.WithTimeout(ctx, QuickCheckTimeout)
@@ -64,10 +82,7 @@ func QuickCheck(ctx context.Context, steamID64 string, in QuickCheckInput) (Heal
 	add(totpSignal(e))
 	add(lastUsedSignal(in.LastUsed))
 
-	if err := recordHealth(steamID64, rep, time.Time{}, e.CheckFailures); err != nil {
-		return rep, err
-	}
-	return rep, nil
+	return rep, e, nil
 }
 
 func bansSignal(ctx context.Context, apiKey, steamID64 string) Signal {

@@ -1,6 +1,7 @@
 package vault
 
 import (
+	"errors"
 	"sort"
 	"strings"
 	"time"
@@ -382,8 +383,96 @@ func recordSession(steamID64, refreshToken, guardData, expiresAt string) error {
 	})
 }
 
+// errSkipSuperseded means the session-skip write found the entry no longer eligible under the
+// write lock — a deep check recorded a failure, or the deferral cap was reached, since the
+// scheduler read it. The skip is abandoned rather than overwriting the fresher state.
+var errSkipSuperseded = errors.New("session skip superseded")
+
+// recordSessionSkip stores the result of a scheduled session check that stood in for a deep
+// check, and advances the deep-check schedule as a passed check would. It keeps CheckFailures
+// at zero — the scheduler only takes this path for an account that is not already backing off,
+// so there is no failure history to erase — and increments SessionSkips, which bounds how many
+// deep checks in a row a live token may defer.
+//
+// It re-validates eligibility inside the mutation: the scheduler holds deepMu across the whole
+// transaction, but this is a cheap second line of defence against ever overwriting a fresher
+// CheckFailures (or exceeding the cap) that some other path recorded in between.
+//
+// Kept separate from recordHealth because only this path increments the skip counter: a manual
+// session check or a quick check must not spend the scheduler's deferral budget for the
+// credential login, which verifies something (the password) that neither of those tests.
+func recordSessionSkip(steamID64 string, rep HealthReport, nextEligible time.Time) error {
+	id := normID(steamID64)
+	if id == "" {
+		return ErrNoSteamID
+	}
+	return mutate(func(doc *Doc) error {
+		e, ok := doc.Entries[id]
+		if !ok {
+			// An account deleted mid-check is not one to resurrect with a synthetic entry.
+			return ErrNotFound
+		}
+		if e.CheckFailures > 0 || e.SessionSkips >= MaxSessionSkips {
+			return errSkipSuperseded
+		}
+		e.Health = &rep
+		e.CheckFailures = 0
+		e.SessionSkips++
+		if !nextEligible.IsZero() {
+			e.NextEligibleAt = nextEligible.UTC().Format(time.RFC3339)
+		}
+		e.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+		doc.Entries[id] = e
+		return nil
+	})
+}
+
+// resetSessionSkips clears the deferral budget after a real deep check. Once the credential
+// login has run, the password is freshly known and the scheduler may again let a live token
+// stand in for future checks.
+func resetSessionSkips(steamID64 string) error {
+	id := normID(steamID64)
+	if id == "" {
+		return ErrNoSteamID
+	}
+	return mutate(func(doc *Doc) error {
+		e, ok := doc.Entries[id]
+		if !ok || e.SessionSkips == 0 {
+			return nil
+		}
+		e.SessionSkips = 0
+		doc.Entries[id] = e
+		return nil
+	})
+}
+
+// recordHealthOnly stores a report while leaving CheckFailures, SessionSkips and the schedule
+// exactly as they are on disk. It is what the checks that do NOT test the password use — the
+// cheap tier and the session probe — so their stale read of the failure count can never
+// overwrite a failure a concurrent deep check recorded. Those paths do not take deepMu (the
+// cheap tier is deliberately concurrent), so preserving the field in the read-modify-write is
+// the only thing that keeps them from clobbering it.
+func recordHealthOnly(steamID64 string, rep HealthReport) error {
+	id := normID(steamID64)
+	if id == "" {
+		return ErrNoSteamID
+	}
+	return mutate(func(doc *Doc) error {
+		e, ok := doc.Entries[id]
+		if !ok {
+			e = Entry{SteamID64: id, Email: EmailBinding{Source: EmailSourceNone}}
+		}
+		e.Health = &rep
+		e.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+		doc.Entries[id] = e
+		return nil
+	})
+}
+
 // recordHealth stores a report and advances the deep-check schedule. failures resets to
-// zero on success so backoff does not creep upward across unrelated runs.
+// zero on success so backoff does not creep upward across unrelated runs. Only DeepCheck, which
+// actually ran the credential login, sets CheckFailures — the cheap and session checks use
+// recordHealthOnly so they cannot overwrite it with a stale value.
 func recordHealth(steamID64 string, rep HealthReport, nextEligible time.Time, failures int) error {
 	id := normID(steamID64)
 	if id == "" {
