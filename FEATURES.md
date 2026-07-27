@@ -115,15 +115,18 @@ confidence column.
 | Locked by default; a locked vault never blocks switching | Built | `RequireUnlocked` + `DropCache` | V2a–V2c, V6c |
 | Corruption reported as corruption, never as "empty" | Built | `ErrCorrupt` | V1k |
 | **Steam Guard codes — TOTP** from a stored seed | Built | `internal/vault/totp` | V3a–V3d |
-| **Guard codes — IMAP inbox**, read-only, never marks mail read | Live-unproven | `internal/vault/mail/imap.go` | V3g, V3h |
-| IMAP host detection, including vanity domains served by another host | Live-unproven | cert-SAN probe | V3e, V3e2 |
+| **Guard codes — IMAP inbox**, read-only, never marks mail read | Live-proven | `internal/vault/mail/imap.go` | V3g, V3h |
+| — works against a non-compliant provider (frozen mailbox view, broken SEARCH, zero envelope dates): reconnect per poll, no SEARCH, header-date freshness | Live-proven | notletters.com end-to-end | V3g2 |
+| IMAP host detection, including vanity domains served by another host | Live-proven | cert-SAN probe | V3e, V3e2 |
 | Code extraction that rejects stale, misaddressed and lookalike-sender mail | Built | `internal/vault/mail/code.go` | V3j, V3k, `FromSteam` tests |
 | Mailbox-service source, HTTPS-only | Built | `internal/vault/mail/mailbox.go` | V3m |
 | Pre-warm — the code fetch starts when the switch starts, not when you ask | Built | `vault.Prewarm` in the swap gate | V3n, V3o |
 | **Cheap health check** — bans, profile, account age, idle days. Never logs in. | Built | `internal/vault/health.go`, `probe/` | V5a–V5g |
 | Check every stored account, serialised | Built | Tools → Account vault | V5h, V5i |
-| **Deep check — a real Steam login** to prove the password | Live-unproven | `internal/vault/steamauth` | §V4 |
-| Distinguishing wrong password / no such account / Steam unreachable | Live-unproven | `classifyLoginError` | V4b, V4b2 |
+| **Deep check — a real Steam login** to prove the password | Live-proven | `internal/vault/steamauth` | §V4 |
+| Distinguishing wrong password / no such account / Steam unreachable | Live-proven | `classifyLoginError` | V4b, V4b2 |
+| **Session check — is the stored token still valid?** A brief CM logon, no password or Guard email; the only way (Steam's HTTP token endpoints refuse a client token) | Live-proven | `internal/vault/session`, `CheckSession` | §V4s |
+| — revoked vs. transient split, verifies the authenticated SteamID, serialises through `deepMu`, offline-gated | Live-proven | `classifySessionError`, `session.Check` | V4s2 |
 | Rate-limit latch — says so, disables Verify, does not retry | Built | `deepMu` + latch | V4d, V4e |
 | **Scheduled deep checks** — opt-in, off by default, one account per tick, never at launch | Built | `internal/vault/scheduler.go` | §V7 |
 | **Handoff** — give an account to another person as a passphrase-sealed file | Built | `internal/vault/handoff.go` | §V8 |

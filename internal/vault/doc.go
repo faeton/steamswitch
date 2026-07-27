@@ -164,4 +164,5 @@ const (
 	SignalLastUsed = "last_used"
 	SignalEmail    = "email"
 	SignalPassword = "password"
+	SignalSession  = "session"
 )

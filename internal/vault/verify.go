@@ -9,6 +9,7 @@ import (
 
 	"steamswitch/internal/actionlog"
 	"steamswitch/internal/vault/probe"
+	"steamswitch/internal/vault/session"
 	"steamswitch/internal/vault/steamauth"
 	"steamswitch/internal/vault/totp"
 )
@@ -152,6 +153,102 @@ func DeepCheck(ctx context.Context, steamID64 string, in QuickCheckInput) (Healt
 		return rep, err
 	}
 	return rep, nil
+}
+
+// SessionCheckTimeout bounds a session liveness probe: one brief CM sign-in, no Guard wait.
+const SessionCheckTimeout = 30 * time.Second
+
+// CheckSession reports whether an account's stored session is still live, without a password or a
+// Guard email.
+//
+// It sits between QuickCheck (local signals only) and DeepCheck (a full credential login that
+// spends a Guard code): a brief CM sign-in with the saved refresh token (see session.Check)
+// confirms the session when Steam still honours it, and reports it revoked — owner password
+// change, "sign out of all devices", or a Steam-side invalidation — when it does not. Because it
+// needs no Guard email it is the check to prefer whenever an account has a stored token, at the
+// cost of briefly signing the account in.
+//
+// It records only the session report; it deliberately leaves CheckFailures and the deep-check
+// schedule alone, because those are the credential login's backoff state, not this check's. Like
+// DeepCheck it serialises through deepMu and honours the rate-limit latch: the CM logon shares
+// Steam's login rate limit, so a scan of many accounts must run one at a time and stop the moment
+// Steam pushes back.
+func CheckSession(ctx context.Context, steamID64 string) (HealthReport, error) {
+	if RateLimited() {
+		return HealthReport{}, steamauth.ErrRateLimited
+	}
+	// One CM logon at a time, process-wide, shared with DeepCheck: both draw on the same login
+	// rate limit, and fanning them out is what gets an account throttled out of its own logins.
+	if !deepMu.TryLock() {
+		return HealthReport{}, ErrDeepCheckBusy
+	}
+	defer deepMu.Unlock()
+
+	e, err := entry(steamID64)
+	if err != nil {
+		return HealthReport{}, err
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, SessionCheckTimeout)
+	defer cancel()
+
+	rep := HealthReport{ProbedAt: time.Now().UTC().Format(time.RFC3339), Verdict: VerdictUnknown}
+	add := func(s Signal) {
+		rep.Signals = append(rep.Signals, s)
+		rep.Verdict = worst(rep.Verdict, s.Status)
+	}
+	add(tokenSignal(e)) // local context: what the stored token says about its own expiry
+	add(sessionSignal(ctx, steamID64, e))
+	// The action log rides on crash reports, so only the outcome and the (aliased) account id.
+	actionlog.Record("vault.sessioncheck", steamID64, rep.Verdict, nil)
+
+	// Store the report only: the existing failure count is passed back unchanged and nextEligible
+	// is zero, so recordHealth leaves CheckFailures and the deep-check schedule untouched.
+	if err := recordHealth(steamID64, rep, time.Time{}, e.CheckFailures); err != nil {
+		return rep, err
+	}
+	return rep, nil
+}
+
+// sessionSignal probes the stored refresh token's liveness. It briefly logs the account on to a
+// Steam CM with the token (the only mechanism that validates a client-audience token — Steam's
+// HTTP token endpoints refuse it) and turns the outcome into a signal.
+func sessionSignal(ctx context.Context, steamID64 string, e Entry) Signal {
+	s := Signal{Name: SignalSession, Status: VerdictUnknown, Detail: "Vault_Signal_SessionUnknown"}
+	if e.RefreshToken == "" {
+		s.Detail = "Vault_Signal_NoToken"
+		return s
+	}
+	if _, err := session.Check(ctx, e.AccountName, e.RefreshToken, steamID64); err != nil {
+		return classifySessionError(s, err)
+	}
+	s.Status, s.Detail = VerdictOK, "Vault_Signal_SessionLive"
+	return s
+}
+
+// classifySessionError turns a session-probe failure into a signal, on the same fail-versus-
+// unknown principle as classifyLoginError: "Steam refused the token" is a fact about the account
+// and blocks; "Steam would not answer" is a fact about the network and must not read as a dead
+// account.
+func classifySessionError(s Signal, err error) Signal {
+	switch {
+	case errors.Is(err, steamauth.ErrAccessDenied),
+		errors.Is(err, steamauth.ErrBadCredentials),
+		errors.Is(err, steamauth.ErrNoSuchAccount):
+		// Steam no longer honours the token: revoked, or the owner changed the password /
+		// signed out everywhere. The fix is a fresh credential login, so this blocks.
+		s.Status, s.Blocker, s.Detail = VerdictFail, true, "Vault_Signal_SessionRevoked"
+	case errors.Is(err, steamauth.ErrRateLimited):
+		markRateLimited()
+		s.Status, s.Detail = VerdictUnknown, "Vault_Signal_RateLimited"
+	case errors.Is(err, steamauth.ErrServiceDown):
+		s.Status, s.Detail = VerdictUnknown, "Vault_Signal_SteamUnavailable"
+	case errors.Is(err, context.DeadlineExceeded), errors.Is(err, context.Canceled):
+		s.Status, s.Detail = VerdictUnknown, "Vault_Signal_CheckTimedOut"
+	default:
+		s.Status, s.Detail = VerdictUnknown, "Vault_Signal_SessionUnknown"
+	}
+	return s
 }
 
 // runCredentialLogin performs the login and turns the outcome into a signal. It never
