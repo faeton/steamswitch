@@ -314,17 +314,15 @@ surprise. V7 puts that same login on a timer and is only worth running once V4 p
 | V3m | Set the source to **a mailbox service I run** and enter a plain `http://` URL | Refused. The request carries a bearer token and the reply carries a Guard code; neither belongs on plain HTTP. |
 | V3n | Start a switch to an account whose code comes from an inbox, and watch the timing | The fetch starts as the switch starts, not when you ask. By the time Steam shows its prompt the code is usually already available. |
 | V3o | Start such a switch and make it fail (e.g. rename Steam's exe first) | No mail connection is left running afterwards. |
+| V3p | Use an inbox on a **non-compliant provider** (e.g. notletters.com: it freezes a held connection's view, its SEARCH returns nothing, and its envelope dates are zero) and fetch a code | It still gets the fresh code. This is proven end-to-end; the fetch reconnects each poll, never relies on server SEARCH, and judges freshness by the message's own Date header. If it can't get a code here, the reconnect/no-SEARCH/header-date logic has regressed. |
 
 ### V4. Verification
 
-`internal/vault/steamauth` now follows the request shape that has been running against
-Valve's servers in `ggcr-bot-fleet` for a long time and across many accounts: form-encoded
-parameters, JSON replies, no protobuf. That removes the main reason this section used to
-carry a warning.
-
-What is still unproven is **this** implementation of that shape — the parameter set, the
-`,string` decoding of 64-bit ids and the guard-type handling are checked by unit tests but
-have not themselves completed a real login. Treat V4a as the first real run.
+`internal/vault/steamauth` follows the request shape that has run against Valve's servers in
+`ggcr-bot-fleet` for a long time: form-encoded parameters, JSON replies, no protobuf. **This**
+implementation has now completed real end-to-end logins (email-Guard accounts on both
+notletters.com and firstmail.ltd, code fetched and accepted, client-audience refresh token
+obtained), so V4a is confirmation, not a first run. Watch for regressions rather than surprises.
 
 | # | Steps | Expected |
 |---|---|---|
@@ -338,6 +336,20 @@ have not themselves completed a real login. Treat V4a as the first real run.
 | V4g | Press **Reveal the raw token** | The token appears and hides itself after about 20 seconds. |
 | V4h | Confirm the panel is read-only | Nothing on it writes. Compare `loginusers.vdf` before and after opening it — byte-identical. |
 | V4i | Remove the stored password, open the health screen | **Verify password** is disabled. There is nothing to verify. |
+
+#### V4-manual. Typing the Guard code yourself (inbox that can't be IMAP-checked)
+
+The backend of this flow is proven end-to-end against a real login; what these steps confirm is
+the **UI path** — the prompt appearing, accepting the code, and the login continuing.
+
+| # | Steps | Expected |
+|---|---|---|
+| V4m1 | Edit an account, set the code source to **An inbox I check myself** (or leave it **Nowhere — I will type codes myself**), save, then **Verify password** on an account that triggers an *email* Guard code | A dialog pops asking for the Steam Guard code, naming the masked address Steam sent it to. |
+| V4m2 | Read the code from your webmail and type it into the dialog, press **Submit** | The code is accepted and the verification completes ("password works"), exactly as an IMAP-fetched code would. |
+| V4m3 | Trigger the prompt, then **Cancel** it (or leave it) | Nothing is submitted; the verification ends on its own timeout as "password OK, Guard step unavailable". No hang. |
+| V4m4 | Type a code, wait a moment, then somehow submit again (double-click Submit fast) | Only the first submission counts; a second does nothing and never freezes the dialog. |
+| V4m5 | On an account that uses the **mobile authenticator approval** (approve-on-phone), verify | It does **not** pop the type-a-code dialog — there is no code to type. It reports "password OK, Guard step unavailable". |
+| V4m6 | On an account with a stored authenticator **seed**, verify even with the manual source set | It uses the seed automatically and never prompts. The seed always wins. |
 
 ### V5. Health checks
 
