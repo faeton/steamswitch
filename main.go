@@ -69,6 +69,7 @@ func init() {
 	application.RegisterEvent[string](platform.ActionBarStatusEvent)
 	application.RegisterEvent[shortcuts.ListPayload](shortcuts.UpdatedEvent)
 	application.RegisterEvent[shortcuts.FilesDroppedPayload](shortcuts.FilesDroppedEvent)
+	application.RegisterEvent[vault.GuardCodeNeededPayload](vault.GuardCodeNeededEvent)
 	application.RegisterEvent[platform.UpdateAvailablePayload](platform.AppUpdateAvailableEvent)
 	application.RegisterEvent[bool](platform.UpdateCheckFailedEvent)
 	application.RegisterEvent[platform.PlatformsJSONUpdatePayload](platform.PlatformsJSONUpdateFoundEvent)
@@ -105,6 +106,14 @@ func init() {
 			refreshVaultInputs()
 		}
 		tray.RefreshMenuIfSet()
+	})
+	// A verification login for an account whose inbox cannot be IMAP-checked asks the user for the
+	// Guard code through this hook; the frontend listens for the event and answers via
+	// SubmitManualGuardCode.
+	vault.SetGuardCodeNeededHook(func(steamID64, requestID, hint string) {
+		if a := application.Get(); a != nil {
+			a.Event.Emit(vault.GuardCodeNeededEvent, vault.GuardCodeNeededPayload{SteamID64: steamID64, RequestID: requestID, Hint: hint})
+		}
 	})
 	app.RegisterStartupAccountCounts()
 }

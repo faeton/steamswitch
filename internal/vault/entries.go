@@ -314,6 +314,8 @@ func normaliseEmailSource(s string) string {
 		return EmailSourceIMAP
 	case EmailSourceMailbox:
 		return EmailSourceMailbox
+	case EmailSourceManual:
+		return EmailSourceManual
 	default:
 		return EmailSourceNone
 	}

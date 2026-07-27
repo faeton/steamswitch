@@ -150,6 +150,17 @@ func (s *VaultService) GetGuardCode(steamID64 string) (CodeResult, error) {
 	return GuardCode(context.Background(), steamID64)
 }
 
+// SubmitManualGuardCode hands a user-typed Guard code to a verification login that asked for one
+// (an account whose inbox cannot be IMAP-checked). requestID is the id from the
+// GuardCodeNeededEvent it answers; ErrNoManualRequest means nothing is waiting for that id (no
+// login in flight, or a stale prompt).
+func (s *VaultService) SubmitManualGuardCode(steamID64, requestID, code string) error {
+	if err := security.RequireUnlocked(); err != nil {
+		return ErrLocked
+	}
+	return SubmitManualGuardCode(steamID64, requestID, code)
+}
+
 // TestEmailBinding validates an entry's mailbox configuration without consuming anything.
 func (s *VaultService) TestEmailBinding(steamID64 string) error {
 	if err := security.RequireUnlocked(); err != nil {

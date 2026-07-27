@@ -289,6 +289,7 @@
       <option value="none">{$t("Vault_EmailSource_None")}</option>
       <option value="imap">{$t("Vault_EmailSource_IMAP")}</option>
       <option value="mailbox-api">{$t("Vault_EmailSource_Mailbox")}</option>
+      <option value="manual">{$t("Vault_EmailSource_Manual")}</option>
     </select>
   </label>
 
@@ -345,9 +346,11 @@
         autocomplete="new-password"
       />
     </label>
+  {:else if emailSource === "manual"}
+    <p class="hint small">{$t("Vault_EmailSource_ManualHint")}</p>
   {/if}
 
-  {#if emailSource !== "none"}
+  {#if emailSource !== "none" && emailSource !== "manual"}
     <button type="button" class="wide" disabled={busy} on:click={testBinding}>
       {$t("Vault_Action_TestEmail")}
     </button>

@@ -124,6 +124,17 @@ export async function guardCode(steamId64: string): Promise<VaultCode> {
   return VaultService.GetGuardCode(steamId64);
 }
 
+/** Hand a user-typed Guard code to a verification login that is waiting for one (an account
+ *  whose inbox cannot be IMAP-checked). requestId is the id from the vault-guard-code-needed
+ *  event this answers. */
+export async function submitManualGuardCode(
+  steamId64: string,
+  requestId: string,
+  code: string,
+): Promise<void> {
+  return VaultService.SubmitManualGuardCode(steamId64, requestId, code);
+}
+
 export async function quickCheck(steamId64: string): Promise<VaultHealth> {
   const rep = await VaultService.RunQuickCheck(steamId64);
   vaultHealth.update((h) => ({ ...h, [steamId64]: rep }));

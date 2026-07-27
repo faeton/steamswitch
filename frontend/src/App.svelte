@@ -13,6 +13,7 @@
   import AppModal from './components/AppModal.svelte'
   import Toast from './components/Toast.svelte'
   import StabilityPrompt from './components/StabilityPrompt.svelte'
+  import VaultGuardCodePrompt from './components/VaultGuardCodePrompt.svelte'
   import FileDropOverlay from './components/FileDropOverlay.svelte'
   import UserDataMoveOverlay from './components/UserDataMoveOverlay.svelte'
   import AppLockOverlay from './components/AppLockOverlay.svelte'
@@ -427,6 +428,7 @@
     <AppModal />
     <Toast />
     <StabilityPrompt />
+    <VaultGuardCodePrompt />
   </div>
 </div>
 

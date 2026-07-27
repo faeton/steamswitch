@@ -100,6 +100,9 @@ const (
 	EmailSourceNone    = "none"
 	EmailSourceIMAP    = "imap"
 	EmailSourceMailbox = "mailbox-api"
+	// EmailSourceManual means the user types the Guard code themselves — for an inbox that cannot
+	// be IMAP-checked. There is nothing to auto-fetch; the login flow prompts for the code.
+	EmailSourceManual = "manual"
 )
 
 type EmailBinding struct {

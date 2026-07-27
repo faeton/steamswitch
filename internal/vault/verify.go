@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"steamswitch/internal/actionlog"
+	"steamswitch/internal/vault/mail"
 	"steamswitch/internal/vault/probe"
 	"steamswitch/internal/vault/session"
 	"steamswitch/internal/vault/steamauth"
@@ -301,8 +302,22 @@ func guardCodeForLogin(ctx context.Context, e Entry, sess *steamauth.Session, lo
 		}
 		return code, nil
 	}
+	// Everything below answers an EMAILED code. A device-confirmation challenge (approve on the
+	// mobile app) has no code to type, so any non-email kind fails closed here — the caller reports
+	// "password OK, Guard step unavailable" rather than prompting for a code Steam never sent.
+	if sess.Guard != steamauth.GuardEmailCode {
+		return "", steamauth.ErrGuardRequired
+	}
+	// An inbox we cannot IMAP-check (manual source), or an account with no configured source at
+	// all, asks the user to type the code rather than failing the Guard step.
+	if emailSourceOf(e) == EmailSourceManual {
+		return requestManualCode(ctx, e.SteamID64, sess.GuardMessage)
+	}
 	src, err := sourceFor(e)
 	if err != nil {
+		if errors.Is(err, mail.ErrNoSource) {
+			return requestManualCode(ctx, e.SteamID64, sess.GuardMessage)
+		}
 		return "", err
 	}
 	// loginStart, not time.Now(): the email was triggered by Begin above, and freshness is judged
