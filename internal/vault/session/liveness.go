@@ -101,12 +101,23 @@ func Check(ctx context.Context, accountName, refreshToken, steamID64 string) (*R
 		// channel is never closed by go-steam — and returns on the first terminal event, which
 		// keeps go-steam's fixed event buffer drained so nothing it emits can block.
 		client.Connect()
+		// If the caller gave up while we were dialing, tear down and stop here. Disconnect() cannot
+		// interrupt an in-flight dial (conn is not set yet), so the ctx.Done arm's Disconnect was a
+		// no-op; now that Connect has returned, conn is set and this Disconnect actually tears down.
+		// Without this, a dial that finished after cancellation would drop into the event loop with
+		// nothing left to disconnect it, and the waiting `<-done` would block forever.
+		if ctx.Err() != nil {
+			client.Disconnect()
+			return
+		}
 		for ev := range client.Events() {
 			switch e := ev.(type) {
 			case *steam.ConnectedEvent:
 				client.Auth.LogOn(&steam.LogOnDetails{Username: accountName, RefreshToken: refreshToken})
 			case *steam.LoggedOnEvent:
-				res, rerr = verdictForLogon(e, steamID64)
+				// Verify against the authoritative header SteamID (client.SteamId()), not the
+				// event's ClientSteamId — the latter is the client-supplied field and can be 0.
+				res, rerr = verdictForLogon(e, uint64(client.SteamId()), steamID64)
 				return
 			case *steam.LogOnFailedEvent:
 				rerr = mapEResult(e.Result)
@@ -129,8 +140,14 @@ func Check(ctx context.Context, accountName, refreshToken, steamID64 string) (*R
 
 	select {
 	case <-ctx.Done():
-		client.Disconnect() // tears down the connection, which unblocks the goroutine's Events() read
-		<-done              // let it observe the teardown and return, so nothing is left mid-emit
+		client.Disconnect() // no-op if still dialing; the goroutine's post-dial guard tears down then
+		<-done              // bounded by the dial timeout; then the goroutine has fully returned
+		// The cancellation is the real reason we stopped, so report it over whatever transient the
+		// teardown produced in the goroutine — unless a genuine verdict landed exactly as we cancelled.
+		if res != nil {
+			return res, nil
+		}
+		return nil, ctx.Err()
 	case <-done:
 		client.Disconnect()
 	}
@@ -145,14 +162,20 @@ func Check(ctx context.Context, accountName, refreshToken, steamID64 string) (*R
 	}
 }
 
-// verdictForLogon turns a LoggedOnEvent into a verdict, verifying that the account Steam actually
-// authenticated is the one this entry claims — a valid token under the wrong stored SteamID must
-// not attach a live verdict to the wrong vault entry.
-func verdictForLogon(e *steam.LoggedOnEvent, steamID64 string) (*Result, error) {
+// verdictForLogon turns a successful logon into a verdict, verifying that the account Steam
+// authenticated (authenticatedID, the authoritative header SteamID) is the one this entry claims —
+// a valid token under the wrong stored SteamID must not attach a live verdict to the wrong entry.
+func verdictForLogon(e *steam.LoggedOnEvent, authenticatedID uint64, steamID64 string) (*Result, error) {
 	if e.Result != steamlang.EResult_OK {
 		return nil, mapEResult(e.Result)
 	}
-	got := strconv.FormatUint(uint64(e.ClientSteamId), 10)
+	if authenticatedID == 0 {
+		// Steam accepted the logon but the client recorded no authoritative SteamID, so we cannot
+		// confirm which account this is — better to report "could not tell" than a live verdict we
+		// cannot attribute.
+		return nil, steamauth.ErrRequestFailed
+	}
+	got := strconv.FormatUint(authenticatedID, 10)
 	if steamID64 != "" && got != steamID64 {
 		return nil, steamauth.ErrRequestFailed
 	}

@@ -29,6 +29,8 @@ github.com/gg-cr/go-steam v0.0.0-20260420143518-f536ef99ab8c h1:7uMb1tiZxYw0ARLb
 github.com/gg-cr/go-steam v0.0.0-20260420143518-f536ef99ab8c/go.mod h1:z73MgdCjcwazPhds79mWT3hnMf8uv1qsECM5EbJStVY=
 github.com/gg-cr/go-steam v0.0.0-20260727122944-6780162ddcc6 h1:EYaj5rt7QpNdCEWMIjbf6wPa/7ZGS9DSRc0fI8oX9og=
 github.com/gg-cr/go-steam v0.0.0-20260727122944-6780162ddcc6/go.mod h1:z73MgdCjcwazPhds79mWT3hnMf8uv1qsECM5EbJStVY=
+github.com/gg-cr/go-steam v0.0.0-20260727130748-f3f8feeb80ae h1:Conr3zjt7uuNp5dYjF8D4ODJI9wnUoipHc603idyXsM=
+github.com/gg-cr/go-steam v0.0.0-20260727130748-f3f8feeb80ae/go.mod h1:z73MgdCjcwazPhds79mWT3hnMf8uv1qsECM5EbJStVY=
 github.com/go-json-experiment/json v0.0.0-20251027170946-4849db3c2f7e h1:Lf/gRkoycfOBPa42vU2bbgPurFong6zXeFtPoxholzU=
 github.com/go-json-experiment/json v0.0.0-20251027170946-4849db3c2f7e/go.mod h1:uNVvRXArCGbZ508SxYYTC5v1JWoz2voff5pm25jU1Ok=
 github.com/go-ole/go-ole v1.3.0 h1:Dt6ye7+vXGIKZ7Xtk4s6/xVdGDQynvom7xCFEdWr6uE=

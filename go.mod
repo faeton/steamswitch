@@ -8,7 +8,7 @@ require (
 	github.com/antchfx/htmlquery v1.3.6
 	github.com/emersion/go-imap v1.2.1
 	github.com/emersion/go-message v0.18.2
-	github.com/gg-cr/go-steam v0.0.0-20260727122944-6780162ddcc6
+	github.com/gg-cr/go-steam v0.0.0-20260727130748-f3f8feeb80ae
 	github.com/go-ole/go-ole v1.3.0
 	github.com/google/uuid v1.6.0
 	github.com/hugolgst/rich-go v0.0.0-20240715122152-74618cc1ace2
