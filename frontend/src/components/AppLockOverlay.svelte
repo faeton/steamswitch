@@ -2,14 +2,22 @@
   /**
    * The app-lock gate (REDESIGN_BRIEF.md A10).
    *
-   * Two pieces of honesty the brief requires and this used to lack:
+   * This is the *app* gate — the startup lock, and `SecurityService.LockApp`. Behind it
+   * nothing works: `security.RequireUnlocked` guards the account paths too, so listing,
+   * switching and launching all fail while it is up. That is why it has no dismiss control.
    *
-   *  - **Locked does not mean stuck.** Switching accounts never needed a password, so the
-   *    gate says what is actually unavailable rather than implying the app is unusable.
-   *  - **A forgotten app password is unrecoverable, and the user is told so here** — before
-   *    they are staring at a box they cannot get past. That is the encryption working as
-   *    intended, not a bug, and pretending otherwise sets up a support conversation that ends
-   *    in "there is nothing we can do".
+   * It is deliberately NOT what the "lock vault" controls call. Those call `LockVault`, which
+   * seals the credential vault and leaves the switcher usable; its unlock prompt lives on the
+   * Vault page, since there is no overlay in that state.
+   *
+   * This comment used to claim "switching accounts never needed a password", and the copy said
+   * the same. Both were wrong, and believing them is how "lock vault" ended up raising a modal
+   * that froze the whole app with no way out.
+   *
+   * The other thing the brief requires here: **a forgotten app password is unrecoverable, and
+   * the user is told so** — before they are staring at a box they cannot get past. That is the
+   * encryption working as intended, not a bug, and pretending otherwise sets up a support
+   * conversation that ends in "there is nothing we can do".
    */
   import { modalFocus } from "../lib/modalFocus";
   import { t } from "../stores/i18n";

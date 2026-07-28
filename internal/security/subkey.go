@@ -29,6 +29,13 @@ func SubKey(info string) ([]byte, error) {
 	if strings.TrimSpace(info) == "" {
 		return nil, ErrEmptySubKeyInfo
 	}
+	// The vault gate, not just the app gate. When saved-account encryption is on, a vault lock
+	// cannot drop the master key (account blobs are sealed under it), so this check is the
+	// only thing standing between a locked vault and its own secrets. Checking it here rather
+	// than in each of internal/vault's callers means a new caller cannot forget it.
+	if err := defaultManager.requireVaultUnlocked(); err != nil {
+		return nil, err
+	}
 	master, err := defaultManager.unlockedMasterKey()
 	if err != nil {
 		return nil, err

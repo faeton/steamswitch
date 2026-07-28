@@ -18,10 +18,27 @@ func (s *SecurityService) UnlockApp(password string) error {
 	return UnlockApp(password)
 }
 
-// LockApp puts the app back behind the unlock gate without a restart, for "Lock now" and the
-// idle auto-lock (REDESIGN_BRIEF.md A10). Takes no password: locking removes access.
+// LockApp puts the *whole app* back behind the unlock gate without a restart. Takes no
+// password: locking removes access.
+//
+// Not what the "lock vault" control calls — see LockVault. This seals the account paths too,
+// so the user cannot switch until they type the password again.
 func (s *SecurityService) LockApp() error {
 	return LockApp()
+}
+
+// LockVault seals the credential vault and leaves the rest of the app usable, which is what
+// REDESIGN_BRIEF.md means by the global "lock vault" action (A10, and the chrome list under A6).
+//
+// Takes no password, for the same reason LockApp does not.
+func (s *SecurityService) LockVault() error {
+	return LockVault()
+}
+
+// UnlockVault reopens the vault. Requires the app password even when the master key never left
+// memory: a lock the user can walk past without it is not a lock.
+func (s *SecurityService) UnlockVault(password string) error {
+	return UnlockVault(password)
 }
 
 func (s *SecurityService) RemoveAppPassword(password string) error {

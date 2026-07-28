@@ -95,10 +95,10 @@ func init() {
 		return basic.LaunchBasicAs(basic.FlowDeps{PS: platformSvc}, platformKey, forceAdmin, nil)
 	})
 	security.SetStatusChangedHook(func() {
-		if security.AppLocked() {
-			// Locking must remove the decrypted secrets from memory, not merely refuse to
-			// render them. Without this the vault would stay readable to anything in-process
-			// for as long as the app ran.
+		if security.VaultLocked() {
+			// The vault gate, not the app gate: a vault-only lock leaves the app running, and
+			// that is precisely when leaving decrypted entries in memory would matter most.
+			// Locking must remove the secrets, not merely refuse to render them.
 			vault.DropCache()
 		} else {
 			basic.SyncAllTrayKnownAccounts()

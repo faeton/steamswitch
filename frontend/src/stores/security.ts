@@ -10,10 +10,12 @@ function defaultStatus(): SecurityStatus {
   return new Status({
     appPasswordSet: false,
     appLocked: false,
+    vaultLocked: false,
     savedAccountDataEncrypted: false,
     operationBusy: false,
     quarantineCount: 0,
     interruptedRestorePending: false,
+    vaultLockCryptographic: false,
   });
 }
 
@@ -60,6 +62,29 @@ export async function lockApp(): Promise<boolean> {
     await loadSecurityStatus();
     return false;
   }
+}
+
+/**
+ * Seal the vault and keep using the app — what the "lock vault" controls and the idle timer
+ * call. `lockApp` seals the account paths too and is reserved for the startup gate.
+ *
+ * Same "not now" contract as lockApp: the backend refuses mid-operation, and a timer that
+ * landed there should retry rather than raise an error the user cannot act on.
+ */
+export async function lockVault(): Promise<boolean> {
+  try {
+    await SecurityService.LockVault();
+    await loadSecurityStatus();
+    return true;
+  } catch {
+    await loadSecurityStatus();
+    return false;
+  }
+}
+
+export async function unlockVault(password: string): Promise<void> {
+  await SecurityService.UnlockVault(password);
+  await loadSecurityStatus();
 }
 
 export async function removeAppPassword(password: string): Promise<void> {

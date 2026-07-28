@@ -31,7 +31,7 @@
     takePendingVaultEntry,
     type VaultEntry,
   } from "../stores/vault";
-  import { securityStatus } from "../stores/security";
+  import { securityStatus, unlockVault } from "../stores/security";
   import * as SteamService from "../../bindings/steamswitch/internal/steam/steamservice.js";
   import { filterVaultEntries, type VaultFilters } from "../lib/vault/filter";
   import PageHeader from "../components/PageHeader.svelte";
@@ -47,14 +47,42 @@
   /** True while the bulk-import flow is open. */
   let importing = false;
 
+  let unlockPassword = "";
+  let unlocking = false;
+  let unlockError = "";
+  let unlockEl: HTMLInputElement | undefined;
+  const unlockId = "vault-unlock-password";
+  const unlockErrorId = "vault-unlock-error";
+
+  async function submitUnlock(): Promise<void> {
+    if (unlocking) return;
+    unlockError = "";
+    unlocking = true;
+    try {
+      await unlockVault(unlockPassword);
+      // Clear on success only. Leaving a wrong password in the box lets the user correct a
+      // typo instead of retyping a long passphrase from scratch.
+      unlockPassword = "";
+      await refreshVault().catch(() => {});
+    } catch {
+      unlockError = $t("Security_UnlockFailed");
+      requestAnimationFrame(() => unlockEl?.focus());
+    } finally {
+      unlocking = false;
+    }
+  }
+
   $: appBarTitle.set($t("Title_Vault"));
 
   type PageState = "unset" | "locked" | "empty" | "list";
 
+  // vaultLocked, not appLocked: a vault-only lock leaves this page reachable, which is the
+  // whole point of it. (appLocked implies vaultLocked, so the app gate still lands here — it
+  // is just covered by the overlay.)
   $: state = (
     !$securityStatus.appPasswordSet
       ? "unset"
-      : $securityStatus.appLocked
+      : $securityStatus.vaultLocked
         ? "locked"
         : $vaultLoaded && $vaultEntries.length === 0
           ? "empty"
@@ -332,9 +360,38 @@
           <button type="button" class="ss-btn" on:click={openHandoffImport}>
             {$t("Vault_Action_AcceptHandoff")}
           </button>
+        {:else if state === "locked"}
+          <!-- The unlock prompt lives here, not in the app-wide overlay: a vault-only lock
+               leaves the rest of the app running, so there is no overlay to host it. -->
+          {#if !$securityStatus.vaultLockCryptographic}
+            <!-- Saved account blobs are sealed under the master key itself, so it cannot be
+                 dropped without breaking switching. Saying "locked" without saying that would
+                 promise a boundary the app is not enforcing. -->
+            <p class="vault-unlock__note">{$t("Vault_Lock_SoftNote")}</p>
+          {/if}
+          <form class="vault-unlock" on:submit|preventDefault={submitUnlock}>
+            <label class="vault-unlock__field" for={unlockId}>
+              <span>{$t("Security_Password")}</span>
+              <input
+                id={unlockId}
+                bind:this={unlockEl}
+                bind:value={unlockPassword}
+                type="password"
+                autocomplete="current-password"
+                class="modal-input"
+                disabled={unlocking}
+                aria-invalid={unlockError ? "true" : undefined}
+                aria-describedby={unlockError ? unlockErrorId : undefined}
+              />
+            </label>
+            {#if unlockError}
+              <p id={unlockErrorId} class="vault-unlock__error" role="alert">{unlockError}</p>
+            {/if}
+            <button type="submit" class="ss-btn ss-btn--primary" disabled={unlocking}>
+              {$t("Security_Unlock")}
+            </button>
+          </form>
         {/if}
-        <!-- `locked` deliberately offers no button: the unlock gate is the app-wide overlay,
-             and a second "Unlock" here would be a different door to the same prompt. -->
       </svelte:fragment>
     </VaultGate>
   {/if}
@@ -412,5 +469,33 @@
     padding: var(--space-6);
     background: var(--modal-scrim, var(--backdrop-scrim-55));
     z-index: 10;
+  }
+
+  .vault-unlock {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    width: min(320px, 100%);
+  }
+
+  .vault-unlock__field {
+    display: grid;
+    gap: var(--space-1);
+    font-size: var(--fs-secondary);
+    color: var(--fg-secondary);
+  }
+
+  .vault-unlock__error {
+    margin: 0;
+    font-size: var(--fs-secondary);
+    color: var(--fg-danger, var(--danger, #ff6b6b));
+  }
+
+  .vault-unlock__note {
+    margin: 0;
+    max-width: 46ch;
+    font-size: var(--fs-meta);
+    line-height: var(--lh-prose);
+    color: var(--fg-muted);
   }
 </style>

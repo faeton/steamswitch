@@ -49,13 +49,36 @@ var (
 	ErrOperationBusy      = errors.New("a security operation is in progress")
 )
 
+// Status describes both gates. They are deliberately separate:
+//
+//   - AppLocked is the startup gate. Nothing works behind it — switching accounts included,
+//     because RequireUnlocked guards the account paths too.
+//   - VaultLocked seals only the credential vault. The switcher keeps working, which is the
+//     whole point: "lock the vault" should not mean "stop using the app".
+//
+// VaultLocked is implied by AppLocked; there is no state where the app is sealed but the
+// vault is readable.
 type Status struct {
 	AppPasswordSet            bool `json:"appPasswordSet"`
 	AppLocked                 bool `json:"appLocked"`
+	VaultLocked               bool `json:"vaultLocked"`
 	SavedAccountDataEncrypted bool `json:"savedAccountDataEncrypted"`
 	OperationBusy             bool `json:"operationBusy"`
 	QuarantineCount           int  `json:"quarantineCount"`
 	InterruptedRestorePending bool `json:"interruptedRestorePending"`
+
+	// VaultLockCryptographic reports whether locking the vault actually dropped the master
+	// key, or merely stopped handing it out.
+	//
+	// Saved account blobs are sealed under the master key itself (see vault.go's
+	// writeAccountBlob), not under a subkey. So when saved-account encryption is ON the key
+	// has to stay resident for switching to keep working, and a vault lock is an access gate
+	// rather than a cryptographic boundary — anything running in this process could still
+	// derive the vault subkey. When encryption is OFF nothing needs the key, it is zeroed,
+	// and the vault genuinely cannot be reopened without the password.
+	//
+	// The UI must say which of the two the user has, because they are not the same promise.
+	VaultLockCryptographic bool `json:"vaultLockCryptographic"`
 }
 
 type KDFParams struct {
@@ -80,8 +103,13 @@ type securityFile struct {
 }
 
 type manager struct {
-	mu            sync.Mutex
-	masterKey     []byte
+	mu        sync.Mutex
+	masterKey []byte
+	// vaultLocked records that the user sealed the vault *without* sealing the app. It has to
+	// be explicit state rather than inferred from masterKey being empty, because those two
+	// now mean different things: an empty key with vaultLocked set is a vault-only lock that
+	// managed to drop the key, while an empty key without it is the app gate.
+	vaultLocked   bool
 	operationBusy bool
 }
 
@@ -137,13 +165,34 @@ func RemoveAppPassword(password string) error {
 	return defaultManager.removeAppPassword(password)
 }
 
+func LockVault() error {
+	return defaultManager.lockVault()
+}
+
+func UnlockVault(password string) error {
+	return defaultManager.unlockVault(password)
+}
+
+// RequireUnlocked gates the account paths: switching, listing, launching. It is satisfied by a
+// vault-only lock on purpose — that lock exists so these keep working.
 func RequireUnlocked() error {
 	return defaultManager.requireUnlocked()
+}
+
+// RequireVaultUnlocked gates reads of stored credentials. Strictly stronger than
+// RequireUnlocked, since VaultLocked is implied by AppLocked.
+func RequireVaultUnlocked() error {
+	return defaultManager.requireVaultUnlocked()
 }
 
 func AppLocked() bool {
 	st, err := defaultManager.status()
 	return err == nil && st.AppLocked
+}
+
+func VaultLocked() bool {
+	st, err := defaultManager.status()
+	return err == nil && st.VaultLocked
 }
 
 func SavedAccountDataEncrypted() bool {
@@ -174,9 +223,16 @@ func (m *manager) status() (Status, error) {
 	}
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	keyGone := len(m.masterKey) == 0
 	st := Status{
-		AppPasswordSet:            ok,
-		AppLocked:                 ok && len(m.masterKey) == 0,
+		AppPasswordSet: ok,
+		// A vault-only lock that dropped the key leaves masterKey empty too, so the flag is
+		// what separates the two. Without this check, locking the vault with saved-account
+		// encryption off would raise the app gate and freeze the switcher — the exact bug
+		// this whole split exists to fix.
+		AppLocked:              ok && keyGone && !m.vaultLocked,
+		VaultLocked:            ok && (m.vaultLocked || keyGone),
+		VaultLockCryptographic: ok && (m.vaultLocked || keyGone) && keyGone,
 		OperationBusy:             m.operationBusy,
 		QuarantineCount:           countQuarantines(),
 		InterruptedRestorePending: hasInterruptedRestoreJournal(),
@@ -239,6 +295,9 @@ func (m *manager) unlockApp(password string) error {
 	// one array between the manager and a caller means locking can scribble over a key that
 	// caller is still using. Cheap insurance for a 32-byte slice.
 	m.masterKey = append([]byte(nil), key...)
+	// Passing the app gate opens the vault too. Leaving the flag set would strand the user
+	// behind a second lock they never asked for and cannot see the reason for.
+	m.vaultLocked = false
 	m.mu.Unlock()
 	emitStatusChanged()
 	return nil
@@ -293,15 +352,96 @@ func (m *manager) lockApp() error {
 		m.mu.Unlock()
 		return ErrOperationBusy
 	}
-	// Zero before dropping the reference: the backing array may outlive the slice header in
-	// a heap the GC has not swept, and this key unwraps the vault.
+	m.zeroKeyLocked()
+	// The app gate supersedes a vault-only lock, and the key is gone either way. Clearing the
+	// flag keeps exactly one state meaning "app locked" rather than two that must agree.
+	m.vaultLocked = false
+	m.mu.Unlock()
+
+	emitStatusChanged()
+	return nil
+}
+
+// zeroKeyLocked wipes the master key. Callers must hold m.mu.
+//
+// Zero before dropping the reference: the backing array may outlive the slice header in a heap
+// the GC has not swept, and this key unwraps the vault.
+func (m *manager) zeroKeyLocked() {
 	for i := range m.masterKey {
 		m.masterKey[i] = 0
 	}
 	m.masterKey = nil
+}
+
+// lockVault seals the credential vault while leaving the app usable.
+//
+// Whether this is a cryptographic boundary depends on something the user chose elsewhere, and
+// the honest answer is reported through Status.VaultLockCryptographic rather than assumed:
+//
+//   - saved-account encryption OFF — nothing else needs the master key, so it is zeroed. The
+//     vault cannot be reopened without the password.
+//   - saved-account encryption ON — account blobs are sealed under the master key itself, so
+//     dropping it would break switching, which is the one thing this lock promises to keep
+//     working. The key stays resident and the lock is enforced at the API boundary instead.
+//
+// Refuses while an operation is in flight, for the same reason lockApp does: pulling the key
+// out from under a half-finished re-encrypt is how a cache ends up unreadable.
+func (m *manager) lockVault() error {
+	sf, ok, err := loadSecurityFile()
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrPasswordNotSet
+	}
+
+	m.mu.Lock()
+	if m.operationBusy {
+		m.mu.Unlock()
+		return ErrOperationBusy
+	}
+	m.vaultLocked = true
+	if !sf.SavedAccountDataEncrypted {
+		m.zeroKeyLocked()
+	}
 	m.mu.Unlock()
 
 	emitStatusChanged()
+	return nil
+}
+
+// unlockVault reopens the vault, restoring the master key when the vault lock had dropped it.
+//
+// Takes the app password because that is the only thing that can re-derive the key in the
+// cryptographic case. It is verified in the soft case too: a lock the user can walk past
+// without the password is not a lock, whatever is still sitting in memory.
+func (m *manager) unlockVault(password string) error {
+	key, err := unlockWithPassword(password)
+	if err != nil {
+		return err
+	}
+	m.mu.Lock()
+	if m.operationBusy {
+		m.mu.Unlock()
+		return ErrOperationBusy
+	}
+	m.masterKey = append([]byte(nil), key...)
+	m.vaultLocked = false
+	m.mu.Unlock()
+	emitStatusChanged()
+	return nil
+}
+
+// requireVaultUnlocked gates every read of vault data. This is what enforces the lock in the
+// soft case, where the master key is still in memory.
+func (m *manager) requireVaultUnlocked() error {
+	st, err := m.status()
+	if err != nil {
+		return err
+	}
+	if st.VaultLocked {
+		return ErrLocked
+	}
 	return nil
 }
 

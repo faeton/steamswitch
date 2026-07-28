@@ -30,7 +30,7 @@
     vaultSecurityPrefs,
     type VaultSecurityPrefs,
   } from "../stores/autoLock";
-  import { lockApp } from "../stores/security";
+  import { lockVault } from "../stores/security";
   import SettingsCard from "./settings/SettingsCard.svelte";
   import SettingRow from "./settings/SettingRow.svelte";
   import DangerZone from "./settings/DangerZone.svelte";
@@ -159,7 +159,7 @@
   }
 
   async function lockNow(): Promise<void> {
-    const ok = await lockApp();
+    const ok = await lockVault();
     if (!ok) {
       pushToast({ type: "info", message: $t("Vault_Lock_Busy"), duration: 5000 });
     }

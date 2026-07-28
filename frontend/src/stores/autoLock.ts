@@ -12,7 +12,7 @@
 import { derived, get, writable } from "svelte/store";
 import * as PlatformService from "../../bindings/steamswitch/internal/platform/platformservice.js";
 import { autoLockEnabled, formatRemaining, remainingMs } from "../lib/autoLockTimer";
-import { lockApp, securityStatus } from "./security";
+import { lockVault, securityStatus } from "./security";
 
 export type VaultSecurityPrefs = {
   autoLockMinutes: number;
@@ -93,7 +93,7 @@ export function installAutoLock(): () => void {
   const tick = async (): Promise<void> => {
     const { autoLockMinutes } = get(vaultSecurityPrefs);
     const status = get(securityStatus);
-    if (!autoLockEnabled(autoLockMinutes, status.appPasswordSet, status.appLocked)) {
+    if (!autoLockEnabled(autoLockMinutes, status.appPasswordSet, status.vaultLocked)) {
       remaining.set(0);
       // Keep the clock fresh while auto-lock cannot fire, so unlocking does not immediately
       // re-lock on idle time accrued while the app was already locked.
@@ -114,7 +114,7 @@ export function installAutoLock(): () => void {
       // restarts the idle clock. Resetting it on a refusal would silently postpone locking by
       // a whole interval every time the timer landed mid-encrypt, which is the opposite of
       // what the setting promises.
-      if (await lockApp()) {
+      if (await lockVault()) {
         bump();
       }
     } finally {

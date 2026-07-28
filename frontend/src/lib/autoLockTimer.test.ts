@@ -10,7 +10,13 @@ describe("autoLockEnabled", () => {
     expect(autoLockEnabled(5, false, false)).toBe(false);
   });
 
-  it("is off while already locked, so it cannot re-fire in a loop", () => {
+  /*
+    The third argument is `vaultLocked`, not `appLocked`. The timer locks the *vault* and
+    leaves the app running, so an app-locked check would read false for a vault that is
+    already sealed and let the timer keep firing against it. `appLocked` implies
+    `vaultLocked`, so passing the vault flag still covers the app gate.
+  */
+  it("is off while the vault is already locked, so it cannot re-fire in a loop", () => {
     expect(autoLockEnabled(5, true, true)).toBe(false);
   });
 

@@ -96,28 +96,28 @@ func (s *VaultService) GetStatus() (Status, error) {
 }
 
 func (s *VaultService) ListEntries() ([]Summary, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return nil, ErrLocked
 	}
 	return List()
 }
 
 func (s *VaultService) GetEntry(steamID64 string) (Summary, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return Summary{}, ErrLocked
 	}
 	return Get(steamID64)
 }
 
 func (s *VaultService) SaveEntry(d Draft) error {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return ErrLocked
 	}
 	return Put(d)
 }
 
 func (s *VaultService) DeleteEntry(steamID64 string) error {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return ErrLocked
 	}
 	return Delete(steamID64)
@@ -126,7 +126,7 @@ func (s *VaultService) DeleteEntry(steamID64 string) error {
 // RevealField returns exactly one secret, named by the caller. There is no bulk counterpart
 // on purpose — see Reveal.
 func (s *VaultService) RevealField(steamID64, field string) (string, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return "", ErrLocked
 	}
 	return Reveal(steamID64, field)
@@ -144,7 +144,7 @@ func (s *VaultService) HasEntry(steamID64 string) bool {
 // GetGuardCode walks the ladder: authenticator, then mailbox. Manual entry is the third
 // rung and lives in the UI — an error from here is what surfaces it.
 func (s *VaultService) GetGuardCode(steamID64 string) (CodeResult, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return CodeResult{}, ErrLocked
 	}
 	return GuardCode(context.Background(), steamID64)
@@ -155,7 +155,7 @@ func (s *VaultService) GetGuardCode(steamID64 string) (CodeResult, error) {
 // GuardCodeNeededEvent it answers; ErrNoManualRequest means nothing is waiting for that id (no
 // login in flight, or a stale prompt).
 func (s *VaultService) SubmitManualGuardCode(steamID64, requestID, code string) error {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return ErrLocked
 	}
 	return SubmitManualGuardCode(steamID64, requestID, code)
@@ -163,7 +163,7 @@ func (s *VaultService) SubmitManualGuardCode(steamID64, requestID, code string) 
 
 // TestEmailBinding validates an entry's mailbox configuration without consuming anything.
 func (s *VaultService) TestEmailBinding(steamID64 string) error {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return ErrLocked
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
@@ -173,7 +173,7 @@ func (s *VaultService) TestEmailBinding(steamID64 string) error {
 
 // RunQuickCheck runs the cheap signals for one account. Safe to call for every account.
 func (s *VaultService) RunQuickCheck(steamID64 string) (HealthReport, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return HealthReport{}, ErrLocked
 	}
 	return QuickCheck(context.Background(), steamID64, checkInput(steamID64))
@@ -185,7 +185,7 @@ func (s *VaultService) RunQuickCheck(steamID64 string) (HealthReport, error) {
 // one IP is what a rate limiter is looking for, and the whole point of the cheap tier is
 // that it can be run freely.
 func (s *VaultService) RunQuickCheckAll() (map[string]HealthReport, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return nil, ErrLocked
 	}
 	list, err := List()
@@ -214,7 +214,7 @@ func (s *VaultService) RunQuickCheckAll() (map[string]HealthReport, error) {
 // This one logs in for real, which for most accounts sends a Steam Guard email. It is
 // explicitly per-account and never batched; there is deliberately no RunDeepCheckAll.
 func (s *VaultService) RunDeepCheck(steamID64 string) (HealthReport, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return HealthReport{}, ErrLocked
 	}
 	return DeepCheck(context.Background(), steamID64, checkInput(steamID64))
@@ -227,7 +227,7 @@ func (s *VaultService) RunDeepCheck(steamID64 string) (HealthReport, error) {
 // password and no email. It only makes sense for an account that has a stored token; the UI
 // disables the action otherwise.
 func (s *VaultService) RunSessionCheck(steamID64 string) (HealthReport, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return HealthReport{}, ErrLocked
 	}
 	return CheckSession(context.Background(), steamID64)
@@ -236,7 +236,7 @@ func (s *VaultService) RunSessionCheck(steamID64 string) (HealthReport, error) {
 // GetTokenDetails backs the login debug panel's Tier 2. The token itself stays behind
 // Reveal.
 func (s *VaultService) GetTokenDetails(steamID64 string) (TokenDetails, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return TokenDetails{}, ErrLocked
 	}
 	return TokenInfo(steamID64)
@@ -245,7 +245,7 @@ func (s *VaultService) GetTokenDetails(steamID64 string) (TokenDetails, error) {
 // DiscoverIMAP tries the usual hosts for an address so the user does not have to know what
 // their provider calls its IMAP server.
 func (s *VaultService) DiscoverIMAP(address, password string) (string, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return "", ErrLocked
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
@@ -268,7 +268,7 @@ func (s *VaultService) IsRateLimited() bool { return RateLimited() }
 // The one method here that hands out account access, so it takes the unlock gate like
 // everything else and the mode is validated in Export rather than trusted from the caller.
 func (s *VaultService) ExportHandoff(req ExportRequest) (ExportResult, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return ExportResult{}, ErrLocked
 	}
 	return Export(req)
@@ -277,7 +277,7 @@ func (s *VaultService) ExportHandoff(req ExportRequest) (ExportResult, error) {
 // ListHandoffBundles enumerates importable files in the handoff folder. It reads only the
 // directory — there is nothing readable inside a bundle without its passphrase.
 func (s *VaultService) ListHandoffBundles() ([]AvailableBundle, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return nil, ErrLocked
 	}
 	return ListBundles()
@@ -289,7 +289,7 @@ func (s *VaultService) ListHandoffBundles() ([]AvailableBundle, error) {
 // name is a filename in the handoff folder, not a path: resolveBundlePath refuses anything
 // that would read outside it.
 func (s *VaultService) InspectHandoffBundle(name, passphrase string) (BundleInfo, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return BundleInfo{}, ErrLocked
 	}
 	path, err := resolveBundlePath(name)
@@ -301,7 +301,7 @@ func (s *VaultService) InspectHandoffBundle(name, passphrase string) (BundleInfo
 
 // AcceptHandoffBundle imports a bundle into this machine's vault.
 func (s *VaultService) AcceptHandoffBundle(name, passphrase string) (BundleInfo, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return BundleInfo{}, ErrLocked
 	}
 	path, err := resolveBundlePath(name)
@@ -314,7 +314,7 @@ func (s *VaultService) AcceptHandoffBundle(name, passphrase string) (BundleInfo,
 // GetHandoffLog returns the local export audit log, newest first. It never left this
 // machine and it never will.
 func (s *VaultService) GetHandoffLog() ([]ExportRecord, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return nil, ErrLocked
 	}
 	return ExportLog()
@@ -322,7 +322,7 @@ func (s *VaultService) GetHandoffLog() ([]ExportRecord, error) {
 
 // GetHandoffFolder is what the "open the folder" action needs.
 func (s *VaultService) GetHandoffFolder() (string, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return "", ErrLocked
 	}
 	return HandoffDir()
@@ -343,7 +343,7 @@ func (s *VaultService) GetHandoffFolder() (string, error) {
 // The canonical path, and the one the CLI's --seal-roster produces. Nothing readable exists on
 // disk without the passphrase.
 func (s *VaultService) PrepareRosterFromBundle(path, passphrase string) (ImportPlan, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return ImportPlan{}, ErrLocked
 	}
 	raw, err := readRosterFile(path)
@@ -364,7 +364,7 @@ func (s *VaultService) PrepareRosterFromBundle(path, passphrase string) (ImportP
 // Windows the clipboard itself has history (Win+V) and is readable by any process, so the copy
 // the user pasted from is not under this app's control. The UI says so.
 func (s *VaultService) PrepareRosterFromText(text string) (ImportPlan, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return ImportPlan{}, ErrLocked
 	}
 	payload, err := ParseRosterPlaintext([]byte(text))
@@ -384,7 +384,7 @@ func (s *VaultService) PrepareRosterFromText(text string) (ImportPlan, error) {
 // The path is carried into the plan so the confirm step can name the file and the summary can
 // report what removing it did and did not achieve.
 func (s *VaultService) PrepareRosterFromPlaintextFile(path string) (ImportPlan, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return ImportPlan{}, ErrLocked
 	}
 	raw, err := readRosterFile(path)
@@ -401,7 +401,7 @@ func (s *VaultService) PrepareRosterFromPlaintextFile(path string) (ImportPlan, 
 // RepriceRosterImport recomputes the plan after the user changes per-row modes, so the table
 // shows the consequence of "overwrite this one" before anything is committed.
 func (s *VaultService) RepriceRosterImport(sessionID string, decisions []RowDecision) (ImportPlan, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return ImportPlan{}, ErrLocked
 	}
 	return RepriceImport(sessionID, decisions)
@@ -409,7 +409,7 @@ func (s *VaultService) RepriceRosterImport(sessionID string, decisions []RowDeci
 
 // CommitRosterImport writes every accepted row in one vault mutate.
 func (s *VaultService) CommitRosterImport(sessionID string, decisions []RowDecision) (ImportSummary, error) {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return ImportSummary{}, ErrLocked
 	}
 	return CommitImport(sessionID, decisions)

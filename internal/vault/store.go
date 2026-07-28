@@ -112,7 +112,7 @@ func load() (*Doc, error) {
 		return d, nil
 	}
 
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return nil, ErrLocked
 	}
 	key, err := security.SubKey(subKeyInfo)
@@ -181,7 +181,7 @@ func decodeBlob(raw, key []byte) (*Doc, error) {
 
 // save seals and writes the whole document. Callers hold writeMu.
 func save(doc *Doc) error {
-	if err := security.RequireUnlocked(); err != nil {
+	if err := security.RequireVaultUnlocked(); err != nil {
 		return ErrLocked
 	}
 	key, err := security.SubKey(subKeyInfo)

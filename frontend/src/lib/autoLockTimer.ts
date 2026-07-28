@@ -5,9 +5,16 @@
  * is testable without timers, a DOM, or a backend.
  */
 
-/** Auto-lock is off when the interval is 0 ("never") or the vault is not lockable. */
-export function autoLockEnabled(minutes: number, appPasswordSet: boolean, appLocked: boolean): boolean {
-  return minutes > 0 && appPasswordSet && !appLocked;
+/**
+ * Auto-lock is off when the interval is 0 ("never") or the vault is not lockable.
+ *
+ * The gate is `vaultLocked`, not `appLocked`: the timer locks the vault and leaves the app
+ * running, so an already-vault-locked app has nothing left to do — while an app-locked one is
+ * vault-locked too and is likewise finished. Testing `appLocked` here would let the timer keep
+ * firing against an already-locked vault.
+ */
+export function autoLockEnabled(minutes: number, appPasswordSet: boolean, vaultLocked: boolean): boolean {
+  return minutes > 0 && appPasswordSet && !vaultLocked;
 }
 
 /**

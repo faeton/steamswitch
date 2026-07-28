@@ -17,7 +17,7 @@
   import { prefetchPage } from "../lib/pageLoaders";
   import { TOP_LEVEL_PAGES, DEFAULT_SETTINGS_CATEGORY } from "../stores/routeCodec";
   import type { Route, TopLevelPage } from "../stores/routeCodec";
-  import { securityStatus, securityStatusLoaded, lockApp } from "../stores/security";
+  import { securityStatus, securityStatusLoaded, lockVault } from "../stores/security";
   import { vaultStatus } from "../stores/vault";
   import { autoLockRemainingLabel } from "../stores/autoLock";
 
@@ -65,7 +65,7 @@
     if (locking) return;
     locking = true;
     try {
-      await lockApp();
+      await lockVault();
     } finally {
       locking = false;
     }
@@ -75,7 +75,7 @@
   // on, and showing it "locked" would imply there is something behind the lock.
   $: vaultState = !$securityStatus.appPasswordSet
     ? "off"
-    : $securityStatus.appLocked
+    : $securityStatus.vaultLocked
       ? "locked"
       : "unlocked";
   $: showVaultCard = $securityStatusLoaded && vaultState !== "off";
