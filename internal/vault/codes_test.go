@@ -120,6 +120,84 @@ func TestCancelPrewarm(t *testing.T) {
 	}
 }
 
+// The whole point of the sign-in assist: a code fetched partway through a manual login is
+// judged against the moment the login started, not the moment the user got round to asking.
+// Without this, mail that arrived while the user was typing their password in Steam is
+// rejected as stale by the time they come back to the app — the one code they are waiting for
+// is the one code they cannot get.
+func TestCodeAnchor_UsesTheSignInStart(t *testing.T) {
+	newVault(t)
+	t.Cleanup(resetPrewarmForTest)
+
+	const id = "76561198000000028"
+
+	// No assist open: a fetch is anchored at now, so nothing older than the skew qualifies.
+	before := time.Now()
+	if got := codeAnchor(id); got.Before(before) {
+		t.Fatalf("anchor without an assist = %v, want ~now (%v)", got, before)
+	}
+
+	// With one open, the anchor is where the flow began.
+	started := time.Now().Add(-4 * time.Minute)
+	assistMu.Lock()
+	assists[id] = started
+	assistMu.Unlock()
+	if got := codeAnchor(id); !got.Equal(started) {
+		t.Fatalf("anchor during an assist = %v, want the flow start %v", got, started)
+	}
+
+	// EndLoginAssist puts it back.
+	EndLoginAssist(id)
+	if got := codeAnchor(id); got.Before(before) {
+		t.Fatalf("anchor after EndLoginAssist = %v, want ~now", got)
+	}
+}
+
+// An assist the user walked away from must stop widening the window. Left open, it would
+// anchor every later fetch in the past for as long as the app runs — and a stale, single-use
+// code handed over with confidence is the failure this guard exists to prevent.
+func TestCodeAnchor_ExpiresAnAbandonedSignIn(t *testing.T) {
+	newVault(t)
+	t.Cleanup(resetPrewarmForTest)
+
+	const id = "76561198000000029"
+	assistMu.Lock()
+	assists[id] = time.Now().Add(-LoginWindow - time.Minute)
+	assistMu.Unlock()
+
+	now := time.Now()
+	if got := codeAnchor(id); got.Before(now) {
+		t.Fatalf("an expired assist still anchored the fetch at %v", got)
+	}
+	assistMu.Lock()
+	_, still := assists[id]
+	assistMu.Unlock()
+	if still {
+		t.Fatal("the expired assist was left behind to be re-checked forever")
+	}
+}
+
+// BeginLoginAssist is the one call the UI makes before handing the user over to Steam, so it
+// has to both open the window and start the fetch. An account with no code source must still
+// get its anchor: manual entry is a legitimate outcome, and the anchor costs nothing.
+func TestBeginLoginAssist_OpensTheWindow(t *testing.T) {
+	newVault(t)
+	t.Cleanup(resetPrewarmForTest)
+
+	const id = "76561198000000030"
+	if err := Put(Draft{SteamID64: id, Password: ptr("x")}); err != nil {
+		t.Fatal(err)
+	}
+
+	before := time.Now()
+	BeginLoginAssist(id)
+	after := time.Now()
+	got := codeAnchor(id)
+	if got.Before(before) || got.After(after) {
+		t.Fatalf("anchor = %v, want the moment BeginLoginAssist was called (between %v and %v)", got, before, after)
+	}
+}
+
 // The deep-check schedule is persisted so quitting the app cannot reset the clock, and it
 // backs off after failures because retrying a credential login on a timer is what gets an
 // account rate-limited out of its own logins.

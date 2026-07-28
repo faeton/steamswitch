@@ -20,7 +20,9 @@
   import { formatToastWithError } from "../lib/formatWailsError";
   import { navigateBackLikeButton } from "../stores/nav";
   import {
+    beginLoginAssist,
     deleteEntry,
+    endLoginAssist,
     quickCheck,
     quickCheckAll,
     refreshVault,
@@ -222,6 +224,11 @@
    * The confirmation is not ceremony. This closes Steam and signs the user out of whatever
    * account they are on, which is a surprising amount to happen from a row button, and the
    * account name is offered because the login screen will ask for it.
+   *
+   * What the user is left holding afterwards is the point of the assist panel. Steam's login
+   * screen asks for a username, a password and a Steam Guard code — all three are in the vault,
+   * and without the panel the user would go and read them out of an inbox in a browser, which
+   * is the errand this whole feature exists to delete.
    */
   async function signInHere(entry: VaultEntry): Promise<void> {
     const login = entry.accountName?.trim() || "";
@@ -234,22 +241,52 @@
       style: "yesno",
     });
     if (!ok) return;
+
+    // Before SteamAddNew, not after: the backend anchors code freshness here, and Steam can
+    // send its Guard mail the moment the user types a password. An anchor set later would
+    // classify that mail as belonging to some earlier login and refuse to hand it over.
+    // A vault that will not open is not a reason to refuse the sign-in — the user can still
+    // type everything by hand — so this failure is swallowed.
+    try {
+      await beginLoginAssist(entry.steamId64);
+    } catch {
+      /* no anchor, no pre-warm; the panel below still works, just slower and stricter. */
+    }
+
     try {
       await SteamService.SteamAddNew();
-      pushToast({
-        type: "success",
-        message: login
-          ? $t("Toast_Vault_SignIn_Opened_WithLogin", { login })
-          : $t("Toast_Vault_SignIn_Opened"),
-        duration: 8000,
-      });
     } catch (e) {
+      void endLoginAssist(entry.steamId64);
       pushToast({
         type: "error",
         message: formatToastWithError($t("Toast_Vault_SignInFailed"), e),
         duration: 8000,
       });
+      return;
     }
+    await openSignInAssist(entry);
+  }
+
+  /**
+   * The credentials panel that stands in for the inbox trip. Opened by signInHere, and also
+   * reachable on its own from any row — the sign-in may already be in progress, or Steam may
+   * have asked for a code again on a machine where the account is halfway set up.
+   *
+   * It owns ending the backend assist window (see the component), so every path that begins
+   * one has to end up here.
+   */
+  async function openSignInAssist(entry: VaultEntry): Promise<void> {
+    const body = await import("../components/modals/VaultSignInAssistModalBody.svelte");
+    await openAlert({
+      title: $t("Vault_SignIn_Assist_Title"),
+      dismissLabel: $t("Button_Close"),
+      bodyComponent: body.default,
+      bodyProps: {
+        steamId64: entry.steamId64,
+        accountName: entry.accountName ?? "",
+        hasPassword: entry.hasPassword,
+      },
+    });
   }
 
   async function openExport(steamId64: string): Promise<void> {
@@ -323,6 +360,7 @@
         on:export={(e) => void openExport(e.detail)}
         on:delete={(e) => void removeEntry(e.detail)}
         on:signIn={(e) => void signInHere(e.detail)}
+        on:credentials={(e) => void openSignInAssist(e.detail)}
       />
 
       {#if editing !== null}

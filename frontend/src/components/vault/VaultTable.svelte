@@ -29,6 +29,7 @@
     export: string;
     delete: Summary;
     signIn: Summary;
+    credentials: Summary;
   }>();
 
   const HEALTH_FILTERS: { id: HealthFilter; labelKey: string }[] = [
@@ -167,6 +168,19 @@
                     {$t("Vault_Action_SignInHere")}
                   </button>
                 {/if}
+                <!--
+                  Username, password and Guard code in one panel, for typing into Steam's own
+                  login screen. On every row, not only standalone ones: an account can already
+                  have a tile and still be the one Steam is sitting in front of asking for a
+                  code, and the alternative is opening a browser and logging into an inbox.
+                -->
+                <button
+                  type="button"
+                  class="ss-btn row__btn"
+                  on:click={() => dispatch("credentials", entry)}
+                >
+                  {$t("Vault_Action_Credentials")}
+                </button>
                 <button type="button" class="ss-btn row__btn" on:click={() => dispatch("check", entry.steamId64)}>
                   {$t("Vault_Action_Check")}
                 </button>

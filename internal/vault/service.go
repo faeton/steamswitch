@@ -150,6 +150,27 @@ func (s *VaultService) GetGuardCode(steamID64 string) (CodeResult, error) {
 	return GuardCode(context.Background(), steamID64)
 }
 
+// BeginLoginAssist declares that the user is about to sign into Steam by hand for this
+// account, so a Guard code fetched later in the flow is judged against the moment the flow
+// started rather than the moment the user got round to asking. It also starts warming a code.
+//
+// Returns nothing on success by design: this is an optimisation and a correctness anchor, not
+// a step the sign-in depends on, and a UI that failed the flow because the vault was busy
+// would be worse than one that just fetches a little slower.
+func (s *VaultService) BeginLoginAssist(steamID64 string) error {
+	if err := security.RequireVaultUnlocked(); err != nil {
+		return ErrLocked
+	}
+	BeginLoginAssist(steamID64)
+	return nil
+}
+
+// EndLoginAssist closes the window opened by BeginLoginAssist and cancels any fetch still
+// running behind it. Safe to call for an account that never opened one.
+func (s *VaultService) EndLoginAssist(steamID64 string) {
+	EndLoginAssist(steamID64)
+}
+
 // SubmitManualGuardCode hands a user-typed Guard code to a verification login that asked for one
 // (an account whose inbox cannot be IMAP-checked). requestID is the id from the
 // GuardCodeNeededEvent it answers; ErrNoManualRequest means nothing is waiting for that id (no

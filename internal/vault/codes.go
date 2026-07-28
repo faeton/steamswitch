@@ -100,7 +100,7 @@ func GuardCode(ctx context.Context, steamID64 string) (CodeResult, error) {
 	ctx, cancel := context.WithTimeout(ctx, FetchBudget)
 	defer cancel()
 
-	code, err := src.FetchCode(ctx, time.Now())
+	code, err := src.FetchCode(ctx, codeAnchor(steamID64))
 	if err != nil {
 		return CodeResult{}, err
 	}
@@ -118,6 +118,74 @@ func ProbeEmail(ctx context.Context, steamID64 string) error {
 		return err
 	}
 	return src.Probe(ctx)
+}
+
+// --- sign-in assist -------------------------------------------------------------------
+//
+// A swap is over in seconds, so anchoring a code fetch at "now" is honest there: the mail
+// Steam sends cannot predate the click by more than the skew. A *manual* sign-in is not like
+// that. The user clears the current login, waits for Steam to restart, types a username and
+// password, and only then does Steam send the mail — and only then does the user come back to
+// this app and ask for the code. By that point the mail can be minutes old, and an anchor at
+// "now" would reject the very code the user is waiting for as stale.
+//
+// So a manual sign-in declares itself. Between BeginLoginAssist and EndLoginAssist, a code
+// fetch is anchored at the moment the flow started rather than at the moment of the click.
+// Mail that predates the flow is still rejected, which is the property StaleSkew exists to
+// protect; mail sent *during* it is accepted however long the user took to come back.
+
+// LoginWindow bounds how long a declared sign-in keeps its anchor. Generous, because it is
+// wall-clock time spent inside Steam's own UI, but not unbounded: an assist the user walked
+// away from must eventually stop widening the window a stale code could arrive through.
+const LoginWindow = 15 * time.Minute
+
+var (
+	assistMu sync.Mutex
+	assists  = map[string]time.Time{}
+)
+
+// BeginLoginAssist records that a manual Steam sign-in has started for an account, and starts
+// warming a code for it. Fire-and-forget, like Prewarm: nothing about the sign-in depends on
+// this succeeding.
+func BeginLoginAssist(steamID64 string) {
+	id := normID(steamID64)
+	if id == "" {
+		return
+	}
+	assistMu.Lock()
+	assists[id] = time.Now()
+	assistMu.Unlock()
+	Prewarm(id)
+}
+
+// EndLoginAssist drops the anchor and any fetch still running behind it. Called when the user
+// closes the assist panel — either because the sign-in worked or because they gave up.
+func EndLoginAssist(steamID64 string) {
+	id := normID(steamID64)
+	assistMu.Lock()
+	delete(assists, id)
+	assistMu.Unlock()
+	CancelPrewarm(id)
+}
+
+// codeAnchor is the notBefore a direct fetch should use: the start of a declared sign-in if
+// one is open and still inside LoginWindow, otherwise now.
+func codeAnchor(steamID64 string) time.Time {
+	now := time.Now()
+	id := normID(steamID64)
+	assistMu.Lock()
+	defer assistMu.Unlock()
+	started, ok := assists[id]
+	if !ok {
+		return now
+	}
+	if now.Sub(started) > LoginWindow {
+		// Expired rather than merely old: leaving it would keep every later fetch anchored in
+		// the past for as long as the app runs.
+		delete(assists, id)
+		return now
+	}
+	return started
 }
 
 // --- pre-warm -------------------------------------------------------------------------
@@ -232,8 +300,12 @@ func PrewarmPending(steamID64 string) bool {
 	return p != nil && !p.done
 }
 
-// resetPrewarmForTest drops all pre-warm state. Tests only.
+// resetPrewarmForTest drops all pre-warm and sign-in-assist state. Tests only.
 func resetPrewarmForTest() {
+	assistMu.Lock()
+	assists = map[string]time.Time{}
+	assistMu.Unlock()
+
 	prewarmMu.Lock()
 	defer prewarmMu.Unlock()
 	for _, p := range prewarms {

@@ -124,6 +124,22 @@ export async function guardCode(steamId64: string): Promise<VaultCode> {
   return VaultService.GetGuardCode(steamId64);
 }
 
+/**
+ * Declare that the user is about to sign into Steam by hand for this account.
+ *
+ * This is not bookkeeping. A manual sign-in takes minutes — Steam restarts, the user types a
+ * username and password, Steam sends the mail, and only then does the user come back here for
+ * the code. The backend anchors code freshness on this call, so without it the one code the
+ * user is waiting for gets rejected as stale. Always pair with endLoginAssist.
+ */
+export async function beginLoginAssist(steamId64: string): Promise<void> {
+  return VaultService.BeginLoginAssist(steamId64);
+}
+
+export async function endLoginAssist(steamId64: string): Promise<void> {
+  return VaultService.EndLoginAssist(steamId64);
+}
+
 /** Hand a user-typed Guard code to a verification login that is waiting for one (an account
  *  whose inbox cannot be IMAP-checked). requestId is the id from the vault-guard-code-needed
  *  event this answers. */
