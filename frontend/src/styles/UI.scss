@@ -738,12 +738,25 @@ button .caret, .button .caret {
         background-color: var(--slightly-darker-code-background);
       }
 
+      /*
+        These two backgrounds are hardcoded near-black greens in every theme, but .pathPicker
+        sets `color: var(--whiteSecondary)`, which is near-black in a light theme — so a
+        suggested folder was dark-on-dark there (~1.04:1 in default light, ~1.16:1 in Pink)
+        and the row you are being pointed at was the one you could not read.
+
+        The foreground is pinned rather than tokenised precisely because the background is:
+        a token here would flip with the theme while the background did not, which is the
+        same mistake one level down. If these greens ever become theme-aware, this should
+        become a token pair at the same time.
+      */
       &.suggested {
           background: hsl(115, 100%, 15%);
+          color: #f2f4f8;
       }
 
       &.suggested:not(.selected-path):not(.ancestor-of-selected) {
           background: hsl(115, 100%, 5%);
+          color: #f2f4f8;
       }
     }
 }

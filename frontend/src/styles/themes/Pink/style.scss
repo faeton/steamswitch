@@ -469,10 +469,13 @@ label.acc p {
     color: var(--white);
 }
 
-/* Tooltips: dark panel, light label text */
-.tooltip .tooltip-inner {
-    color: var(--chrome-fg);
-}
+/* Tooltips: dark panel, light label text — see --tooltip-fg above. This used to set
+   `color: var(--chrome-fg)`, which is --pink-shell-fg (#5a3444), a *dark* rose meant for
+   chrome on a light shell. On the --pink-ink panel that measured 1.51:1. The rule also
+   outranked UI.scss by being later at equal specificity, so it silently defeated any fix
+   made in the shared stylesheet. UI.scss now reads --tooltip-fg, so this override is gone
+   rather than re-pointed: one theme-local rule quietly winning over the shared one is what
+   made this hard to find. */
 
 /* App modal title bar is deep rose — light title + controls text (tokens + fallback) */
 .modal-headerbar {
