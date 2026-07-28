@@ -1,15 +1,12 @@
 package basic
 
 import (
-	"database/sql"
 	"os"
 	"path/filepath"
 	"testing"
 	"time"
 
 	"steamswitch/internal/platform"
-
-	_ "modernc.org/sqlite"
 )
 
 func TestResolveDescriptorValue_LatestModifiedFile(t *testing.T) {
@@ -46,29 +43,24 @@ I 2026-05-07 16:50:14.311645 [Main] {Main} Opened database at: C:\Users\gamer\Ap
 	}
 }
 
-func TestResolveDescriptorValue_SQLiteInterpolatesBuiltInUserID(t *testing.T) {
-	dir := t.TempDir()
-	dbPath := filepath.Join(dir, "CachedData.db")
-	db, err := sql.Open("sqlite", dbPath)
-	if err != nil {
-		t.Fatalf("open sqlite db: %v", err)
+func TestResolveSQLiteValue_RecognisedButUnsupported(t *testing.T) {
+	raw := `SQLITE:C:\Users\gamer\CachedData.db|SELECT battle_tag FROM login_cache`
+	resolved, handled, err := resolveSQLiteValue(raw, "", platform.PathTokenContext{})
+	if !handled {
+		t.Fatal("SQLITE: prefix must be reported as handled, otherwise the value falls through to path expansion")
 	}
-	if _, err := db.Exec(`CREATE TABLE login_cache (account_id_lo TEXT, battle_tag TEXT)`); err != nil {
-		t.Fatalf("create table: %v", err)
+	if err == nil {
+		t.Fatal("expected an error for an unsupported SQLITE: value")
 	}
-	if _, err := db.Exec(`INSERT INTO login_cache (account_id_lo, battle_tag) VALUES ('1111185922', 'Player#1234')`); err != nil {
-		t.Fatalf("insert row: %v", err)
+	if resolved != "" {
+		t.Fatalf("expected no resolved value, got %q", resolved)
 	}
-	if err := db.Close(); err != nil {
-		t.Fatalf("close sqlite db: %v", err)
-	}
-	raw := "SQLITE:" + dbPath + "|SELECT battle_tag FROM login_cache WHERE account_id_lo = '%BuiltInUserId%'"
-	got := resolveDescriptorValue(platform.Descriptor{}, raw, "", platform.PathTokenContext{}, map[string]string{
-		"BuiltInUserId": "1111185922",
-	}, "", false)
-	want := "Player#1234"
-	if got != want {
-		t.Fatalf("unexpected sqlite resolved value: got %q want %q", got, want)
+}
+
+func TestResolveDescriptorValue_SQLiteDoesNotLeakLiteralExpression(t *testing.T) {
+	raw := `SQLITE:C:\Users\gamer\CachedData.db|SELECT battle_tag FROM login_cache`
+	if got := resolveDescriptorValue(platform.Descriptor{}, raw, "", platform.PathTokenContext{}, map[string]string{}, "", false); got != "" {
+		t.Fatalf("SQLITE: value must resolve to empty, got %q", got)
 	}
 }
 

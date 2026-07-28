@@ -1,15 +1,12 @@
 package basic
 
 import (
-	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"steamswitch/internal/platform"
-
-	_ "modernc.org/sqlite"
 )
 
 const latestModifiedFilePrefix = "LATEST_MODIFIED_FILE:"
@@ -48,44 +45,15 @@ func resolveLatestModifiedFileValue(v, folder string, ctx platform.PathTokenCont
 	return strings.TrimSpace(latestPath), true, nil
 }
 
+// SQLITE: descriptors were only ever used by upstream's non-Steam platforms, which the
+// Steam-only strip removed. The modernc.org/sqlite driver they needed is no longer linked.
+// The prefix is still recognised and reported as handled so that a stray SQLITE: value
+// fails here rather than falling through to plain path expansion in resolveDescriptorValue,
+// which would hand back the literal expression as a username, path or ID.
 func resolveSQLiteValue(v, folder string, ctx platform.PathTokenContext) (string, bool, error) {
 	trimmed := strings.TrimSpace(v)
 	if !strings.HasPrefix(strings.ToUpper(trimmed), sqlitePrefix) {
 		return "", false, nil
 	}
-	rest := strings.TrimSpace(trimmed[len(sqlitePrefix):])
-	pipeIdx := strings.Index(rest, "|")
-	if pipeIdx <= 0 {
-		return "", true, fmt.Errorf("bad SQLITE format")
-	}
-	dbPath := strings.TrimSpace(rest[:pipeIdx])
-	query := strings.TrimSpace(rest[pipeIdx+1:])
-	if dbPath == "" || query == "" {
-		return "", true, fmt.Errorf("bad SQLITE format")
-	}
-	expandedDBPath := expandPlatformPath(dbPath, folder, ctx)
-	dsn := "file:" + strings.ReplaceAll(expandedDBPath, `\`, `/`) + "?mode=ro"
-	db, err := sql.Open("sqlite", dsn)
-	if err != nil {
-		return "", true, fmt.Errorf("open SQLITE db %q: %w", expandedDBPath, err)
-	}
-	defer func() { _ = db.Close() }()
-	var value any
-	row := db.QueryRow(query)
-	if err := row.Scan(&value); err != nil {
-		if err == sql.ErrNoRows {
-			return "", true, nil
-		}
-		return "", true, fmt.Errorf("query SQLITE db %q: %w", expandedDBPath, err)
-	}
-	switch x := value.(type) {
-	case nil:
-		return "", true, nil
-	case string:
-		return strings.TrimSpace(x), true, nil
-	case []byte:
-		return strings.TrimSpace(string(x)), true, nil
-	default:
-		return strings.TrimSpace(fmt.Sprint(x)), true, nil
-	}
+	return "", true, fmt.Errorf("SQLITE descriptor values are not supported in this Steam-only build")
 }
