@@ -67,7 +67,9 @@
   $text-subtle: pick($is-light, $subtext0, $overlay2);
   $text-dim: $overlay0;
   $text-body-muted: pick($is-light, $subtext0, $overlay1);
-  $tooltip-bg: pick($is-light, $surface2, $crust);
+  // Latte's $surface2 against $text was 3.69:1 — under AA for the small type a tooltip uses.
+  $tooltip-bg: pick($is-light, $text, $crust);
+  $tooltip-fg: pick($is-light, $base, $text);
   $ace-bg: pick($is-light, $mantle, $base);
 
   :root {
@@ -130,6 +132,7 @@
     --button-bg: #{$surface0};
     --button-bg-hover: #{$surface1};
     --tooltip-bg: #{$tooltip-bg};
+    --tooltip-fg: #{$tooltip-fg};
     --main-padding: 0.75rem;
     --document-canvas-bg: #{$base};
 

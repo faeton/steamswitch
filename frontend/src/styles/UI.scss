@@ -778,7 +778,12 @@ button .caret, .button .caret {
 .tooltip .tooltip-inner {
     max-width: 200px;
     padding: 0.25rem 0.5rem;
-    color: var(--whiteSecondary);
+    /* Paired with --tooltip-bg, never --whiteSecondary: that token means "bright text" in a
+       dark theme but is reused as dark body text in a light one, while --tooltip-bg stays dark
+       for the inverted-chip look. Both went dark together, so every light theme rendered the
+       tooltip unreadably (Pink at 1.00:1 — the same colour twice). The fallback keeps
+       user-supplied wwwroot themes that predate this token rendering as they did before. */
+    color: var(--tooltip-fg, var(--whiteSecondary));
     text-align: center;
     background-color: var(--tooltip-bg);
     border-radius: 0.25rem;

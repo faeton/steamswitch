@@ -59,7 +59,9 @@
   $input-border: pick($is-light, color.adjust($border, $lightness: -6%), $border);
   $text-muted: pick($is-light, color.mix($comment, $fg, 38%), color.mix($comment, $fg, 44%));
   $text-subtle: pick($is-light, color.mix($nontext, $fg, 52%), color.mix($nontext, $fg, 60%));
-  $tooltip-bg: pick($is-light, $border, $bg-deep);
+  // See _editor_palette.scss: $border sat too close to $fg to read in light mode.
+  $tooltip-bg: pick($is-light, $fg, $bg-deep);
+  $tooltip-fg: pick($is-light, $bg, $fg);
   $hotkey: pick($is-light, color.mix($orange, $fg, 22%), color.mix($orange, $bg, 36%));
 
   :root {
@@ -122,6 +124,7 @@
     --button-bg: #{$bg-panel};
     --button-bg-hover: #{$bg-hover};
     --tooltip-bg: #{$tooltip-bg};
+    --tooltip-fg: #{$tooltip-fg};
     --main-padding: 0.75rem;
     --document-canvas-bg: #{$bg};
 

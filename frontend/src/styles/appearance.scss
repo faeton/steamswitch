@@ -69,6 +69,7 @@
     --button-bg: #1e2329;
     --button-bg-hover: #262d36;
     --tooltip-bg: #0b0d10;
+    --tooltip-fg: #f2f4f8;
 
     /* Chrome surfaces the redesign names directly. */
     --surface-chrome: #14171c;
@@ -155,6 +156,9 @@
     --button-bg: #f0f0ec;
     --button-bg-hover: #e8e8e2;
     --tooltip-bg: #1a1c19;
+    /* Light theme, dark chip: the text has to invert too, or it lands on --whiteSecondary,
+       which is near-black here. */
+    --tooltip-fg: #f4f4f1;
 
     --surface-chrome: #ffffff;
     --surface-nav: #ffffff;

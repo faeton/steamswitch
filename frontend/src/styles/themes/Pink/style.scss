@@ -100,7 +100,9 @@
     --scrollbar-track-bg: var(--pink-track);
     --button-bg: var(--pink-btn);
     --button-bg-hover: var(--pink-btn-hover);
+    /* --whiteSecondary is also --pink-ink, so the chip used to be ink on ink: 1.00:1. */
     --tooltip-bg: var(--pink-ink);
+    --tooltip-fg: var(--pink-input);
     --main-padding: 0.75rem;
     --document-canvas-bg: var(--pink-field);
 
