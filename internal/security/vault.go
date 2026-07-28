@@ -218,11 +218,13 @@ func EnableSavedAccountEncryption(password string) error {
 	if err != nil {
 		return err
 	}
-	defaultManager.mu.Lock()
-	defaultManager.masterKey = key
-	defaultManager.mu.Unlock()
-	defaultManager.setBusy(true)
-	defer defaultManager.setBusy(false)
+	// One critical section for both the key and the busy latch: see adoptKeyForOperation.
+	// Splitting them left a window where lockApp could zero the key this function is about to
+	// encrypt every account blob with.
+	if err := defaultManager.adoptKeyForOperation(key); err != nil {
+		return err
+	}
+	defer defaultManager.finishOperation()
 	if SavedAccountDataEncrypted() {
 		return nil
 	}
@@ -269,8 +271,12 @@ func DisableSavedAccountEncryption(password string) error {
 }
 
 func disableSavedAccountEncryptionWithKey(password string, key []byte, removingPassword bool) error {
-	defaultManager.setBusy(true)
-	defer defaultManager.setBusy(false)
+	// Same reason as EnableSavedAccountEncryption: claim the latch and the key together, so a
+	// concurrent lock cannot zero the key mid-decrypt and quarantine every account.
+	if err := defaultManager.adoptKeyForOperation(key); err != nil {
+		return err
+	}
+	defer defaultManager.finishOperation()
 	if !SavedAccountDataEncrypted() {
 		return nil
 	}

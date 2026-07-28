@@ -149,7 +149,7 @@
     }
   
     &.noImageCenterText p {
-      font-size: 0.88rem;
+      font-size: var(--fs-secondary);
       height: min(20vw, 175px);
       max-height: 175px;
     }

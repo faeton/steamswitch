@@ -119,7 +119,7 @@
   }
 
   .gc-hint {
-    font-size: 0.85rem;
+    font-size: var(--fs-secondary);
     opacity: 0.85;
     margin: 0 0 0.75rem;
   }

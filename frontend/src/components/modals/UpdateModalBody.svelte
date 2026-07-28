@@ -64,7 +64,7 @@
     padding: 0.65rem 1rem;
     border: none;
     font: inherit;
-    font-size: 0.9rem;
+    font-size: var(--fs-secondary);
     font-weight: 500;
     cursor: pointer;
     transition:

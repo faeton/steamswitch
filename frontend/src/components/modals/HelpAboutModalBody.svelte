@@ -51,7 +51,7 @@
   }
 
   .licence {
-    font-size: 0.9rem;
+    font-size: var(--fs-secondary);
     opacity: 0.85;
   }
 
@@ -59,7 +59,7 @@
     margin-top: 0.75rem;
     padding-top: 0.5rem;
     border-top: 1px solid var(--border-bar-bg);
-    font-size: 0.85rem;
+    font-size: var(--fs-secondary);
     opacity: 0.85;
   }
 </style>

@@ -9,6 +9,7 @@
   import { installInputModalityTracking } from "./lib/inputModality";
   import { animationsEnabled, loadAnimationsEnabled } from "./stores/animationSettings";
   import TitleBar from './components/TitleBar.svelte'
+  import AppSidebar from './components/AppSidebar.svelte'
   import UpdateBar from './components/UpdateBar.svelte'
   import AppModal from './components/AppModal.svelte'
   import Toast from './components/Toast.svelte'
@@ -21,6 +22,7 @@
   import ContextMenu from './components/ContextMenu.svelte'
   import BackgroundDropZones from './components/BackgroundDropZones.svelte'
   import StatusStrip from './components/StatusStrip.svelte'
+  import SwitchProgressDock from './components/SwitchProgressDock.svelte'
   import { route, applyNavigateJSON, navigateBackLikeButton, navigateForward } from './stores/nav'
   import { installPageStatsTracking } from "./lib/pageStatsTrack";
   import { loadPageModule, prefetchCommonPages } from "./lib/pageLoaders";
@@ -64,6 +66,7 @@
   import { createControllerInputController } from "./lib/controllerInput";
   import { controllerSupportEnabled, loadControllerSupportEnabled } from "./stores/controllerSupport";
   import { preventUnmodifiedBrowserContextMenu } from "./lib/actions/contextMenu";
+  import { installAutoLock, loadVaultSecurityPrefs } from "./stores/autoLock";
 
   function resolveActiveBg(
     app: AppBackgroundInfo,
@@ -195,7 +198,20 @@
     if (e.key.length !== 1) {
       return;
     }
+    /*
+      `1`–`9` belong to the switcher's quick-switch, not to type-to-search.
+
+      Both handlers are bound to `window` — this one in the capture phase, the switcher's in
+      the bubble phase — so a bare digit used to be consumed twice: it opened the search
+      overlay *and* switched accounts. The digits are the one printable range with a
+      conflicting meaning on this page, so they are excluded here rather than by having the
+      page fight the capture listener. Searching for a number is still possible from the
+      command palette, and a digit typed once search is already open is handled below.
+    */
     const so = get(searchOverlayCtrl);
+    if (!so.open && /^[1-9]$/.test(e.key)) {
+      return;
+    }
     if (so.open) {
       if (isEditableTarget(e.target)) {
         return;
@@ -258,6 +274,7 @@
     void loadSecurityStatus();
     void loadAnimationsEnabled();
     void loadCommandPaletteHotkey();
+    void loadVaultSecurityPrefs();
     // Load initial app background state.
     void PlatformService.GetAppBackground().then((info) => {
       appBgInfo.set(info);
@@ -266,6 +283,8 @@
     const offPageStats = installPageStatsTracking();
     const offSvgBridge = registerSvgRenderBridge();
     const offInputModality = installInputModalityTracking();
+    // App-level, not page-level: an auto-lock that resets whenever you navigate is not one.
+    const offAutoLock = installAutoLock();
     let cleanupAnimationsClass = () => {};
     const offAnimationsClass = animationsEnabled.subscribe((enabled) => {
       cleanupAnimationsClass();
@@ -356,7 +375,9 @@
       const raw = typeof ev.data === "string" ? ev.data : "";
       if (raw.startsWith("i18n:")) {
         const { key, vars } = parseI18nPayload(raw);
-        narrate(vars ? $t(key, vars) : $t(key));
+        // The key travels alongside the localised text: the progress dock maps it to a step,
+        // and matching on translated prose would break in every locale but English.
+        narrate(vars ? $t(key, vars) : $t(key), key);
       } else {
         narrate(raw);
       }
@@ -381,6 +402,7 @@
       offUserDataMoveProgress?.();
       offSvgBridge?.();
       offInputModality();
+      offAutoLock();
       offAnimationsClass();
       cleanupAnimationsClass();
       offControllerSupport();
@@ -410,17 +432,27 @@
         />
       {/if}
     {/key}
-    <div class="page-content-wrapper">
-      {#key $route.page}
-        <main id="app-main" class="page-content" tabindex="-1">
-          {#await loadPageModule($route) then { default: Page }}
-            <Page />
-          {/await}
-        </main>
-      {/key}
-      {#if showStatusStrip}
-        <StatusStrip on:action={(e) => statusStripAction.set(e.detail)} />
-      {/if}
+    <div class="app-body">
+      <!-- Outside the `{#key}` below: the nav is chrome, and re-mounting it on every
+           navigation would restart its vault countdown and drop keyboard focus. -->
+      <AppSidebar />
+      <div class="page-content-wrapper">
+        {#key $route.page}
+          <main id="app-main" class="page-content" tabindex="-1">
+            {#await loadPageModule($route) then { default: Page }}
+              <Page />
+            {/await}
+          </main>
+        {/key}
+        <!-- App-level, not page-level. A switch closes and relaunches Steam and outlives
+             whichever page started it: docked to the page, navigating to Settings mid-switch
+             unmounted the app's primary progress surface. It also owns the *failure* state,
+             so a failed switch keeps its recovery actions instead of collapsing to a line. -->
+        <SwitchProgressDock on:action={(e) => statusStripAction.set(e.detail)} />
+        {#if showStatusStrip}
+          <StatusStrip on:action={(e) => statusStripAction.set(e.detail)} />
+        {/if}
+      </div>
     </div>
     <BackgroundDropZones />
     <AppLockOverlay />
@@ -481,9 +513,17 @@
     pointer-events: none;
     will-change: opacity;
   }
-  .page-content-wrapper {
+  .app-body {
     position: relative;
     flex: 1;
+    min-height: 0;
+    display: flex;
+    overflow: hidden;
+  }
+  .page-content-wrapper {
+    position: relative;
+    flex: 1 1 auto;
+    min-width: 0;
     min-height: 0;
     overflow: hidden;
     display: flex;

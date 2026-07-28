@@ -94,7 +94,7 @@
 
   .tag-expiry__legend {
     margin: 0 0 0.15rem;
-    font-size: 0.9rem;
+    font-size: var(--fs-secondary);
     font-weight: 600;
   }
 
@@ -117,7 +117,7 @@
   }
 
   .tag-expiry__label {
-    font-size: 0.85rem;
+    font-size: var(--fs-secondary);
     font-weight: 600;
   }
 

@@ -29,7 +29,7 @@
   flex: 1 1 auto;
   min-width: 0;
   text-align: left;
-  font-size: 0.88rem;
+  font-size: var(--fs-secondary);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;

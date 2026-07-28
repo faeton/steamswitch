@@ -1,0 +1,423 @@
+/*
+    Semantic design tokens for the redesigned surfaces (REDESIGN_BRIEF.md A8).
+
+    Why this file exists rather than a bigger root font-size: A8 is explicit that the fix for
+    "help text renders at 8–10px" is a *semantic type system*, not a global root bump. The
+    root stays at 12px (`style.scss`) because every inherited surface's `rem` maths is anchored
+    to it — rewriting the root reflows all of them and gets "fixed" with fractional rems. New
+    and redesigned components size themselves from the `--fs-*` tokens below instead, in px, so
+    a role's minimum is stated once and cannot drift per component.
+
+    The floor is the brief's acceptance criterion: **no UI text renders below 12px**, on any
+    theme, at any window size. There is deliberately no token smaller than `--fs-meta`.
+
+    These are theme-independent: they carry size, rhythm and shape, never colour. Colour roles
+    live in `appearance.scss` (base) or a classic pack's stylesheet, which is why the text-role
+    fallbacks here reach for `--text-*` and degrade to the legacy names.
+*/
+
+:root {
+    /* ------------------------------------------------------------------ type */
+    /* Short scale for a ~1000px-wide utility. No marketing "display" tier. */
+    --fs-title: 19px; /* page title: "Switcher", "Vault"                     */
+    --fs-hero: 22px; /* the one number that matters: current account name    */
+    --fs-section: 15px; /* panel/section headers                             */
+    --fs-body: 13.5px; /* default UI text — brief A8 minimum is 13px         */
+    --fs-control: 13px; /* buttons, nav rows, table cells                    */
+    --fs-secondary: 12.5px; /* field labels, sub-lines                       */
+    --fs-meta: 12px; /* help text, IDs, timestamps — THE FLOOR              */
+
+    --lh-tight: 1.25;
+    --lh-body: 1.5;
+    --lh-prose: 1.55;
+
+    --fw-normal: 400;
+    --fw-medium: 500;
+    --fw-semibold: 600;
+
+    /* Uppercase mono eyebrow: "SIGNED IN AS", "IDENTITY · REQUIRED". */
+    --fs-eyebrow: 12px;
+    --ls-eyebrow: 0.13em;
+    --ls-caps: 0.08em;
+
+    /* ---------------------------------------------------------------- shape */
+    --radius-xs: 3px;
+    --radius-sm: 5px;
+    --radius-md: 6px;
+    --radius-lg: 8px;
+    --radius-xl: 10px;
+    --radius-pill: 20px;
+
+    /* --------------------------------------------------------------- rhythm */
+    --space-1: 4px;
+    --space-2: 6px;
+    --space-3: 9px;
+    --space-4: 12px;
+    --space-5: 16px;
+    --space-6: 20px;
+    --space-7: 26px;
+
+    /* ----------------------------------------------------------- structure */
+    --nav-width: 190px;
+    --settings-rail-width: 230px;
+    /* Windows' 34px bar. macOS (38px) and GNOME (46px) override this on `.headerbar` itself
+       — see TitleBar.svelte — so read it from inside the header, not as a global constant. */
+    --chrome-height: 34px;
+    --tile-min-width: 300px;
+    --avatar-tile-size: 42px;
+    --avatar-hero-size: 60px;
+
+    /* ------------------------------------------------------------- controls */
+    --control-height: 32px;
+    --control-padding-x: 13px;
+
+    /*
+        Keycap: the 1–9 quick-switch hint. Given a real key affordance (a thicker bottom
+        border reads as depth) so it stops looking like an unexplained count badge — brief
+        Part B #6 and A6. Must stay visually distinct from a health badge, which is a dot.
+    */
+    --keycap-size: 22px;
+    --keycap-fs: 12px;
+
+    /* ---------------------------------------------------------- text roles */
+    /*
+        Every role must clear WCAG AA (4.5:1) against its own surface on every shipped theme
+        (A8). Base-theme values are set per scheme in `appearance.scss`; the fallback chain
+        keeps classic packs, which know nothing about these names, legible.
+    */
+    --fg-primary: var(--text-primary, var(--white, #e6e9ee));
+    --fg-secondary: var(--text-secondary, var(--text-muted-gray, #b6bdc7));
+    --fg-muted: var(--text-muted, var(--text-subtle-gray, #8f97a2));
+    --fg-disabled: var(--text-disabled, var(--text-dim-gray, #6e7783));
+
+    /* --------------------------------------------------------- tone roles */
+    /* Colour is never the only carrier: every use pairs these with a label or a glyph. */
+    --fg-ok: var(--tone-ok-fg, var(--green, #4fb286));
+    --bg-ok: var(--tone-ok-bg, transparent);
+    --border-ok: var(--tone-ok-border, var(--green, #4fb286));
+    --fg-warn: var(--tone-warn-fg, var(--orange, #d8a341));
+    --bg-warn: var(--tone-warn-bg, transparent);
+    --border-warn: var(--tone-warn-border, var(--orange, #d8a341));
+    --fg-fail: var(--tone-fail-fg, var(--red, #d84f4f));
+    --bg-fail: var(--tone-fail-bg, transparent);
+    --border-fail: var(--tone-fail-border, var(--red, #d84f4f));
+    --fg-neutral: var(--tone-neutral-fg, var(--text-muted, #8f97a2));
+    --dot-neutral: var(--tone-neutral-dot, var(--text-dim-gray, #6e7783));
+
+    /* -------------------------------------------------------------- motion */
+    --dur-fast: 120ms;
+    --dur-base: 160ms;
+    --dur-slow: 350ms;
+    --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/*
+    Shared control vocabulary (brief A11: "designed once and applied").
+
+    These are global rather than per-component styles because the same button, field and chip
+    appear on the switcher, the vault and settings, and three copies would drift. Components
+    still own their layout; this owns what a control *looks* like.
+*/
+
+/*
+    Opt out of one inherited rule.
+
+    `UI.scss` carries `button span { line-height: 2.5em }` from upstream, where it centred a
+    text label beside a 1.5em SVG inside an icon-button. Those buttons are already
+    `display: flex; align-items: center`, so flex does the centring and the line-height is
+    vestigial — but it still applies to *every* span inside *every* button, which silently
+    made the redesigned nav rows and table cells roughly twice their intended height.
+
+    Scoped to the new vocabulary rather than deleted: the inherited surfaces still render
+    through that rule, and quietly changing their metrics is not this change's job. Bespoke
+    buttons that are not `.ss-btn` set `line-height` on their own children for the same reason.
+*/
+.ss-btn > *,
+.ss-chip > * {
+    line-height: inherit;
+}
+
+/*
+    The same inherited block also sets `justify-content: center` and `align-items: center` on
+    every `button`. For a centred pill that is right; for a *row* — a nav item, a table cell —
+    it centres the icon-and-label pair as a group, so each row starts at a different x
+    depending on how long its label is. That is what made the left nav read as ragged.
+
+    `.ss-row-button` is the opt-out for buttons that are laid out as rows rather than pills.
+*/
+.ss-row-button {
+    justify-content: flex-start;
+    align-items: center;
+    text-align: left;
+    width: 100%;
+    margin: 0;
+}
+
+.ss-row-button > * {
+    line-height: inherit;
+}
+
+/* Column-stacked row buttons (an identity cell: name over login name). */
+.ss-row-button--stacked {
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+}
+
+.ss-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-2);
+    min-height: var(--control-height);
+    padding: 0 var(--control-padding-x);
+    /* Explicit resets, not defaults. `UI.scss`'s global `button` rule sets `margin: 0 .25em`
+       and `width: max-content`; inheriting either puts unasked-for gaps between action
+       clusters and stops a button ever filling its container. */
+    margin: 0;
+    width: auto;
+    border: 1px solid var(--hairline-strong, var(--button-bg));
+    border-radius: var(--radius-md);
+    background: transparent;
+    color: var(--fg-secondary);
+    font: inherit;
+    font-size: var(--fs-control);
+    line-height: var(--lh-tight);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.ss-btn:hover:not(:disabled) {
+    background: var(--button-bg);
+    color: var(--fg-primary);
+}
+
+.ss-btn:focus-visible {
+    outline: 2px solid var(--role-focus-ring, var(--accent));
+    outline-offset: 2px;
+}
+
+.ss-btn:disabled {
+    opacity: var(--role-disabled-opacity, 0.55);
+    cursor: not-allowed;
+}
+
+.ss-btn--primary {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: var(--text-on-bright-bg, #06131f);
+    font-weight: var(--fw-semibold);
+}
+
+.ss-btn--primary:hover:not(:disabled) {
+    background: var(--accent-overlay-hover, var(--accent));
+    color: var(--text-on-bright-bg, #06131f);
+}
+
+.ss-btn--danger {
+    border-color: var(--border-fail);
+    color: var(--fg-fail);
+}
+
+.ss-btn--danger:hover:not(:disabled) {
+    background: var(--bg-fail);
+    color: var(--fg-fail);
+}
+
+.ss-btn--quiet {
+    border-color: transparent;
+}
+
+/* Same reason as the margin/width resets: the inherited rule sizes any SVG inside a button at
+   1.5em wide / 1.5rem tall, which is far larger than an icon beside 13px label text. */
+.ss-btn svg,
+.ss-chip svg {
+    width: 1em;
+    height: 1em;
+}
+
+.ss-field {
+    width: 100%;
+    min-height: var(--control-height);
+    padding: 0 11px;
+    border: 1px solid var(--hairline-strong, var(--button-bg));
+    border-radius: var(--radius-md);
+    background: var(--surface-field, var(--role-field-bg));
+    color: var(--fg-primary);
+    font: inherit;
+    font-size: var(--fs-control);
+}
+
+.ss-field::placeholder {
+    color: var(--fg-disabled);
+    opacity: 1;
+}
+
+.ss-field:focus-visible {
+    outline: 2px solid var(--role-focus-ring, var(--accent));
+    outline-offset: 1px;
+}
+
+.ss-field--mono {
+    font-family: var(--font-mono, ui-monospace, monospace);
+}
+
+/* Filter chip: tag filters, health filters. Toggles, not buttons. */
+.ss-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 5px 10px;
+    border: 1px solid var(--hairline-strong, var(--button-bg));
+    border-radius: var(--radius-pill);
+    background: transparent;
+    color: var(--fg-muted);
+    font: inherit;
+    font-size: var(--fs-meta);
+    line-height: var(--lh-tight);
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.ss-chip:hover {
+    color: var(--fg-primary);
+}
+
+.ss-chip[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: var(--accent-fill-very-soft, transparent);
+    color: var(--accent-text-bright, var(--accent));
+}
+
+.ss-chip:focus-visible {
+    outline: 2px solid var(--role-focus-ring, var(--accent));
+    outline-offset: 2px;
+}
+
+/*
+    Toggle switch — the on/off control the design draws for settings rows.
+
+    It must style itself from `appearance: none` rather than lean on the inherited checkbox
+    pattern. `Settings.scss` carries upstream's `input[type="checkbox"] { opacity: 0 }`, which
+    hides the native box so a sibling `+ label` can be drawn as the visual. Any new checkbox
+    without that sibling is simply invisible — which is exactly what happened to the first
+    version of these rows. The `opacity` reset below is what un-does it.
+*/
+.ss-toggle {
+    appearance: none;
+    -webkit-appearance: none;
+    opacity: 1;
+    flex: 0 0 auto;
+    position: relative;
+    width: 38px;
+    height: 22px;
+    margin: 0;
+    padding: 0;
+    border: 1px solid var(--hairline-strong, var(--button-bg));
+    border-radius: var(--radius-pill);
+    background: var(--button-bg);
+    cursor: pointer;
+}
+
+.ss-toggle::after {
+    content: "";
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--fg-muted);
+}
+
+:global(.animations-enabled) .ss-toggle::after {
+    transition:
+        transform var(--dur-fast) var(--ease-out),
+        background-color var(--dur-fast) ease-out;
+}
+
+.ss-toggle:checked {
+    border-color: var(--accent);
+    background: var(--accent);
+}
+
+.ss-toggle:checked::after {
+    transform: translateX(16px);
+    background: var(--text-on-bright-bg, #06131f);
+}
+
+.ss-toggle:focus-visible {
+    outline: 2px solid var(--role-focus-ring, var(--accent));
+    outline-offset: 2px;
+}
+
+.ss-toggle:disabled {
+    opacity: var(--role-disabled-opacity, 0.55);
+    cursor: not-allowed;
+}
+
+/* A plain tick box, for the one place the design draws a checkbox rather than a switch. */
+.ss-checkbox {
+    appearance: none;
+    -webkit-appearance: none;
+    opacity: 1;
+    flex: 0 0 auto;
+    position: relative;
+    width: 17px;
+    height: 17px;
+    margin: 0;
+    border: 1px solid var(--hairline-strong, var(--button-bg));
+    border-radius: var(--radius-xs);
+    background: var(--surface-field, transparent);
+    cursor: pointer;
+}
+
+.ss-checkbox:checked {
+    border-color: var(--accent);
+    background: var(--accent);
+}
+
+.ss-checkbox:checked::after {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 1px;
+    width: 6px;
+    height: 10px;
+    border: solid var(--text-on-bright-bg, #06131f);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+.ss-checkbox:focus-visible {
+    outline: 2px solid var(--role-focus-ring, var(--accent));
+    outline-offset: 2px;
+}
+
+.ss-checkbox:disabled {
+    opacity: var(--role-disabled-opacity, 0.55);
+    cursor: not-allowed;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :global(.animations-enabled) .ss-toggle::after {
+        transition: none;
+    }
+}
+
+/* Mono uppercase eyebrow above a group of fields or a hero value. */
+.ss-eyebrow {
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: var(--fs-eyebrow);
+    letter-spacing: var(--ls-eyebrow);
+    text-transform: uppercase;
+    color: var(--fg-muted);
+}
+
+/* Help text under a control. The old `.hint` rendered at ~8.4px; this is the floor. */
+.ss-help {
+    margin: 0;
+    font-size: var(--fs-meta);
+    line-height: var(--lh-prose);
+    color: var(--fg-muted);
+}

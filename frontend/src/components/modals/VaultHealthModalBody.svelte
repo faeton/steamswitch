@@ -190,22 +190,22 @@
 
   .name {
     font-weight: 600;
-    font-size: 0.85rem;
+    font-size: var(--fs-secondary);
   }
 
   .detail {
-    font-size: 0.85rem;
+    font-size: var(--fs-secondary);
     opacity: 0.9;
   }
 
   .blocker {
-    font-size: 0.75rem;
+    font-size: var(--fs-meta);
     text-transform: uppercase;
     opacity: 0.85;
   }
 
   .small {
-    font-size: 0.8rem;
+    font-size: var(--fs-meta);
     opacity: 0.85;
     margin: 0;
   }

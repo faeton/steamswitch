@@ -79,6 +79,10 @@ type osBackend interface {
 
 	// DefaultRoot is where Steam keeps `config/loginusers.vdf` and `userdata/` on this OS
 	// when the user has not configured a path. Empty when there is no sensible default.
+	//
+	// "Default" means *detected*, not assumed: a backend that can ask the client where it
+	// installed itself must do so, because a hardcoded install path is wrong for everyone
+	// who did not accept the installer's suggestion.
 	DefaultRoot() string
 
 	// Launch starts Steam. `steamRoot` is the data root; a backend whose executable lives

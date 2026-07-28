@@ -116,6 +116,12 @@ func FetchLaunchAPICheck(ctx context.Context, currentVersion string) LaunchAPICh
 func HandleLaunchAPICheckResult(result LaunchAPICheckResult, exeDir string, currentVersion string, onUpdateAvailable func(message string), onCheckFailed func()) {
 	err := result.Err
 	if err != nil {
+		// This fork disables update checks by design (empty release feed). That is not a
+		// connectivity failure, so it must never surface the "couldn't reach GitHub" toast —
+		// otherwise every launch complains about a check the fork deliberately never makes.
+		if errors.Is(err, errUpdateChecksDisabled) {
+			return
+		}
 		if shouldEmitFailToast(exeDir) {
 			_ = writeFailTimestamp(exeDir)
 			if onCheckFailed != nil {
@@ -144,6 +150,11 @@ func RunManualCheck(ctx context.Context, currentVersion string, onUpdateAvailabl
 	}
 	latest, message, err := FetchLatestVersion(ctx, appclient.Shared, currentVersion)
 	if err != nil {
+		// Update checks are disabled in this fork; a manual check reports "nothing to update",
+		// not a failure — there is no feed to have failed to reach.
+		if errors.Is(err, errUpdateChecksDisabled) {
+			return "up-to-date"
+		}
 		return "failed"
 	}
 	if IsUpToDate(currentVersion, latest) {

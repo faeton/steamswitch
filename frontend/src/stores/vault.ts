@@ -261,3 +261,22 @@ export async function handoffLog() {
 export async function handoffFolder(): Promise<string> {
   return VaultService.GetHandoffFolder();
 }
+
+/**
+ * A SteamID64 the Vault page should open in its editor as soon as it mounts.
+ *
+ * A store rather than a route parameter: the id identifies an account, not a view, and
+ * putting it in the hash would fill the back stack with near-identical `#/vault/765611…`
+ * entries the user never asked to navigate between. Consumed once and cleared, so returning
+ * to the Vault page later does not silently reopen an editor.
+ */
+export const pendingVaultEntry = writable("");
+
+/** Read and clear the pending entry. Returns "" when there was none. */
+export function takePendingVaultEntry(): string {
+  const id = get(pendingVaultEntry);
+  if (id) {
+    pendingVaultEntry.set("");
+  }
+  return id;
+}

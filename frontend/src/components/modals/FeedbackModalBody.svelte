@@ -111,7 +111,7 @@
 
   .modal-feedback-char-count {
     margin: 0.2rem 0 0;
-    font-size: 0.85rem;
+    font-size: var(--fs-secondary);
     color: var(--modal-muted-fg, var(--blackTernary, #a7abbe));
     text-align: right;
   }
@@ -123,12 +123,12 @@
     margin: 0.75rem 0 0.25rem;
     cursor: pointer;
     color: var(--modal-body-fg, var(--whiteSecondary, #fff));
-    font-size: 0.95rem;
+    font-size: var(--fs-secondary);
   }
 
   .modal-feedback-attach-log-hint {
     margin: 0 0 0.5rem;
-    font-size: 0.85rem;
+    font-size: var(--fs-secondary);
     color: var(--modal-muted-fg, var(--blackTernary, #a7abbe));
     line-height: 1.35;
   }

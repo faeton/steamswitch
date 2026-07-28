@@ -8,8 +8,20 @@
     font-display: swap;
 }
 
+/*
+    The UI face is the platform's own text face, not Montserrat (REDESIGN_BRIEF.md A8).
+
+    Montserrat is a display face; at 12–13px under Windows ClearType its wide, geometric
+    lowercase is exactly what made dense rows hard to scan. The `@font-face` above is kept —
+    classic theme packs may still ask for it by name — but nothing reaches for it by default.
+
+    The root stays at 12px on purpose. A8 warns against a global bump: every inherited surface
+    computes its `rem` sizes from here, so raising it reflows all of them. Redesigned surfaces
+    size themselves from the `--fs-*` tokens in `tokens.scss`, which enforce a 12px floor.
+*/
 :root {
-    font-family: "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-family: -apple-system, "Segoe UI Variable Text", "Segoe UI", BlinkMacSystemFont,
+        Cantarell, system-ui, sans-serif;
     font-size: 12px;
     line-height: 24px;
     font-weight: 400;

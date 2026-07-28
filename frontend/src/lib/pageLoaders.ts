@@ -7,8 +7,12 @@ function loaderFor(route: Route): () => Promise<PageModule> {
   switch (route.page) {
     case "home":
       return () => import("../pages/Accounts.svelte");
+    case "vault":
+      return () => import("../pages/Vault.svelte");
     case "settings":
       return () => import("../pages/Settings.svelte");
+    case "about":
+      return () => import("../pages/About.svelte");
     case "tools":
       return () => import("../pages/Tools.svelte");
     case "preview-css":
@@ -24,7 +28,8 @@ const pageCache = new Map<string, Promise<PageModule>>();
 
 /** Load a page module, deduplicating concurrent requests. */
 export function loadPageModule(route: Route): Promise<PageModule> {
-  // Every route is now parameterless, so the page id is the whole cache key.
+  // Settings' category selects a section *inside* one module, so the page id is still the
+  // whole cache key — keying on the category too would re-import the same chunk per tab.
   let cached = pageCache.get(route.page);
   if (!cached) {
     cached = loaderFor(route)();
@@ -38,8 +43,9 @@ export function prefetchPage(route: Route): void {
   void loadPageModule(route);
 }
 
-/** Prefetch the two routes reachable from the main screen's footer. */
+/** Prefetch the destinations the sidebar makes one click away. */
 export function prefetchCommonPages(): void {
-  prefetchPage({ page: "settings" });
+  prefetchPage({ page: "settings", category: "appearance" });
   prefetchPage({ page: "tools" });
+  prefetchPage({ page: "vault" });
 }

@@ -121,13 +121,13 @@
   }
 
   dt {
-    font-size: 0.8rem;
+    font-size: var(--fs-meta);
     opacity: 0.8;
   }
 
   dd {
     margin: 0;
-    font-size: 0.85rem;
+    font-size: var(--fs-secondary);
     word-break: break-all;
   }
 
@@ -136,16 +136,16 @@
     padding: 0.4rem 0.5rem;
     border: 1px solid var(--border-bar-bg);
     border-radius: 4px;
-    font-size: 0.85rem;
+    font-size: var(--fs-secondary);
   }
 
   .flag {
-    font-size: 0.75rem;
+    font-size: var(--fs-meta);
     text-transform: uppercase;
   }
 
   .small {
-    font-size: 0.8rem;
+    font-size: var(--fs-meta);
     opacity: 0.85;
     margin: 0;
   }
@@ -164,7 +164,7 @@
 
   code {
     font-family: monospace;
-    font-size: 0.75rem;
+    font-size: var(--fs-meta);
     word-break: break-all;
     flex: 1 1 12rem;
   }

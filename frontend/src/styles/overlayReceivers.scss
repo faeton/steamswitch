@@ -74,7 +74,7 @@
 
 .acc-img-overlay__hint {
   margin: 0 0 1.25rem;
-  font-size: 0.95rem;
+  font-size: var(--fs-secondary);
   line-height: 1.45;
   color: var(--whiteSecondary);
 }
@@ -110,14 +110,14 @@
 }
 
 .acc-img-overlay__cta {
-  font-size: 0.9rem;
+  font-size: var(--fs-secondary);
   font-weight: 500;
 }
 
 .acc-img-overlay__remove {
   margin-top: 1rem;
   padding: 0.5rem 1rem;
-  font-size: 0.9rem;
+  font-size: var(--fs-secondary);
   border-radius: 8px;
   border: 1px solid var(--error-border-soft);
   background: var(--error-bg-dim);
@@ -346,7 +346,7 @@ label.acc.acc--drop-target {
 }
 
 .bg-drop-zone__label {
-  font-size: 0.78rem;
+  font-size: var(--fs-meta);
   font-weight: 600;
   line-height: 1.3;
   color: var(--whiteSecondary);

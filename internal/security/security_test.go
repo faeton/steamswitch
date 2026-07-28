@@ -218,3 +218,151 @@ func tamperBlobCiphertext(t *testing.T, path string) {
 	blob.Ciphertext = blob.Ciphertext[:len(blob.Ciphertext)-1] + string(last)
 	writeTestJSON(t, path, blob)
 }
+
+func TestLockApp_ReLocksWithoutRestart(t *testing.T) {
+	resetSecurityTest(t)
+
+	// Nothing to lock before a password exists: the app is not "unlocked", it is unguarded.
+	if err := LockApp(); !errors.Is(err, ErrPasswordNotSet) {
+		t.Fatalf("LockApp before setup = %v, want ErrPasswordNotSet", err)
+	}
+
+	if err := SetAppPassword("secret"); err != nil {
+		t.Fatal(err)
+	}
+	if st, err := GetStatus(); err != nil || st.AppLocked {
+		t.Fatalf("after setup status = %+v (err %v), want unlocked", st, err)
+	}
+
+	if err := LockApp(); err != nil {
+		t.Fatal(err)
+	}
+	st, err := GetStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.AppPasswordSet || !st.AppLocked {
+		t.Fatalf("after LockApp status = %+v, want password set and locked", st)
+	}
+	// The whole point of locking: guarded calls have to start refusing again.
+	if err := RequireUnlocked(); !errors.Is(err, ErrLocked) {
+		t.Fatalf("RequireUnlocked after LockApp = %v, want ErrLocked", err)
+	}
+
+	// Locking is idempotent — an auto-lock timer firing on an already-locked app is normal.
+	if err := LockApp(); err != nil {
+		t.Fatalf("second LockApp = %v, want nil", err)
+	}
+
+	if err := UnlockApp("secret"); err != nil {
+		t.Fatal(err)
+	}
+	if err := RequireUnlocked(); err != nil {
+		t.Fatalf("RequireUnlocked after re-unlock = %v, want nil", err)
+	}
+}
+
+func TestLockApp_RefusesDuringOperation(t *testing.T) {
+	resetSecurityTest(t)
+
+	if err := SetAppPassword("secret"); err != nil {
+		t.Fatal(err)
+	}
+
+	// Pulling the master key out from under a running re-encrypt is how a saved-account
+	// cache ends up unreadable, so the busy latch has to win.
+	defaultManager.mu.Lock()
+	defaultManager.operationBusy = true
+	defaultManager.mu.Unlock()
+
+	if err := LockApp(); !errors.Is(err, ErrOperationBusy) {
+		t.Fatalf("LockApp while busy = %v, want ErrOperationBusy", err)
+	}
+	if err := RequireUnlocked(); err != nil {
+		t.Fatalf("RequireUnlocked after refused lock = %v, want still unlocked", err)
+	}
+
+	defaultManager.mu.Lock()
+	defaultManager.operationBusy = false
+	defaultManager.mu.Unlock()
+
+	if err := LockApp(); err != nil {
+		t.Fatalf("LockApp once idle = %v, want nil", err)
+	}
+}
+
+func TestLockApp_EmitsStatusChanged(t *testing.T) {
+	resetSecurityTest(t)
+
+	if err := SetAppPassword("secret"); err != nil {
+		t.Fatal(err)
+	}
+
+	// The UI's lock gate is driven by this hook; a silent lock would leave the window
+	// showing account data it can no longer read.
+	fired := 0
+	SetStatusChangedHook(func() { fired++ })
+
+	if err := LockApp(); err != nil {
+		t.Fatal(err)
+	}
+	if fired != 1 {
+		t.Fatalf("status-changed fired %d times, want 1", fired)
+	}
+}
+
+func TestAdoptKeyForOperation_ClaimsKeyAndLatchTogether(t *testing.T) {
+	resetSecurityTest(t)
+	if err := SetAppPassword("secret"); err != nil {
+		t.Fatal(err)
+	}
+
+	key := []byte("0123456789abcdef0123456789abcdef")
+	if err := defaultManager.adoptKeyForOperation(key); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(defaultManager.finishOperation)
+
+	// The latch has to be visible the instant the key is: the whole point is that no lock can
+	// observe an unlocked-and-idle manager between the two.
+	st, err := GetStatus()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !st.OperationBusy {
+		t.Fatal("OperationBusy = false immediately after adopting a key, want true")
+	}
+	if err := LockApp(); !errors.Is(err, ErrOperationBusy) {
+		t.Fatalf("LockApp during adopted operation = %v, want ErrOperationBusy", err)
+	}
+
+	// A second operation must not be able to swap the key out from under the first.
+	if err := defaultManager.adoptKeyForOperation([]byte("ffffffffffffffffffffffffffffffff")); !errors.Is(err, ErrOperationBusy) {
+		t.Fatalf("second adoptKeyForOperation = %v, want ErrOperationBusy", err)
+	}
+}
+
+func TestMasterKeyIsCopied_LockCannotCorruptCallerKey(t *testing.T) {
+	resetSecurityTest(t)
+	if err := SetAppPassword("secret"); err != nil {
+		t.Fatal(err)
+	}
+
+	// The defect this pins: the manager used to store the caller's slice directly, so zeroing
+	// `masterKey` on lock also zeroed the key an in-flight encrypt was still using — and the
+	// operation went on to seal every account blob under 32 zero bytes.
+	key := []byte("0123456789abcdef0123456789abcdef")
+	original := append([]byte(nil), key...)
+
+	if err := defaultManager.adoptKeyForOperation(key); err != nil {
+		t.Fatal(err)
+	}
+	defaultManager.finishOperation()
+
+	if err := LockApp(); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(key, original) {
+		t.Fatalf("caller key was mutated by LockApp: got %q, want %q", key, original)
+	}
+}

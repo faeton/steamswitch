@@ -21,6 +21,13 @@
 
   $: s = $statusStrip;
   $: tone = $statusTone;
+  /*
+    The strip and the dock must not narrate the same thing at once. The dock owns a switch
+    from start to finish — progress, result, and failure — so the strip stands down for those
+    and keeps what it is good at: the resting "Now: X · Steam running" line, kit state,
+    recovery prompts, and failures that belong to no switch.
+  */
+  $: ownedByDock = s.kind === "switching" || (s.kind === "error" && s.scope === "switch");
   // Recovery is the one state the user must act on before anything else can proceed.
   $: assertive = s.kind === "recovery";
   // Idle carries no glyph: a mark on the resting state would train the eye to ignore it.
@@ -49,6 +56,7 @@
   onDestroy(() => clearTimeout(copyFeedbackTimer));
 </script>
 
+{#if !ownedByDock}
 <div
   class="strip"
   data-tone={tone}
@@ -134,6 +142,7 @@
     </div>
   {/if}
 </div>
+{/if}
 
 <style>
   .strip {
@@ -143,8 +152,8 @@
     padding: 6px var(--main-padding, 0.75rem);
     border-top: 1px solid var(--hairline, var(--border-bar-bg));
     background: var(--footer-bg, var(--mainContentBackground));
-    color: var(--white);
-    font-size: 12px;
+    color: var(--fg-secondary, var(--white));
+    font-size: var(--fs-secondary);
     min-height: 30px;
     flex: 0 0 auto;
   }

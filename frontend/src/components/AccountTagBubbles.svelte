@@ -118,7 +118,7 @@
     gap: 0.22rem;
     padding: 0.1rem 0.4rem;
     border-radius: 999px;
-    font-size: 0.65rem;
+    font-size: var(--fs-meta);
     font-weight: 600;
     line-height: 1.3;
     max-width: 100%;

@@ -138,7 +138,7 @@
 
   .updateDialog__message {
     color: var(--text-secondary, #94a3b8);
-    font-size: 0.9rem;
+    font-size: var(--fs-secondary);
     line-height: 1.5;
     margin-bottom: 20px;
     white-space: pre-wrap;
@@ -154,7 +154,7 @@
     padding: 10px 16px;
     border: none;
     border-radius: 8px;
-    font-size: 0.9rem;
+    font-size: var(--fs-secondary);
     font-weight: 500;
     cursor: pointer;
     transition: opacity 0.15s;

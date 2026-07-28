@@ -55,6 +55,7 @@ type SteamAccountEnrichmentDTO struct {
 type steamListContext struct {
 	users            []LoginUser
 	activeSteamID    string
+	session          SessionVerdict
 	st               Settings
 	app              platform.AppSettings
 	effectiveCollect bool
@@ -105,7 +106,17 @@ func (s *SteamService) buildSteamListContext() (*steamListContext, error) {
 		return nil, err
 	}
 	users = MergeOrder(order, users)
-	activeSteamID := ActiveSessionSteamID64(users)
+	// Steam's other record of who it will sign in as. A backend that cannot read it returns
+	// an error, which ResolveSession treats as "no opinion" rather than as a conflict.
+	autoLoginUser, autoLoginErr := backend.AutoLoginUser(root)
+	session := ResolveSession(users, autoLoginUser, autoLoginErr)
+	// Only a confident verdict lights a tile up as current. Under a mismatch the hero says so
+	// and names both candidates; a tile highlighted "current" underneath that would be the
+	// same confident-but-possibly-wrong claim the state exists to stop making.
+	activeSteamID := ""
+	if session.State == SessionOK {
+		activeSteamID = session.SteamID64
+	}
 
 	vacRows, err := LoadVacCache(st.SteamImageExpiryTime)
 	if err != nil {
@@ -124,6 +135,7 @@ func (s *SteamService) buildSteamListContext() (*steamListContext, error) {
 	return &steamListContext{
 		users:            users,
 		activeSteamID:    activeSteamID,
+		session:          session,
 		st:               st,
 		app:              app,
 		effectiveCollect: st.CollectInfo && !app.OfflineMode,
@@ -133,13 +145,24 @@ func (s *SteamService) buildSteamListContext() (*steamListContext, error) {
 	}, nil
 }
 
-func (s *SteamService) GetSteamAccountsList() ([]SteamAccountListItemDTO, error) {
+// SteamAccountListDTO is the switcher's list payload.
+//
+// The session verdict rides along with the rows rather than living behind its own bound method
+// because it is derived from the very same read of loginusers.vdf: a separate call would
+// rebuild the whole list context to answer one question, and could answer it about a different
+// state of the file than the rows the UI is holding.
+type SteamAccountListDTO struct {
+	Accounts []SteamAccountListItemDTO `json:"accounts"`
+	Session  SessionVerdict            `json:"session"`
+}
+
+func (s *SteamService) GetSteamAccountsList() (SteamAccountListDTO, error) {
 	if err := security.RequireUnlocked(); err != nil {
-		return nil, err
+		return SteamAccountListDTO{}, err
 	}
 	ctx, err := s.buildSteamListContext()
 	if err != nil {
-		return nil, err
+		return SteamAccountListDTO{}, err
 	}
 
 	out := make([]SteamAccountListItemDTO, 0, len(ctx.users))
@@ -156,7 +179,7 @@ func (s *SteamService) GetSteamAccountsList() ([]SteamAccountListItemDTO, error)
 	if len(out) > 0 {
 		syncSteamPlatformCounts(len(out))
 	}
-	return out, nil
+	return SteamAccountListDTO{Accounts: out, Session: ctx.session}, nil
 }
 
 func (s *SteamService) GetSteamAccountsEnrichment() ([]SteamAccountEnrichmentDTO, error) {

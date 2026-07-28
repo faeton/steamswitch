@@ -151,7 +151,7 @@
     margin: 0;
     padding: 0.5rem 0.6rem;
     font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-    font-size: 0.8rem;
+    font-size: var(--fs-meta);
     line-height: 1.35;
     white-space: pre-wrap;
     word-break: break-word;

@@ -3,9 +3,15 @@ import { get } from "svelte/store";
 import { offlineMode } from "../../stores/offlineMode";
 import { scheduleUpdaterThemeSync } from "../updaterTheme";
 import modalPrimaryCss from "../../styles/modal-primary.scss?inline";
-import { DEFAULT_THEME_ID, WINDOWS_THEME_ACCENT_KEY, CUSTOM_THEME_ACCENT_KEY } from "./types";
+import {
+  BASE_DEFAULT_ACCENT_BY_SCHEME,
+  DEFAULT_THEME_ID,
+  WINDOWS_THEME_ACCENT_KEY,
+  CUSTOM_THEME_ACCENT_KEY,
+} from "./types";
 import type { ThemeOption } from "./types";
 import { getThemeOptionById } from "./catalog";
+import { currentResolvedAppearance } from "./appearance";
 import { normalizeHexColor, buildAccentOverlayCss } from "./color";
 import {
   currentWindowsThemeAccentColor,
@@ -131,6 +137,20 @@ export function validateAccentKey(theme: ThemeOption, key: string): string {
   return theme.accents.some((option) => option.id === trimmed) ? trimmed : "";
 }
 
+/**
+ * The colour "no accent chosen" resolves to.
+ *
+ * For the built-in base that depends on the scheme, because the two schemes are two visual
+ * languages (see `BASE_DEFAULT_ACCENT_BY_SCHEME`). Classic packs carry one fixed accent in
+ * their own stylesheet, so theirs is scheme-independent.
+ */
+export function defaultAccentColorFor(theme: ThemeOption): string {
+  if (!theme.isBase) {
+    return theme.defaultAccentColor;
+  }
+  return BASE_DEFAULT_ACCENT_BY_SCHEME[currentResolvedAppearance()] ?? theme.defaultAccentColor;
+}
+
 export function applyResolvedAccent(themeId: string, accentKey: string, customColor: string): void {
   const theme = getThemeOptionById(themeId);
   const validCustomColor = normalizeHexColor(customColor) ?? "";
@@ -146,7 +166,7 @@ export function applyResolvedAccent(themeId: string, accentKey: string, customCo
 
   if (validAccentKey === WINDOWS_THEME_ACCENT_KEY) {
     currentThemeAccentKey.set(WINDOWS_THEME_ACCENT_KEY);
-    applyAccentOverlay(get(currentWindowsThemeAccentColor) || theme.defaultAccentColor);
+    applyAccentOverlay(get(currentWindowsThemeAccentColor) || defaultAccentColorFor(theme));
     return;
   }
 
@@ -163,8 +183,8 @@ export function applyResolvedAccent(themeId: string, accentKey: string, customCo
   // Classic packs carry their default accent inside their own stylesheet, so dropping the
   // overlay is correct there. The built-in base has no stylesheet accent — `appearance.scss`
   // omits accent tokens on purpose (its attribute selectors would out-rank this overlay), so
-  // the default has to be written out explicitly.
-  applyAccentOverlay(theme.isBase ? theme.defaultAccentColor : null);
+  // the default has to be written out explicitly, and it depends on the current scheme.
+  applyAccentOverlay(theme.isBase ? defaultAccentColorFor(theme) : null);
 }
 
 export function clearThemeAccentState(): void {

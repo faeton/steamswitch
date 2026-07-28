@@ -263,7 +263,7 @@
 
   .steam-adv-info {
     color: var(--text-white-90);
-    font-size: 0.95rem;
+    font-size: var(--fs-secondary);
     line-height: 1.45;
     margin-bottom: 0.75rem;
   }
@@ -324,7 +324,7 @@
     border: 1px solid var(--accent);
     border-radius: 4px;
     font-family: ui-monospace, monospace;
-    font-size: 0.8rem;
+    font-size: var(--fs-meta);
     line-height: 1.35;
     color: var(--text-white-92);
   }

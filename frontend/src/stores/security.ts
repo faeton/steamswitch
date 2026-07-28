@@ -43,6 +43,25 @@ export async function unlockApp(password: string): Promise<void> {
   await loadSecurityStatus();
 }
 
+/**
+ * Re-lock without a restart, for "Lock now" and the idle auto-lock (brief A10).
+ *
+ * The backend refuses while a security operation is running — pulling the master key out from
+ * under a re-encrypt is how a cache ends up unreadable. Callers here treat that as "not now"
+ * rather than an error to show, so a timer firing mid-encrypt is silent and the next tick
+ * gets it.
+ */
+export async function lockApp(): Promise<boolean> {
+  try {
+    await SecurityService.LockApp();
+    await loadSecurityStatus();
+    return true;
+  } catch {
+    await loadSecurityStatus();
+    return false;
+  }
+}
+
 export async function removeAppPassword(password: string): Promise<void> {
   await runSecurityProgress("Security_Progress_RemovePassword", async () => {
     await SecurityService.RemoveAppPassword(password);

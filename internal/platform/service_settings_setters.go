@@ -323,3 +323,12 @@ func (p *PlatformService) SetDesktopHomeShortcut(create bool) error {
 	defer p.mu.Unlock()
 	return winutil.SetHomeDesktopShortcut(create)
 }
+
+func (p *PlatformService) SetVaultSecurityPrefs(prefs VaultSecurityPrefs) error {
+	return p.withSettingsWrite(func(s *AppSettings) error {
+		s.VaultAutoLockMinutes = sanitizeAutoLockMinutes(prefs.AutoLockMinutes)
+		s.VaultRevealSeconds = sanitizeRevealSeconds(prefs.RevealSeconds)
+		s.VaultClearClipboard = prefs.ClearClipboard
+		return nil
+	})
+}

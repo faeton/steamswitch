@@ -356,7 +356,7 @@
   }
   .pp-muted,
   .pp-err {
-    font-size: 11px;
+    font-size: var(--fs-secondary);
     opacity: 0.85;
   }
   .pp-err {

@@ -1,4 +1,16 @@
 <script lang="ts">
+  /**
+   * The app-lock gate (REDESIGN_BRIEF.md A10).
+   *
+   * Two pieces of honesty the brief requires and this used to lack:
+   *
+   *  - **Locked does not mean stuck.** Switching accounts never needed a password, so the
+   *    gate says what is actually unavailable rather than implying the app is unusable.
+   *  - **A forgotten app password is unrecoverable, and the user is told so here** — before
+   *    they are staring at a box they cannot get past. That is the encryption working as
+   *    intended, not a bug, and pretending otherwise sets up a support conversation that ends
+   *    in "there is nothing we can do".
+   */
   import { modalFocus } from "../lib/modalFocus";
   import { t } from "../stores/i18n";
   import {
@@ -68,6 +80,7 @@
         <div class="app-lock-scroll">
           <div class="modal-block">
             <p class="app-lock-body">{$t("Security_Locked_Body")}</p>
+            <p class="app-lock-sub">{$t("Security_Locked_Sub")}</p>
             <label class="app-lock-field" for={passwordId}>
               <span>{$t("Security_Password")}</span>
               <input
@@ -91,6 +104,11 @@
                 {$t("Security_Unlock")}
               </button>
             </div>
+
+            <details class="app-lock-forgot">
+              <summary>{$t("Security_Forgot_Summary")}</summary>
+              <p class="app-lock-forgot-body">{$t("Security_Locked_Forgot")}</p>
+            </details>
           </div>
         </div>
       </div>
@@ -182,6 +200,35 @@
     display: grid;
     gap: 0.35rem;
     margin-bottom: 0.75rem;
+  }
+
+  .app-lock-sub {
+    margin: 0 0 0.85rem;
+    font-size: var(--fs-secondary);
+    line-height: var(--lh-prose);
+    color: var(--fg-muted, var(--text-subtle-gray));
+  }
+
+  /*
+    Collapsed rather than always shown: the answer is bad news, and a user who *has* their
+    password should not have to read it every launch. It is one click away, not hidden.
+  */
+  .app-lock-forgot {
+    margin-top: 1rem;
+    font-size: var(--fs-secondary);
+
+    summary {
+      cursor: pointer;
+      user-select: none;
+      color: var(--fg-muted, var(--text-subtle-gray));
+    }
+  }
+
+  .app-lock-forgot-body {
+    margin: 0.5rem 0 0;
+    font-size: var(--fs-meta);
+    line-height: var(--lh-prose);
+    color: var(--fg-muted, var(--text-subtle-gray));
   }
 
   .app-lock-error {

@@ -61,72 +61,6 @@
   }
 
   /**
-   * The cheap health check across every vault entry (VAULT.md §5.1).
-   *
-   * Safe to offer as a single button precisely because the quick tier has no side effects:
-   * two public HTTP GETs per account, no login, no Guard email. There is deliberately no
-   * "verify all" counterpart — that tier logs in for real and is per-account only.
-   */
-  async function checkAllVaultAccounts(): Promise<void> {
-    if (running) return;
-    running = "vault-check";
-    try {
-      const { quickCheckAll, vaultStatus: vs, refreshVault } = await import("../stores/vault");
-      await refreshVault();
-      const status = get(vs);
-      if (!status.appPasswordSet || status.locked) {
-        pushToast({ type: "info", message: get(t)("Toast_Vault_LockedOrUnset"), duration: 6000 });
-        return;
-      }
-      if (status.entryCount === 0) {
-        pushToast({ type: "info", message: get(t)("Toast_Vault_NoEntries"), duration: 6000 });
-        return;
-      }
-      await quickCheckAll();
-      pushToast({
-        type: "success",
-        message: get(t)("Tools_VaultCheckAll_Done", { count: status.entryCount }),
-        duration: 6000,
-      });
-    } catch (e) {
-      pushToast({
-        type: "error",
-        message: formatToastWithError(get(t)("Toast_Vault_CheckFailed"), e),
-        duration: 8000,
-      });
-    } finally {
-      running = "";
-    }
-  }
-
-  async function openVaultOverview(): Promise<void> {
-    const [{ refreshVault }, body] = await Promise.all([
-      import("../stores/vault"),
-      import("../components/modals/VaultOverviewModalBody.svelte"),
-    ]);
-    await refreshVault();
-    await openAlert({
-      title: get(t)("Tools_VaultList_Title"),
-      dismissLabel: get(t)("Button_Close"),
-      bodyComponent: body.default,
-    });
-  }
-
-  /**
-   * Accepting a handoff bundle someone gave you. The export half lives on the account menu,
-   * because it is about one account; importing is not, since the account it carries may be
-   * one this machine has never seen.
-   */
-  async function openVaultImport(): Promise<void> {
-    const body = await import("../components/modals/VaultImportModalBody.svelte");
-    await openAlert({
-      title: get(t)("Tools_VaultImport_Title"),
-      dismissLabel: get(t)("Button_Close"),
-      bodyComponent: body.default,
-    });
-  }
-
-  /**
    * Backup writes a zip of Steam's `config/` and `userdata/` into the data folder; the report
    * names the archive, because a backup you cannot find is not a backup.
    */
@@ -203,28 +137,9 @@
         },
       ],
     },
-    {
-      // The vault's per-account surfaces live on the account menu. What belongs here is the
-      // one thing that is about all of them at once.
-      labelKey: "Tools_Group_Vault",
-      entries: [
-        {
-          titleKey: "Tools_VaultCheckAll_Title",
-          descKey: "Tools_VaultCheckAll_Desc",
-          action: checkAllVaultAccounts,
-        },
-        {
-          titleKey: "Tools_VaultList_Title",
-          descKey: "Tools_VaultList_Desc",
-          action: openVaultOverview,
-        },
-        {
-          titleKey: "Tools_VaultImport_Title",
-          descKey: "Tools_VaultImport_Desc",
-          action: openVaultImport,
-        },
-      ],
-    },
+    // The vault group is gone from here: "check all", "view all" and "import" are now buttons
+    // on the Vault page itself, next to the roster they act on (REDESIGN_BRIEF.md A6). Leaving
+    // duplicates here is how the read-only dead-end survived in the first place.
     {
       labelKey: "Tools_Group_Maintenance",
       entries: [
@@ -366,7 +281,7 @@
 <style>
   .tools__group {
     margin: 14px 0 6px;
-    font-size: 11px;
+    font-size: var(--fs-secondary);
     font-weight: 600;
     letter-spacing: 0.06em;
     text-transform: uppercase;
@@ -416,7 +331,7 @@
   }
   .tools__desc {
     grid-column: 1;
-    font-size: 11px;
+    font-size: var(--fs-secondary);
     color: var(--role-text-muted, var(--text-subtle-gray));
   }
   .tools__chevron {

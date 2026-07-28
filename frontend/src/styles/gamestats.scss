@@ -1,7 +1,7 @@
 /* Inline game stats under account rows (Platform + PlatformSteam). */
 .acc_inline_gamestats {
   margin: 0.25rem 0 0;
-  font-size: 0.68rem;
+  font-size: var(--fs-meta);
   line-height: 1.35;
   opacity: 0.92;
   max-width: 100%;
@@ -29,7 +29,7 @@
 
 .acc_inline_gamestats_ind {
     sup {
-        font-size: 0.8em;
+        font-size: var(--fs-meta);
     }
 }
 

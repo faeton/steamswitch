@@ -174,3 +174,19 @@ func (p *PlatformService) GetAnimationsEnabled() (bool, error) {
 func (p *PlatformService) GetDesktopHomeShortcutExists() (bool, error) {
 	return winutil.HomeDesktopShortcutExists(), nil
 }
+
+// GetVaultSecurityPrefs returns the three app-lock behaviour settings the Vault & security
+// page owns (REDESIGN_BRIEF.md A10), in one call: the UI reads all three together on mount
+// and three round-trips would be three chances to render a half-applied state.
+func (p *PlatformService) GetVaultSecurityPrefs() (VaultSecurityPrefs, error) {
+	var val VaultSecurityPrefs
+	err := p.withSettingsRead(func(s *AppSettings) error {
+		val = VaultSecurityPrefs{
+			AutoLockMinutes: sanitizeAutoLockMinutes(s.VaultAutoLockMinutes),
+			RevealSeconds:   sanitizeRevealSeconds(s.VaultRevealSeconds),
+			ClearClipboard:  s.VaultClearClipboard,
+		}
+		return nil
+	})
+	return val, err
+}

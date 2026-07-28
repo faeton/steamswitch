@@ -18,6 +18,12 @@ func (s *SecurityService) UnlockApp(password string) error {
 	return UnlockApp(password)
 }
 
+// LockApp puts the app back behind the unlock gate without a restart, for "Lock now" and the
+// idle auto-lock (REDESIGN_BRIEF.md A10). Takes no password: locking removes access.
+func (s *SecurityService) LockApp() error {
+	return LockApp()
+}
+
 func (s *SecurityService) RemoveAppPassword(password string) error {
 	return RemoveAppPassword(password)
 }

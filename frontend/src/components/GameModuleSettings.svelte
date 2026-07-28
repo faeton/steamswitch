@@ -221,7 +221,7 @@
   }
 
   .module__state {
-    font-size: 11px;
+    font-size: var(--fs-secondary);
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
@@ -270,7 +270,7 @@
     grid-template-columns: auto 1fr;
     gap: 2px 8px;
     font-family: var(--mono-font, ui-monospace, "Cascadia Mono", Consolas, monospace);
-    font-size: 11px;
+    font-size: var(--fs-secondary);
     word-break: break-all;
   }
 

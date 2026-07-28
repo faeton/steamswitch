@@ -6,6 +6,7 @@
  * restructuring of `MenuItemDef` trees, not a removal of capability.
  */
 import type { MenuItemDef } from "../../stores/contextMenu";
+import type { Route } from "../../stores/routeCodec";
 import type { SteamAccountRow } from "./types";
 import { canMarkShared, roleOf, type AccountRoleMap } from "./accountRoles";
 import { buildTagsSectionMenuItem, type TagDefRow } from "../accountTagsContext";
@@ -37,8 +38,8 @@ export type AccountMenuDeps = {
   /** Switch with an explicit persona state; must go through the same gate as `onSwitch`. */
   onSwitchAs: (personaState: number) => void;
   onRolesChanged: (next: AccountRoleMap) => void;
-  /** Open a Tools route, used by the rows that were demoted out of the main menu. */
-  onNavigate: (page: string) => void;
+  /** Navigate somewhere, used by the rows that were demoted out of the main menu. */
+  onNavigate: (route: Route) => void;
   onAccountsChanged: () => void;
   onError: (message: string, err: unknown) => void;
   onToast: (message: string) => void;
@@ -204,7 +205,9 @@ export function buildAccountMenu(deps: AccountMenuDeps): MenuItemDef[] {
         },
         {
           label: t("Kit_Settings"),
-          action: () => deps.onNavigate("settings"),
+          // Straight to the category that owns session kits, not the top of Settings:
+          // landing on Appearance and asking the user to hunt is the old behaviour.
+          action: () => deps.onNavigate({ page: "settings", category: "game-modules" }),
         },
         { type: "separator" },
         {
@@ -218,22 +221,21 @@ export function buildAccountMenu(deps: AccountMenuDeps): MenuItemDef[] {
 }
 
 /**
- * The five vault surfaces, all opened the same way: an alert-shaped modal whose body owns
- * its own actions. They are dynamic imports so a build that never opens the vault never
- * loads any of it.
+ * "Edit vault" now *navigates* to the Vault page with this entry open, rather than opening a
+ * second editor in a modal.
+ *
+ * There used to be exactly one way into the editor — this menu item — which is why an account
+ * with no home tile could not be edited at all (brief Part B #8). Fixing that meant giving the
+ * Vault page its own editor, and keeping the modal as well would leave two security-sensitive
+ * forms to maintain in step. One editor, three doors into it.
+ *
+ * The remaining vault surfaces below stay as modals: they are read-only reports or short
+ * linear flows, not forms.
  */
 async function openVaultEditor(deps: AccountMenuDeps): Promise<void> {
-  const [{ openAlert }, body] = await Promise.all([
-    import("../../stores/modal"),
-    import("../../components/modals/VaultEntryModalBody.svelte"),
-  ]);
-  await openAlert({
-    title: deps.t("Vault_Menu_Edit"),
-    dismissLabel: deps.t("Button_Close"),
-    bodyComponent: body.default,
-    bodyProps: { steamId64: deps.account.steamId64, accountName: deps.account.accountName ?? "" },
-  });
-  deps.onAccountsChanged();
+  const { pendingVaultEntry } = await import("../../stores/vault");
+  pendingVaultEntry.set(deps.account.steamId64);
+  deps.onNavigate({ page: "vault" });
 }
 
 async function openVaultHealth(deps: AccountMenuDeps): Promise<void> {

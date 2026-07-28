@@ -441,13 +441,13 @@
   }
   .hint {
     opacity: 0.7;
-    font-size: 0.85em;
+    font-size: var(--fs-secondary);
   }
   .subtle {
     opacity: 0.75;
   }
   .small {
-    font-size: 0.85em;
+    font-size: var(--fs-secondary);
   }
   .warning {
     color: #e0a030;
@@ -490,7 +490,7 @@
   }
   .badge {
     display: inline-block;
-    font-size: 0.75em;
+    font-size: var(--fs-meta);
     padding: 0.05rem 0.4rem;
     border-radius: 999px;
     background: rgba(128, 128, 128, 0.25);

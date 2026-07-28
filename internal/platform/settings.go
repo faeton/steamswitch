@@ -30,6 +30,18 @@ type AppSettings struct {
 	ThemeAccentPreset string `json:"themeAccentPreset,omitempty"`
 	ThemeAccentCustom string `json:"themeAccentCustom,omitempty"`
 
+	// VaultAutoLockMinutes re-locks the app after this many minutes without input.
+	// 0 means never. Clamped by sanitizeAutoLockMinutes.
+	VaultAutoLockMinutes int `json:"vaultAutoLockMinutes,omitempty"`
+
+	// VaultRevealSeconds is how long a revealed secret stays on screen before it re-hides
+	// itself. 0 means the default. Clamped by sanitizeRevealSeconds.
+	VaultRevealSeconds int `json:"vaultRevealSeconds,omitempty"`
+
+	// VaultClearClipboard wipes the clipboard a short while after a "copy password".
+	// Stored without omitempty so false round-trips.
+	VaultClearClipboard bool `json:"vaultClearClipboard"`
+
 	// AnimationsEnabled controls whether UI motion is active.
 	// Stored without omitempty so false round-trips: omitted key plus normalize defaults would otherwise force true on load.
 	AnimationsEnabled bool `json:"animationsEnabled"`
@@ -154,7 +166,55 @@ func defaultSettings() AppSettings {
 		CommandPaletteHotkey:     "Ctrl+K",
 		AppBgAlignment:           defaultBgAlignment,
 		AppBgFit:                 defaultBgFit,
+		VaultAutoLockMinutes:     DefaultVaultAutoLockMinutes,
+		VaultRevealSeconds:       DefaultVaultRevealSeconds,
+		VaultClearClipboard:      true,
 	}
+}
+
+// Vault security defaults and bounds (REDESIGN_BRIEF.md A10).
+//
+// The auto-lock ceiling is 4 hours rather than unbounded: a "lock after 3 days" is a lock
+// that never fires, and offering it would let the UI claim a protection that is not there.
+// 0 is a separate, explicit "never" that the settings copy has to spell out.
+const (
+	DefaultVaultAutoLockMinutes = 5
+	MaxVaultAutoLockMinutes     = 240
+
+	// Long enough to read a generated Guard code or type a password into another window,
+	// short enough that walking away does not leave a secret on screen.
+	DefaultVaultRevealSeconds = 8
+	MinVaultRevealSeconds     = 3
+	MaxVaultRevealSeconds     = 60
+)
+
+// sanitizeAutoLockMinutes clamps the idle auto-lock interval. 0 stays 0 ("never"); anything
+// else is pulled into [1, MaxVaultAutoLockMinutes], so a hand-edited settings file cannot
+// produce an interval that silently never fires.
+func sanitizeAutoLockMinutes(minutes int) int {
+	if minutes <= 0 {
+		return 0
+	}
+	if minutes > MaxVaultAutoLockMinutes {
+		return MaxVaultAutoLockMinutes
+	}
+	return minutes
+}
+
+// sanitizeRevealSeconds clamps the reveal auto-hide delay. Unlike auto-lock there is no
+// "never": a secret that stays on screen until dismissed is exactly the failure this exists
+// to prevent, so 0 means "use the default", not "forever".
+func sanitizeRevealSeconds(seconds int) int {
+	if seconds <= 0 {
+		return DefaultVaultRevealSeconds
+	}
+	if seconds < MinVaultRevealSeconds {
+		return MinVaultRevealSeconds
+	}
+	if seconds > MaxVaultRevealSeconds {
+		return MaxVaultRevealSeconds
+	}
+	return seconds
 }
 
 func normalizeAppSettingsDefaults(s *AppSettings, raw map[string]json.RawMessage) {
@@ -191,6 +251,14 @@ func normalizeAppSettingsDefaults(s *AppSettings, raw map[string]json.RawMessage
 	if _, ok := raw["controllerSupportEnabled"]; !ok {
 		s.ControllerSupportEnabled = true
 	}
+	if _, ok := raw["vaultAutoLockMinutes"]; !ok {
+		s.VaultAutoLockMinutes = DefaultVaultAutoLockMinutes
+	}
+	if _, ok := raw["vaultClearClipboard"]; !ok {
+		s.VaultClearClipboard = true
+	}
+	s.VaultAutoLockMinutes = sanitizeAutoLockMinutes(s.VaultAutoLockMinutes)
+	s.VaultRevealSeconds = sanitizeRevealSeconds(s.VaultRevealSeconds)
 	s.AppBgAlignment = normalizeBackgroundAlignment(s.AppBgAlignment)
 	s.AppBgFit = normalizeBackgroundFit(s.AppBgFit)
 	for key, background := range s.PlatformBgs {
@@ -427,4 +495,15 @@ func ResolveExeDir() (string, error) {
 		exeDirVal = filepath.Dir(exe)
 	})
 	return exeDirVal, exeDirErr
+}
+
+// VaultSecurityPrefs is the app-lock behaviour the Vault & security settings page edits.
+// Kept as one struct so the getter and setter cannot drift apart field by field.
+type VaultSecurityPrefs struct {
+	// AutoLockMinutes re-locks after this long without input. 0 = never.
+	AutoLockMinutes int `json:"autoLockMinutes"`
+	// RevealSeconds is how long a revealed secret stays visible.
+	RevealSeconds int `json:"revealSeconds"`
+	// ClearClipboard wipes the clipboard shortly after a copied secret.
+	ClearClipboard bool `json:"clearClipboard"`
 }

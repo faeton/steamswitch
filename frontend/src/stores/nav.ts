@@ -13,6 +13,26 @@ export const appBarTitle = writable("SteamSwitch");
 let historyIndex = 0;
 let historyMaxIndex = 0;
 
+/**
+ * Whether back / forward would actually go somewhere.
+ *
+ * Published as stores because the title bar's back control has to be driven by real nav
+ * history (REDESIGN_BRIEF.md Part B #3). Before this, `backDisabled` tracked only whether a
+ * modal was open, so at the root the button looked live, did nothing, and — worse — ran a
+ * 360° spin that read as "the app is thinking". The rule now is: no history, no control.
+ *
+ * `historyIndex`/`historyMaxIndex` are module-private counters kept in step with the
+ * `history.state.idx` this module writes, so these mirror them rather than exporting the
+ * counters themselves.
+ */
+export const canGoBack = writable(false);
+export const canGoForward = writable(false);
+
+function publishHistoryState(): void {
+  canGoBack.set(historyIndex > 0);
+  canGoForward.set(historyIndex < historyMaxIndex);
+}
+
 
 function applyCliHint(startup: PlatformStartup, base: Route): Route {
   const hint = startup.cliNavigateHint?.trim();
@@ -62,6 +82,7 @@ function replaceCurrentHistoryRoute(next: Route): void {
     route.set(next);
   } finally {
     syncing = false;
+    publishHistoryState();
   }
 }
 
@@ -82,6 +103,7 @@ export function installHashSync(): () => void {
       historyMaxIndex = historyIndex;
       history.pushState({ idx: historyIndex }, "", url);
       syncing = false;
+      publishHistoryState();
     }
   });
 
@@ -95,9 +117,11 @@ export function installHashSync(): () => void {
       syncing = true;
       route.set(next);
       syncing = false;
+      publishHistoryState();
     }
   };
   window.addEventListener("popstate", onPop);
+  publishHistoryState();
 
   return () => {
     unsub();
@@ -130,24 +154,8 @@ export function applyNavigateJSON(json: string): void {
   }
 }
 
-function canNavigateBack(): boolean {
-  return historyIndex > 0;
-}
-
-function canNavigateForward(): boolean {
-  return historyIndex < historyMaxIndex;
-}
-
-function navigateBack(): boolean {
-  if (!canNavigateBack()) {
-    return false;
-  }
-  history.back();
-  return true;
-}
-
 export function navigateForward(): boolean {
-  if (!canNavigateForward()) {
+  if (historyIndex >= historyMaxIndex) {
     return false;
   }
   history.forward();

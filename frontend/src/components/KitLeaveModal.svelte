@@ -105,7 +105,7 @@
     border: none;
     padding: 2px 0;
     font: inherit;
-    font-size: 11px;
+    font-size: var(--fs-secondary);
     color: var(--accent);
     cursor: pointer;
     text-align: left;
@@ -124,7 +124,7 @@
     max-height: 140px;
     overflow-y: auto;
     font-family: var(--mono-font, ui-monospace, "Cascadia Mono", Consolas, monospace);
-    font-size: 11px;
+    font-size: var(--fs-secondary);
   }
 
   .kit-leave__detail dt {

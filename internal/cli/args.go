@@ -21,6 +21,10 @@ const (
 	KindOpenPage
 	KindListPlatforms
 	KindListAccounts
+	// KindSealRoster is `--seal-roster`: read a plaintext roster and a passphrase on stdin,
+	// write the sealed bundle to stdout or to the path given. A pure stream filter — it never
+	// opens the vault, so it runs before the singleton and needs no unlocked app.
+	KindSealRoster
 )
 
 // Parsed is the normalized CLI result.
@@ -46,6 +50,9 @@ type Parsed struct {
 	UserDataMoveFrom      string // --userdata-move-from= old path after relocation restart
 	UserDataMoveTo        string // --userdata-move-to= new path after relocation restart
 	StartupToast          string // --toast= i18n key emitted when GUI window is ready
+	// SealRosterOut is the output path for --seal-roster=<path>. Empty means stdout, which is
+	// the form that keeps the ciphertext in a pipe the caller controls.
+	SealRosterOut string
 }
 
 const steamPlatformName = "Steam"
@@ -123,6 +130,13 @@ func Parse(argv []string, idx *PlatformIndex) (Parsed, error) {
 
 		if parseListPlatformsFlag(a) {
 			if err := mergePrimary(&p, Parsed{Kind: KindListPlatforms}); err != nil {
+				return Parsed{}, err
+			}
+			continue
+		}
+
+		if out, ok := parseSealRosterFlag(a); ok {
+			if err := mergePrimary(&p, Parsed{Kind: KindSealRoster, SealRosterOut: out}); err != nil {
 				return Parsed{}, err
 			}
 			continue
@@ -363,6 +377,26 @@ func parseListAccountsFlag(a string) (filter string, ok bool) {
 	return "", false
 }
 
+// parseSealRosterFlag returns (outPath, true) for --seal-roster or --seal-roster=<path>.
+//
+// The passphrase is deliberately not a flag. It arrives inside the stdin document, because an
+// argv passphrase is readable from the process list by anything running on the machine and
+// ends up in shell history — for a key that seals a file of account credentials, that is the
+// whole secret handed to the least private channel available.
+func parseSealRosterFlag(a string) (outPath string, ok bool) {
+	s := strings.TrimSpace(a)
+	lo := strings.ToLower(s)
+	if lo == "--seal-roster" || lo == "-seal-roster" {
+		return "", true
+	}
+	for _, prefix := range []string{"--seal-roster=", "-seal-roster="} {
+		if strings.HasPrefix(lo, strings.ToLower(prefix)) {
+			return strings.TrimSpace(s[len(prefix):]), true
+		}
+	}
+	return "", false
+}
+
 func isLogoutToken(a string) bool {
 	s := strings.TrimSpace(a)
 	lo := strings.ToLower(s)
@@ -433,6 +467,11 @@ func mergePrimary(dst *Parsed, src Parsed) error {
 		} else {
 			dst.ListAccountsPlatform = ""
 		}
+	case KindSealRoster:
+		// Copied here rather than with the fields above, for the same reason
+		// ListAccountsPlatform is: this function copies an explicit list, so a per-kind field
+		// that is not named somewhere in it is silently dropped rather than failing to build.
+		dst.SealRosterOut = strings.TrimSpace(src.SealRosterOut)
 	}
 	return nil
 }
@@ -575,6 +614,17 @@ func (p Parsed) IsListCommand() bool {
 	default:
 		return false
 	}
+}
+
+// IsStdioCommand reports argv that reads stdin and writes stdout, then exits.
+//
+// Kept apart from IsListCommand because the two differ in what they must not do: a list
+// command reads this machine's account data, while --seal-roster touches nothing the app owns
+// — no data dir, no vault, no singleton, no forwarding to a running instance. Running it
+// alongside an open SteamSwitch has to work, because the automation that pipes into it has no
+// idea whether the user has the app up.
+func (p Parsed) IsStdioCommand() bool {
+	return p.Kind == KindSealRoster
 }
 
 // RouteJSONForOpenPage returns a JSON string for the Wails "navigate" event payload.

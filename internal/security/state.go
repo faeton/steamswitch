@@ -46,6 +46,7 @@ var (
 	ErrPasswordNotSet     = errors.New("app password is not set")
 	ErrInvalidPassword    = errors.New("invalid app password")
 	ErrPasswordAlreadySet = errors.New("app password is already set")
+	ErrOperationBusy      = errors.New("a security operation is in progress")
 )
 
 type Status struct {
@@ -126,6 +127,10 @@ func SetAppPassword(password string) error {
 
 func UnlockApp(password string) error {
 	return defaultManager.unlockApp(password)
+}
+
+func LockApp() error {
+	return defaultManager.lockApp()
 }
 
 func RemoveAppPassword(password string) error {
@@ -230,8 +235,72 @@ func (m *manager) unlockApp(password string) error {
 		return err
 	}
 	m.mu.Lock()
-	m.masterKey = key
+	// A copy, not the caller's slice. `lockApp` zeroes the backing array it holds, so sharing
+	// one array between the manager and a caller means locking can scribble over a key that
+	// caller is still using. Cheap insurance for a 32-byte slice.
+	m.masterKey = append([]byte(nil), key...)
 	m.mu.Unlock()
+	emitStatusChanged()
+	return nil
+}
+
+// adoptKeyForOperation installs `key` and claims the busy latch in a single critical section,
+// for the long-running encrypt/decrypt paths.
+//
+// Doing it in two steps had a real hole: between installing the key and setting the latch,
+// `lockApp` could observe an idle manager, zero the master key — and because the two shared
+// one backing array, zero the operation's own `key` with it. The operation then carried on and
+// wrote account blobs sealed under 32 zero bytes.
+//
+// Returns ErrOperationBusy if another operation already holds the latch. Callers must pair
+// this with `finishOperation`.
+func (m *manager) adoptKeyForOperation(key []byte) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.operationBusy {
+		return ErrOperationBusy
+	}
+	m.masterKey = append([]byte(nil), key...)
+	m.operationBusy = true
+	return nil
+}
+
+func (m *manager) finishOperation() {
+	m.setBusy(false)
+}
+
+// lockApp drops the in-memory master key, putting the app back behind the unlock gate
+// without a restart. The exact inverse of unlockApp: the key is the only unlocked state
+// there is, and status() already derives AppLocked from its length.
+//
+// Refuses while an operation is in flight. Encrypting or decrypting the saved-account cache
+// holds the key for the length of the run, and pulling it out from under a half-finished
+// re-encrypt is how a cache ends up unreadable. Callers (auto-lock timers, "Lock now") treat
+// the refusal as "try again shortly", not as an error worth showing.
+//
+// No password is required. Locking removes access; only unlocking grants it.
+func (m *manager) lockApp() error {
+	_, ok, err := loadSecurityFile()
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return ErrPasswordNotSet
+	}
+
+	m.mu.Lock()
+	if m.operationBusy {
+		m.mu.Unlock()
+		return ErrOperationBusy
+	}
+	// Zero before dropping the reference: the backing array may outlive the slice header in
+	// a heap the GC has not swept, and this key unwraps the vault.
+	for i := range m.masterKey {
+		m.masterKey[i] = 0
+	}
+	m.masterKey = nil
+	m.mu.Unlock()
+
 	emitStatusChanged()
 	return nil
 }

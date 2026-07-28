@@ -191,7 +191,7 @@
   * Add the correct font size in all browsers
   */
  small {
-   font-size: 0.7rem;
+   font-size: var(--fs-meta);
  }
  
  /**
@@ -209,7 +209,7 @@
  sub,
  sup {
    position: relative;
-   font-size: .3rem;
+   font-size: var(--fs-meta);
    line-height: 0;
    vertical-align: baseline;
  }
@@ -264,7 +264,7 @@
    margin-top: 0; // 1
    margin-bottom: 1rem; // 2
    overflow: auto; // 3
-   font-size: .8rem;
+   font-size: var(--fs-meta);
    color: var(--primary-dark);
    -ms-overflow-style: scrollbar; // 4
  
@@ -277,7 +277,7 @@
  }
  
  code {
-   font-size: .8rem;
+   font-size: var(--fs-meta);
    color: var(--primary-dark);
    word-wrap: break-word;
  
@@ -544,7 +544,7 @@ html.input-modality-controller[data-controller-scheme="generic"] {
   color: var(--controller-action-prompt-fg);
   box-shadow: 0 3px 10px var(--shadow-color-45, rgba(0, 0, 0, 0.45));
   font-family: Arial, Helvetica, sans-serif;
-  font-size: 0.9rem;
+  font-size: var(--fs-secondary);
   font-weight: 800;
   line-height: 1;
   pointer-events: none;
@@ -647,7 +647,7 @@ html.input-modality-controller[data-controller-scheme="generic"] {
    width: 100%;
    padding: 0;
    margin-bottom: 25px;
-   font-size: .65rem;
+   font-size: var(--fs-meta);
    font-weight: var(--font-light);
    line-height: inherit;
    white-space: normal; // 2

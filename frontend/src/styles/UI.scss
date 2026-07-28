@@ -171,7 +171,7 @@ button .caret, .button .caret {
   padding: 0.4rem 0 0.6rem;
 
   &__label {
-    font-size: 0.85rem;
+    font-size: var(--fs-secondary);
     color: var(--text-white-70);
     white-space: nowrap;
   }
@@ -222,7 +222,7 @@ button .caret, .button .caret {
 }
 
 .bg-slider-value {
-  font-size: 0.75rem;
+  font-size: var(--fs-meta);
   color: var(--text-white-70);
   text-align: center;
 }
@@ -382,7 +382,7 @@ button .caret, .button .caret {
 }
 
 .subtext {
-    font-size: 0.8em;
+    font-size: var(--fs-meta);
 }
 
 /* Ace Editor */
@@ -782,7 +782,7 @@ button .caret, .button .caret {
     text-align: center;
     background-color: var(--tooltip-bg);
     border-radius: 0.25rem;
-    font-size: 0.875rem;
+    font-size: var(--fs-secondary);
     white-space: pre-wrap;
     box-shadow: 0 2px 8px var(--shadow-color-35);
 }

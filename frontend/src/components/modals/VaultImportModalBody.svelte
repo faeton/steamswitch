@@ -165,7 +165,7 @@
 
   .small {
     margin: 0;
-    font-size: 0.8rem;
+    font-size: var(--fs-meta);
     opacity: 0.85;
   }
 
@@ -173,14 +173,14 @@
     margin: 0.3rem 0 0;
     padding: 0.4rem 0.5rem;
     border-radius: 0.3rem;
-    font-size: 0.82rem;
+    font-size: var(--fs-meta);
     background: rgba(200, 140, 0, 0.15);
   }
 
   .path {
     margin: 0;
     font-family: monospace;
-    font-size: 0.75rem;
+    font-size: var(--fs-meta);
     overflow-wrap: anywhere;
   }
 
@@ -192,7 +192,7 @@
   }
 
   .row > span:first-child {
-    font-size: 0.82rem;
+    font-size: var(--fs-meta);
     opacity: 0.85;
   }
 
@@ -207,7 +207,7 @@
     grid-template-columns: auto 1fr;
     gap: 0.15rem 0.5rem;
     margin: 0.3rem 0 0;
-    font-size: 0.8rem;
+    font-size: var(--fs-meta);
   }
 
   dt {

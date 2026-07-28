@@ -49,8 +49,38 @@
   let stateOpen = false;
   /** True once a save has failed, so the next successful one can say it recovered. */
   let saveFailed = false;
+  /**
+   * Where the backend will actually look for Steam, and whether that came from the setting
+   * below or from detection.
+   *
+   * This line used to print `Settings.FolderPath` directly, which only read sensibly because
+   * a fresh install shipped a hardcoded `C:\Program Files (x86)\Steam\` in that field. That
+   * default was the bug — it short-circuited detection, so anyone with Steam on another drive
+   * (or on macOS) had the app confidently looking at a directory that does not exist. The
+   * field now starts empty and the root is detected, so the one screen a user checks to see
+   * where the app is looking has to be told the answer rather than inferring it.
+   */
+  let resolvedRoot: { path: string; configured: boolean; exists: boolean } | null = null;
+
+  async function loadResolvedRoot(): Promise<void> {
+    try {
+      resolvedRoot = await SteamService.GetResolvedSteamRoot();
+    } catch {
+      // Not worth a toast: the picker below still works, and the settings themselves loaded.
+      resolvedRoot = null;
+    }
+  }
+
+  /** Clear the stored path so detection takes over again. */
+  async function useDetectedFolder(): Promise<void> {
+    if (!settings) return;
+    settings.FolderPath = "";
+    await save();
+    await loadResolvedRoot();
+  }
 
   async function load(): Promise<void> {
+    void loadResolvedRoot();
     try {
       settings = (await SteamService.GetSteamSettings()) as Settings;
     } catch (e) {
@@ -155,6 +185,7 @@
     if (!picked) return;
     settings.FolderPath = picked;
     await save();
+    await loadResolvedRoot();
   }
 
   function overrideLabel(v: number): string {
@@ -174,11 +205,28 @@
 {#if !settings}
   <p class="subtext">{$t("Kit_Module_Loading")}</p>
 {:else}
-  <div class="form-text">
-    <span class="meta-mono">{$t("Settings_CurrentLocation", { path: settings.FolderPath || "—" })}</span>
+  <div class="form-text steam-root">
+    <span class="meta-mono">
+      {$t("Settings_CurrentLocation", { path: resolvedRoot?.path || settings.FolderPath || "—" })}
+    </span>
+    {#if resolvedRoot && !resolvedRoot.configured}
+      <span class="steam-root__tag">{$t("Settings_SteamFolder_Detected")}</span>
+    {/if}
+    {#if resolvedRoot && !resolvedRoot.exists}
+      <!-- The state where switching will fail. Worth saying out loud here rather than letting
+           the user discover it as an unexplained error on their first switch. -->
+      <span class="steam-root__tag steam-root__tag--warn">
+        {$t("Settings_SteamFolder_Missing")}
+      </span>
+    {/if}
     <button type="button" on:click={() => void pickSteamFolder()}>
       {$t("Settings_PickFolder", { platform: "Steam" })}
     </button>
+    {#if resolvedRoot?.configured}
+      <button type="button" on:click={() => void useDetectedFolder()}>
+        {$t("Settings_SteamFolder_UseDetected")}
+      </button>
+    {/if}
   </div>
 
   <SharedSettingCheckbox
@@ -413,5 +461,27 @@
     margin: 0 0 8px;
     color: var(--role-text-muted, var(--text-subtle-gray));
     font-size: 12px;
+  }
+
+  .steam-root {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3, 8px);
+    flex-wrap: wrap;
+  }
+
+  .steam-root__tag {
+    padding: 2px 8px;
+    border: 1px solid var(--hairline-strong, var(--button-bg));
+    border-radius: var(--radius-pill, 999px);
+    font-size: var(--fs-meta, 12px);
+    color: var(--fg-muted);
+    white-space: nowrap;
+  }
+
+  .steam-root__tag--warn {
+    border-color: var(--border-warn);
+    background: var(--bg-warn, transparent);
+    color: var(--fg-warn);
   }
 </style>

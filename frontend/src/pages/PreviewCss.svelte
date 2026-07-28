@@ -138,7 +138,7 @@
   let modalLog: string[] = [];
 
   onMount(() => {
-    previousPage.set({ page: "settings" });
+    previousPage.set({ page: "settings", category: "appearance" });
   });
 
   $: appBarTitle.set($t("Title_Settings_TestCss"));
@@ -1005,7 +1005,7 @@
     margin: 0 0 1rem;
     color: var(--blackTernary, #a7abbe);
     line-height: 1.45;
-    font-size: 0.95rem;
+    font-size: var(--fs-secondary);
   }
 
   .preview-overlay-drop-grid {
@@ -1022,7 +1022,7 @@
 
   .preview-overlay-drop-caption {
     margin: 0 0 0.5rem;
-    font-size: 0.9rem;
+    font-size: var(--fs-secondary);
     font-weight: 600;
     color: var(--blackSecondary, #c8cbd9);
   }
@@ -1107,7 +1107,7 @@
     border-radius: 2px;
     background: var(--mainContentBackground, var(--code-background));
     color: var(--white);
-    font-size: 0.68rem;
+    font-size: var(--fs-meta);
     line-height: 1.2;
     font-weight: 700;
   }
@@ -1183,7 +1183,7 @@
     border-radius: 2px;
     background: var(--mainContentBackground, var(--code-background));
     color: var(--whiteSecondary);
-    font-size: 0.72rem;
+    font-size: var(--fs-meta);
     font-weight: 700;
     line-height: 1.2;
   }
@@ -1344,7 +1344,7 @@
     margin: 0 0 0.75rem;
     cursor: pointer;
     user-select: none;
-    font-size: 0.9rem;
+    font-size: var(--fs-secondary);
     color: var(--whiteSecondary);
   }
 
@@ -1361,7 +1361,7 @@
   .toastPermanentNote {
     flex: 1 1 100%;
     margin-left: 1.5rem;
-    font-size: 0.78rem;
+    font-size: var(--fs-meta);
     color: var(--blackTernary, #a7abbe);
     font-weight: normal;
     cursor: pointer;
@@ -1386,7 +1386,7 @@
     background: var(--even-darker-code-background);
     border: 1px solid var(--preview-control-border, var(--input-number-border, var(--button-bg)));
     color: var(--whiteSecondary);
-    font-size: 11px;
+    font-size: var(--fs-secondary);
     line-height: 1.45;
     white-space: pre-wrap;
     word-break: break-word;

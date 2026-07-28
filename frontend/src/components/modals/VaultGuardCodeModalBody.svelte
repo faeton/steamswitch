@@ -112,7 +112,7 @@
   }
 
   .small {
-    font-size: 0.8rem;
+    font-size: var(--fs-meta);
     opacity: 0.85;
     margin: 0;
   }

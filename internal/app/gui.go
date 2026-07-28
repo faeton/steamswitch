@@ -56,19 +56,28 @@ func mainWindowOptions(guiSettings platform.AppSettings, parsed cli.Parsed) appl
 	winOpts := application.WebviewWindowOptions{
 		Name:  "main",
 		Title: "SteamSwitch",
-		// Compact by design (REDESIGN.md §3): a single column of 3–4 account tiles plus the
-		// status strip. Tools and Settings are full-page pushes rather than side panels, so
-		// nothing here needs the old 760px two-column width.
-		Width:     420,
-		Height:    520,
-		MinWidth:  380,
-		MinHeight: 420,
+		// Sized for the redesign (REDESIGN_BRIEF.md A13, which asks for the window bounds to be
+		// a hard boundary the layout can rely on). The design is drawn at 1280×840 comfortable
+		// and 1000×700 minimum, and the app now carries a 190px nav beside its content — at the
+		// old 420px default the nav alone took nearly half the window.
+		//
+		// The enforced floor is deliberately *below* the drawn minimum. A 1366×768 laptop at
+		// 150% Windows scaling reports roughly 911×512 DIP, and refusing to open there would
+		// be worse than a slightly cramped layout — the switcher grid, the vault table and the
+		// settings rail each have a fallback below 900px that this keeps reachable rather than
+		// making it dead code.
+		Width:     1280,
+		Height:    840,
+		MinWidth:  860,
+		MinHeight: 600,
 		Mac: application.MacWindow{
 			InvisibleTitleBarHeight: 50,
 			Backdrop:                application.MacBackdropTranslucent,
 			TitleBar:                application.MacTitleBarHiddenInset,
 		},
-		BackgroundColour:           application.NewRGB(27, 38, 54),
+		// Matches the redesign's dark page background, so the frame the OS paints before the
+		// webview has loaded does not flash a colour the app never uses again.
+		BackgroundColour:           application.NewRGB(0x0f, 0x11, 0x15),
 		URL:                        "/",
 		Frameless:                  true,
 		EnableFileDrop:             true,

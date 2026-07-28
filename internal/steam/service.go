@@ -267,7 +267,7 @@ func (s *SteamService) GetSteamAccounts() ([]AccountDTO, error) {
 		return nil, err
 	}
 	out := accountlist.Merge(
-		list,
+		list.Accounts,
 		enrich,
 		func(row SteamAccountListItemDTO) string { return row.SteamID64 },
 		func(row SteamAccountEnrichmentDTO) string { return row.SteamID64 },
@@ -332,6 +332,60 @@ func (s *SteamService) GetSteamSettings() (Settings, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return LoadSettings()
+}
+
+// SteamRootDTO describes the Steam data root the app is actually using.
+//
+// The Settings screen used to print `Settings.FolderPath` straight out of the settings file,
+// which only worked because that field was pre-filled with a hardcoded guess. Now that it
+// starts empty and the root is detected, the screen has to be told the answer rather than
+// inferring it — otherwise the one place a user goes to check where the app is looking would
+// show a dash while the app looked somewhere real.
+type SteamRootDTO struct {
+	// Path is the resolved root, whatever its source.
+	Path string `json:"path"`
+	// Configured is true when Path came from the user's own FolderPath setting rather than
+	// from detection. It drives whether the UI offers "use the detected location instead".
+	Configured bool `json:"configured"`
+	// Exists is false when the resolved path is not a directory on this machine — the state
+	// where switching will fail and the user has to point the app somewhere real.
+	Exists bool `json:"exists"`
+}
+
+// GetResolvedSteamRoot reports where the app will look for loginusers.vdf and why.
+func (s *SteamService) GetResolvedSteamRoot() (SteamRootDTO, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if err := security.RequireUnlocked(); err != nil {
+		return SteamRootDTO{}, err
+	}
+	exeDir, err := platform.ResolveExeDir()
+	if err != nil {
+		return SteamRootDTO{}, err
+	}
+	st, err := LoadSettings()
+	if err != nil {
+		return SteamRootDTO{}, err
+	}
+	app, err := platform.LoadAppSettings(exeDir)
+	if err != nil {
+		return SteamRootDTO{}, err
+	}
+	raw, err := platform.LoadPlatformsJSON(exeDir)
+	if err != nil {
+		return SteamRootDTO{}, err
+	}
+	root, err := ResolveInstallFolder(exeDir, st, app, raw)
+	if err != nil {
+		return SteamRootDTO{}, err
+	}
+	out := SteamRootDTO{Path: root, Configured: strings.TrimSpace(st.FolderPath) != ""}
+	if root != "" {
+		if fi, statErr := os.Stat(root); statErr == nil && fi.IsDir() {
+			out.Exists = true
+		}
+	}
+	return out, nil
 }
 
 func (s *SteamService) SaveSteamSettings(st Settings) error {

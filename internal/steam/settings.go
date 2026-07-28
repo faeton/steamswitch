@@ -147,8 +147,13 @@ func (s Settings) IsHome(steamID64 string) bool {
 func defaultSettings() Settings {
 	ps := platform.DefaultPlatformSettings()
 	return Settings{
-		PlatformSettings:     ps,
-		FolderPath:           `C:\Program Files (x86)\Steam\`,
+		PlatformSettings: ps,
+		// Deliberately empty. A hardcoded install path is a guess, and because
+		// ResolveInstallFolder honours a configured path first, shipping one here made the
+		// guess authoritative: detection never ran, so Steam installed on another drive — or
+		// on another OS entirely — resolved to a directory that cannot exist. Empty means
+		// "ask the machine", which is what ResolveInstallFolder then does.
+		FolderPath:           "",
 		SteamShowVAC:         true,
 		SteamShowLimited:     true,
 		SteamShowLastLogin:   true,
@@ -248,7 +253,7 @@ func LoadSettings() (Settings, error) {
 		s.LaunchArguments = platform.EnsureLaunchArg(s.LaunchArguments, "-silent")
 	}
 	s.SteamRememberPassword = boolWithDefault(data2, "Steam_RememberPassword", true)
-	s.FolderPath = NormalizeFolderPath(s.FolderPath)
+	s.FolderPath = dropForeignFolderPath(NormalizeFolderPath(s.FolderPath))
 	if len(s.Shortcuts) == 0 && len(s.ShortcutsJSON) > 0 {
 		s.Shortcuts = migrateLegacyShortcutsJSON(s.ShortcutsJSON)
 		s.ShortcutsJSON = nil
@@ -314,6 +319,25 @@ func SaveSettings(s Settings) error {
 		return err
 	}
 	return fsutil.WriteFileAtomic(path, data, 0o644)
+}
+
+// dropForeignFolderPath clears a stored Steam root that was written for a different OS.
+//
+// Builds before this one wrote `C:\Program Files (x86)\Steam\` into every fresh settings file
+// regardless of platform, so a macOS install carries that literal on disk today. Left in place
+// it is not inert — a configured path is the first thing ResolveInstallFolder trusts — and the
+// Settings screen would go on showing a Windows path to a Mac user.
+//
+// The test is [filepath.IsAbs], which is OS-relative: `C:\...` is absolute on Windows and not
+// on Unix, and `/Users/...` the other way round. A Steam root is always an absolute path, so a
+// relative one here can only mean the value came from somewhere it does not apply. Clearing it
+// costs nothing — the next resolve detects the real root, and a user who genuinely typed a
+// path gets it back by typing it again on the OS where it works.
+func dropForeignFolderPath(p string) string {
+	if p == "" || filepath.IsAbs(p) {
+		return p
+	}
+	return ""
 }
 
 // NormalizeFolderPath strips a trailing steam.exe and ensures directory form.

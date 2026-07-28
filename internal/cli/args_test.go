@@ -159,3 +159,40 @@ func TestParseDuplicateLogLevel(t *testing.T) {
 		t.Fatalf("want duplicate error, got %v", err)
 	}
 }
+
+func TestParseSealRoster(t *testing.T) {
+	// The passphrase must never be parseable from argv — it travels in the stdin document —
+	// so the only thing this flag carries is an optional output path.
+	cases := []struct {
+		argv    []string
+		wantOut string
+	}{
+		{[]string{"--seal-roster"}, ""},
+		{[]string{"-seal-roster"}, ""},
+		{[]string{"--seal-roster=/tmp/roster.ssroster"}, "/tmp/roster.ssroster"},
+	}
+	for _, tc := range cases {
+		p, err := Parse(tc.argv, nil)
+		if err != nil {
+			t.Fatalf("Parse(%v): %v", tc.argv, err)
+		}
+		if p.Kind != KindSealRoster {
+			t.Errorf("Parse(%v).Kind = %v, want KindSealRoster", tc.argv, p.Kind)
+		}
+		if p.SealRosterOut != tc.wantOut {
+			t.Errorf("Parse(%v).SealRosterOut = %q, want %q", tc.argv, p.SealRosterOut, tc.wantOut)
+		}
+		if !p.IsStdioCommand() {
+			t.Errorf("Parse(%v).IsStdioCommand() = false; it must run before the singleton", tc.argv)
+		}
+		if p.IsListCommand() {
+			t.Errorf("Parse(%v).IsListCommand() = true; it reads no account data", tc.argv)
+		}
+	}
+}
+
+func TestParseSealRoster_IsExclusiveWithASwap(t *testing.T) {
+	if _, err := Parse([]string{"--seal-roster", "+s:76561198000000001"}, nil); err == nil {
+		t.Fatal("sealing a roster and swapping an account in one invocation should be refused")
+	}
+}

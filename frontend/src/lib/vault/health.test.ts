@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { isStale, rankedSignals, tileDot, verdictLabelKey, worstVerdict } from "./health";
+import {
+  healthState,
+  isStale,
+  rankedSignals,
+  tileDot,
+  verdictLabelKey,
+  worstVerdict,
+} from "./health";
 import type { HealthReport, Signal } from "../../../bindings/steamswitch/internal/vault/models";
 
 function sig(name: string, status: string, blocker = false): Signal {
@@ -104,5 +111,85 @@ describe("verdictLabelKey", () => {
     expect(verdictLabelKey("fail")).toBe("Vault_Verdict_Fail");
     expect(verdictLabelKey("")).toBe("Vault_Verdict_Unknown");
     expect(verdictLabelKey("weird")).toBe("Vault_Verdict_Unknown");
+  });
+});
+
+describe("healthState", () => {
+  function detailSig(detail: string, status: string, blocker = false): Signal {
+    return { name: "probe", status, detail, blocker } as Signal;
+  }
+
+  it("reports a UI-side check in flight, whatever the stored report says", () => {
+    expect(healthState(report("ok"), { checking: true }).id).toBe("checking");
+    expect(healthState(null, { checking: true }).id).toBe("checking");
+  });
+
+  it("treats a missing or never-probed report as never checked", () => {
+    expect(healthState(null).id).toBe("never-checked");
+    expect(healthState(report("ok", [], "")).id).toBe("never-checked");
+  });
+
+  it("names the specific failure rather than just its severity", () => {
+    expect(healthState(report("fail", [detailSig("Vault_Signal_PasswordWrong", "fail")])).id).toBe(
+      "password-wrong",
+    );
+    expect(healthState(report("warn", [detailSig("Vault_Signal_TokenExpired", "warn")])).id).toBe(
+      "token-expired",
+    );
+    expect(healthState(report("warn", [detailSig("Vault_Signal_RateLimited", "warn")])).id).toBe(
+      "limited",
+    );
+    expect(
+      healthState(report("warn", [detailSig("Vault_Signal_GuardRejected", "warn")])).id,
+    ).toBe("guard-unreachable");
+  });
+
+  /*
+    Severity ordering is the whole reason this collapses rather than listing: an account that
+    is both banned and rate-limited is a banned account, and showing "Rate limited" would tell
+    the user to wait for something that is never coming back.
+  */
+  it("shows the worst state when several signals are unhappy", () => {
+    const rep = report("fail", [
+      detailSig("Vault_Signal_RateLimited", "warn"),
+      detailSig("Vault_Signal_Banned", "fail", true),
+      detailSig("Vault_Signal_TokenExpired", "warn"),
+    ]);
+    expect(healthState(rep).id).toBe("banned");
+  });
+
+  it("still flags an unhappy signal it has no dedicated state for", () => {
+    // A future backend detail must not read as healthy just because this build predates it.
+    expect(healthState(report("warn", [detailSig("Vault_Signal_SomethingNew", "warn")])).id).toBe(
+      "attention",
+    );
+  });
+
+  it("reads a clean probed report as live", () => {
+    const rep = report("ok", [detailSig("Vault_Signal_NoBans", "ok"), detailSig("Vault_Signal_TokenValid", "ok")]);
+    expect(healthState(rep).id).toBe("ok");
+    expect(healthState(rep).tone).toBe("ok");
+  });
+
+  /*
+    A report that ran but learned nothing is "never checked" from where the user stands.
+    Calling it healthy would be the most dangerous possible rounding error here.
+  */
+  it("does not promote an unknown verdict to healthy", () => {
+    expect(healthState(report("unknown", [detailSig("Vault_Signal_BansUnknown", "unknown")])).id).toBe(
+      "never-checked",
+    );
+  });
+
+  it("gives every actionable state a next step", () => {
+    for (const detail of [
+      "Vault_Signal_PasswordWrong",
+      "Vault_Signal_TokenExpired",
+      "Vault_Signal_GuardRejected",
+      "Vault_Signal_RateLimited",
+    ]) {
+      const state = healthState(report("warn", [detailSig(detail, "warn")]));
+      expect(state.actionKey, `${detail} should offer a next step`).not.toBe("");
+    }
   });
 });

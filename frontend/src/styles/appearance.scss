@@ -1,5 +1,5 @@
 /*
-    Built-in appearance base — the product default (REDESIGN.md §6).
+    Built-in appearance base — the product default (REDESIGN_BRIEF.md A1, REDESIGN.md §6).
 
     Two axes are independent:
       - `data-appearance`  = the resolved scheme (light | dark). Always present, so any
@@ -9,6 +9,16 @@
     Everything below is gated on `data-base-theme` so that selecting a classic pack — whose
     runtime overlay only carries `:root { … }`, i.e. lower specificity than the attribute
     selectors here — still wins. Removing the attribute is what hands control back.
+
+    The two schemes are the redesign's two visual languages, not a light/dark tint of one:
+
+      dark  = "Instrument" — near-black surfaces, one cool accent, monospace for IDs and
+              machine state. Reads as a tool that reports facts.
+      light = "Ledger" — paper surfaces, hairline rules, a single deep green accent. Reads
+              as a careful record-keeper, which is calmer for the vault screens.
+
+    Both are expressed in the *existing* token names, so surfaces that have not been
+    converted to the new components still follow the palette.
 */
 
 /*
@@ -16,7 +26,7 @@
     runtime by `buildAccentOverlayCss`, which emits plain `:root { … }` — lower specificity
     than the attribute selectors here, so anything accent-shaped declared below would silently
     beat the user's chosen accent. `applyResolvedAccent` always writes an overlay while the
-    base theme is active, including for the default accent.
+    base theme is active, including for each scheme's default accent.
 */
 
 :root[data-base-theme] {
@@ -27,169 +37,226 @@
     --main-padding: 0.75rem;
     --notification-border-radius: 8px;
 
-    /* Meta line: IDs, timestamps, kit state (REDESIGN.md §6). */
+    /* Meta line: IDs, timestamps, kit state. Never below the 12px floor (brief A8). */
     --font-mono: ui-monospace, SFMono-Regular, "SF Mono", "Cascadia Mono", "Segoe UI Mono",
         "Roboto Mono", Menlo, Consolas, monospace;
-    --font-meta-size: 11px;
+    --font-meta-size: 12px;
 }
 
-/* --------------------------------------------------------------------- dark */
+/* ------------------------------------------------- dark · "Instrument" (variant 1a) */
 
 :root[data-base-theme][data-appearance="dark"] {
-    --code: #1b2027;
-    --code-background: #14181e;
-    --slightly-darker-code-background: #121519;
-    --darker-code-background: #101317;
-    --even-darker-code-background: #0b0e11;
+    --code: #1a1e24;
+    --code-background: #16191f;
+    --slightly-darker-code-background: #14171c;
+    --darker-code-background: #131519;
+    --even-darker-code-background: #0b0d10;
 
     --black: #16191f;
-    --blackSecondary: #2a2f38;
-    --blackTernary: #8b93a1;
+    --blackSecondary: #2b323c;
+    --blackTernary: #8f97a2;
     --blackLight: hsla(220, 15%, 15%, 5%);
     --white: #e6e9ee;
-    --whiteSecondary: #f5f7fa;
+    --whiteSecondary: #f2f4f8;
     --whiteLight: hsla(220, 20%, 96%, 5%);
 
-    --program-bg: #101317;
-    --mainContentBackground: #14181e;
-    --document-canvas-bg: #101317;
+    --program-bg: #0f1115;
+    --mainContentBackground: #16191f;
+    --document-canvas-bg: #0f1115;
     --border-bar-bg: #232830;
-    --footer-bg: #14181e;
-    --scrollbar-track-bg: #191d23;
-    --button-bg: #232a33;
-    --button-bg-hover: #2c343f;
-    --tooltip-bg: #0b0e11;
+    --footer-bg: #14171c;
+    --scrollbar-track-bg: #14171c;
+    --button-bg: #1e2329;
+    --button-bg-hover: #262d36;
+    --tooltip-bg: #0b0d10;
 
-    --hairline: #262c35;
-    --hairline-strong: #333b46;
+    /* Chrome surfaces the redesign names directly. */
+    --surface-chrome: #14171c;
+    --surface-nav: #131519;
+    --surface-panel: #16191f;
+    --surface-panel-raised: #171c23;
+    --surface-field: #14171c;
+    --surface-hero: linear-gradient(180deg, #1a222c, #161a20);
+    --surface-hero-border: #26303c;
 
-    --green: #4ade80;
-    --orange: #fbbf24;
-    --red: #f87171;
-    --yellow: #facc15;
-    --greenInt: 74, 222, 128;
-    --orangeInt: 251, 191, 36;
-    --redInt: 248, 113, 113;
+    --hairline: #232830;
+    --hairline-strong: #2b323c;
+
+    --green: #4fb286;
+    --orange: #d8a341;
+    --red: #d84f4f;
+    --yellow: #e0b45f;
+    --greenInt: 79, 178, 134;
+    --orangeInt: 216, 163, 65;
+    --redInt: 216, 79, 79;
+
+    /* Health tones — foreground on a dark panel, so lighter than the dot colours above. */
+    --tone-ok-fg: #7fd6a5;
+    --tone-ok-bg: #12331f;
+    --tone-ok-border: #1f5133;
+    --tone-warn-fg: #e0b45f;
+    --tone-warn-bg: #1f1b14;
+    --tone-warn-border: #3a3222;
+    --tone-fail-fg: #f08d8d;
+    --tone-fail-bg: #201618;
+    --tone-fail-border: #3d2626;
+    --tone-neutral-fg: #a2aab6;
+    --tone-neutral-dot: #5f6874;
 
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
-    --text-muted-gray: #b6bcc7;
-    --text-subtle-gray: #8b93a1;
-    --text-dim-gray: #6a7280;
-    --text-body-muted: #7d8592;
-    --tag-default-bg: #2a2f38;
+    --shadow-dock: 0 -6px 18px rgba(0, 0, 0, 0.35);
+    --shadow-panel: 0 10px 26px rgba(0, 0, 0, 0.5);
 
-    --surface-row-dark: #191d23;
-    --surface-context-submenu: #1b2027;
-    --surface-context-row: #232a33;
-    --surface-search-result: #1b2027;
+    --text-primary: #e6e9ee;
+    --text-secondary: #b6bdc7;
+    --text-muted: #8f97a2;
+    --text-disabled: #6e7783;
 
-    --overlay-panel-bg: #171b21;
+    --text-muted-gray: #b6bdc7;
+    --text-subtle-gray: #8f97a2;
+    --text-dim-gray: #6e7783;
+    --text-body-muted: #8f97a2;
+    --tag-default-bg: #232830;
+
+    --surface-row-dark: #14171c;
+    --surface-context-submenu: #171c23;
+    --surface-context-row: #1e2329;
+    --surface-search-result: #1a2028;
+
+    --overlay-panel-bg: #171c23;
     --overlay-scrim-deep: rgba(6, 8, 11, 0.72);
-    --modal-scrim: rgba(6, 8, 11, 0.6);
+    --modal-scrim: rgba(6, 8, 11, 0.55);
 }
 
-/* -------------------------------------------------------------------- light */
+/* ------------------------------------------------- light · "Ledger" (variant 1b) */
 
 :root[data-base-theme][data-appearance="light"] {
-    --code: #eef1f5;
-    --code-background: #f5f7fa;
-    --slightly-darker-code-background: #e9edf2;
+    --code: #f0f0ec;
+    --code-background: #f8f8f6;
+    --slightly-darker-code-background: #f0f0ec;
     --darker-code-background: #ffffff;
     --even-darker-code-background: #ffffff;
 
     /* `--black`/`--white` are role names, not colours: they stay foreground/background. */
     --black: #ffffff;
-    --blackSecondary: #d9dfe7;
-    --blackTernary: #5c6470;
-    --blackLight: hsla(220, 15%, 40%, 5%);
-    --white: #1b2027;
-    --whiteSecondary: #0f1318;
-    --whiteLight: hsla(220, 20%, 20%, 4%);
+    --blackSecondary: #d6d6cf;
+    --blackTernary: #5b5f58;
+    --blackLight: hsla(60, 10%, 40%, 5%);
+    --white: #1a1c19;
+    --whiteSecondary: #0f110e;
+    --whiteLight: hsla(60, 10%, 20%, 4%);
 
-    --program-bg: #f5f7fa;
+    --program-bg: #f4f4f1;
     --mainContentBackground: #ffffff;
-    --document-canvas-bg: #f5f7fa;
-    --border-bar-bg: #dfe4ea;
+    --document-canvas-bg: #f4f4f1;
+    --border-bar-bg: #e4e4de;
     --footer-bg: #ffffff;
-    --scrollbar-track-bg: #e9edf2;
-    --button-bg: #e7ebf1;
-    --button-bg-hover: #dbe1e9;
-    --tooltip-bg: #1b2027;
+    --scrollbar-track-bg: #e8e8e2;
+    --button-bg: #f0f0ec;
+    --button-bg-hover: #e8e8e2;
+    --tooltip-bg: #1a1c19;
 
-    --hairline: #e2e6ec;
-    --hairline-strong: #ccd3dc;
+    --surface-chrome: #ffffff;
+    --surface-nav: #ffffff;
+    --surface-panel: #ffffff;
+    --surface-panel-raised: #ffffff;
+    --surface-field: #ffffff;
+    --surface-hero: #ffffff;
+    --surface-hero-border: #cddccf;
 
-    --green: #15803d;
-    --orange: #b45309;
-    --red: #b91c1c;
-    --yellow: #a16207;
-    --greenInt: 21, 128, 61;
-    --orangeInt: 180, 83, 9;
-    --redInt: 185, 28, 28;
+    --hairline: #e4e4de;
+    --hairline-strong: #d6d6cf;
 
-    --shadow: 0 1px 2px rgba(16, 24, 40, 0.08);
-    --shadow-color-heavy: rgba(16, 24, 40, 0.28);
-    --shadow-color-60: rgba(16, 24, 40, 0.22);
-    --shadow-color-55-text: rgba(16, 24, 40, 0.2);
-    --shadow-color-50: rgba(16, 24, 40, 0.18);
-    --shadow-color-45: rgba(16, 24, 40, 0.16);
-    --shadow-color-40: rgba(16, 24, 40, 0.14);
-    --shadow-color-35: rgba(16, 24, 40, 0.12);
-    --shadow-color-30: rgba(16, 24, 40, 0.1);
+    --green: #2f8f5f;
+    --orange: #a3701c;
+    --red: #b3382f;
+    --yellow: #8a6d12;
+    --greenInt: 47, 143, 95;
+    --orangeInt: 163, 112, 28;
+    --redInt: 179, 56, 47;
+
+    --tone-ok-fg: #1f5c41;
+    --tone-ok-bg: #e8f0eb;
+    --tone-ok-border: #bcd8c7;
+    --tone-warn-fg: #7a5510;
+    --tone-warn-bg: #faf3e2;
+    --tone-warn-border: #e0d2ac;
+    --tone-fail-fg: #96261f;
+    --tone-fail-bg: #fbeceb;
+    --tone-fail-border: #e6c3bf;
+    --tone-neutral-fg: #5b5f58;
+    --tone-neutral-dot: #a8aba3;
+
+    --shadow: 0 1px 0 #e8e8e2;
+    --shadow-dock: 0 -6px 18px rgba(26, 28, 25, 0.12);
+    --shadow-panel: 0 10px 26px rgba(26, 28, 25, 0.18);
+    --shadow-color-heavy: rgba(26, 28, 25, 0.28);
+    --shadow-color-60: rgba(26, 28, 25, 0.22);
+    --shadow-color-55-text: rgba(26, 28, 25, 0.2);
+    --shadow-color-50: rgba(26, 28, 25, 0.18);
+    --shadow-color-45: rgba(26, 28, 25, 0.16);
+    --shadow-color-40: rgba(26, 28, 25, 0.14);
+    --shadow-color-35: rgba(26, 28, 25, 0.12);
+    --shadow-color-30: rgba(26, 28, 25, 0.1);
 
     /* The white-on-dark alpha ramps invert wholesale in light mode. */
-    --overlay-white-06: rgba(16, 24, 40, 0.04);
-    --overlay-white-08: rgba(16, 24, 40, 0.05);
-    --overlay-white-12: rgba(16, 24, 40, 0.07);
-    --overlay-white-14: rgba(16, 24, 40, 0.08);
-    --overlay-white-15: rgba(16, 24, 40, 0.09);
-    --text-white-40: rgba(27, 32, 39, 0.4);
-    --text-white-50: rgba(27, 32, 39, 0.5);
-    --text-white-60: rgba(27, 32, 39, 0.6);
-    --text-white-65: rgba(27, 32, 39, 0.65);
-    --text-white-88: rgba(27, 32, 39, 0.88);
-    --text-white-90: rgba(27, 32, 39, 0.9);
-    --text-white-92: rgba(27, 32, 39, 0.92);
+    --overlay-white-06: rgba(26, 28, 25, 0.04);
+    --overlay-white-08: rgba(26, 28, 25, 0.05);
+    --overlay-white-12: rgba(26, 28, 25, 0.07);
+    --overlay-white-14: rgba(26, 28, 25, 0.08);
+    --overlay-white-15: rgba(26, 28, 25, 0.09);
+    --text-white-40: rgba(26, 28, 25, 0.4);
+    --text-white-50: rgba(26, 28, 25, 0.5);
+    --text-white-60: rgba(26, 28, 25, 0.6);
+    --text-white-65: rgba(26, 28, 25, 0.65);
+    --text-white-88: rgba(26, 28, 25, 0.88);
+    --text-white-90: rgba(26, 28, 25, 0.9);
+    --text-white-92: rgba(26, 28, 25, 0.92);
 
-    --text-muted-gray: #4b5462;
-    --text-subtle-gray: #5c6470;
-    --text-dim-gray: #7b8492;
-    --text-body-muted: #6b7480;
-    --tag-default-bg: #d9dfe7;
+    --text-primary: #1a1c19;
+    --text-secondary: #3a3d37;
+    --text-muted: #5b5f58;
+    --text-disabled: #86897f;
 
-    --surface-row-dark: #f0f3f7;
-    --surface-glass-06-15: linear-gradient(145deg, rgba(16, 24, 40, 0.03), rgba(16, 24, 40, 0.06));
+    --text-muted-gray: #3a3d37;
+    --text-subtle-gray: #5b5f58;
+    --text-dim-gray: #6b6f67;
+    --text-body-muted: #5b5f58;
+    --tag-default-bg: #e8e8e2;
+
+    --surface-row-dark: #f8f8f6;
+    --surface-glass-06-15: linear-gradient(145deg, rgba(26, 28, 25, 0.03), rgba(26, 28, 25, 0.06));
     --surface-steam-popover: #ffffff;
     --surface-context-submenu: #ffffff;
-    --surface-context-row: #f0f3f7;
-    --surface-search-result: #f0f3f7;
+    --surface-context-row: #f0f0ec;
+    --surface-search-result: #f0f0ec;
 
-    --form-checkbox-border: #9aa3b0;
-    --input-number-border: #b7bfc9;
-    --preview-control-border: #9aa3b0;
-    --window-control-hover-bg: #e2e6ec;
+    --form-checkbox-border: #a8aba3;
+    --input-number-border: #c2c4be;
+    --preview-control-border: #a8aba3;
+    --window-control-hover-bg: #e8e8e2;
 
-    --error-text-soft: #b91c1c;
-    --error-bg-dim: rgba(185, 28, 28, 0.06);
-    --error-bg-hover: rgba(185, 28, 28, 0.1);
-    --error-border-soft: rgba(185, 28, 28, 0.3);
-    --success-solid: #15803d;
-    --error-solid: #b91c1c;
-    --success-soft-bg: rgba(21, 128, 61, 0.1);
-    --error-soft-bg: rgba(185, 28, 28, 0.1);
+    --error-text-soft: #96261f;
+    --error-bg-dim: rgba(179, 56, 47, 0.06);
+    --error-bg-hover: rgba(179, 56, 47, 0.1);
+    --error-border-soft: rgba(179, 56, 47, 0.3);
+    --success-solid: #2f8f5f;
+    --error-solid: #b3382f;
+    --success-soft-bg: rgba(47, 143, 95, 0.1);
+    --error-soft-bg: rgba(179, 56, 47, 0.1);
 
     --overlay-panel-bg: #ffffff;
-    --overlay-scrim-deep: rgba(16, 24, 40, 0.35);
-    --modal-scrim: rgba(16, 24, 40, 0.32);
-    --backdrop-scrim-55: rgba(16, 24, 40, 0.3);
-    --backdrop-scrim-65: rgba(16, 24, 40, 0.4);
-    --backdrop-dark-20: rgba(16, 24, 40, 0.06);
-    --backdrop-dark-25: rgba(16, 24, 40, 0.08);
-    --backdrop-dark-35: rgba(16, 24, 40, 0.12);
-    --black-alpha-12: rgba(16, 24, 40, 0.06);
-    --black-alpha-15: rgba(16, 24, 40, 0.08);
+    --overlay-scrim-deep: rgba(26, 28, 25, 0.35);
+    --modal-scrim: rgba(26, 28, 25, 0.32);
+    --backdrop-scrim-55: rgba(26, 28, 25, 0.3);
+    --backdrop-scrim-65: rgba(26, 28, 25, 0.4);
+    --backdrop-dark-20: rgba(26, 28, 25, 0.06);
+    --backdrop-dark-25: rgba(26, 28, 25, 0.08);
+    --backdrop-dark-35: rgba(26, 28, 25, 0.12);
+    --black-alpha-12: rgba(26, 28, 25, 0.06);
+    --black-alpha-15: rgba(26, 28, 25, 0.08);
 
-    --context-menu-hotkey: #fff3cd;
+    --context-menu-hotkey: #f6efd8;
 }
 
 /* Base-theme chrome tweaks that apply to both schemes. */
@@ -199,11 +266,12 @@
     --context-menu-border: var(--hairline);
     --role-tile-border: var(--hairline);
     --role-field-border: var(--hairline-strong);
+    --role-text-muted: var(--text-muted);
 }
 
 /* Monospace meta utility (IDs, timestamps, `kit:dota local+cloud · snap:a3f2`). */
 .meta-mono {
     font-family: var(--font-mono, ui-monospace, monospace);
-    font-size: var(--font-meta-size, 11px);
+    font-size: var(--font-meta-size, 12px);
     letter-spacing: 0.01em;
 }

@@ -41,7 +41,7 @@
 }
 
 .steam-acclist .steam_meta_err {
-  font-size: 0.6em;
+  font-size: var(--fs-meta);
   color: var(--red);
   line-height: 1.15;
   max-width: 100%;
@@ -54,19 +54,19 @@
 }
 
 .steam-acclist .steam_meta_pending {
-  font-size: 0.6em;
+  font-size: var(--fs-meta);
   opacity: 0.65;
 }
 
 .steam-acclist .acc_lastused {
   margin: 0.15rem 0 0;
-  font-size: 0.72rem;
+  font-size: var(--fs-meta);
   opacity: 0.75;
 }
 
 .steam-acclist label.acc p.steamId {
   font-family: ui-monospace, monospace;
-  font-size: 0.7em;
+  font-size: var(--fs-meta);
 }
 
 .acc_list_actionbar,
@@ -124,7 +124,7 @@
   }
 
   .acc_stat {
-    font-size: 0.8em;
+    font-size: var(--fs-meta);
 
     sup {
       margin-right: 0.4em;
@@ -377,7 +377,7 @@ label.acc {
     margin: 0 auto;
     overflow: hidden;
     color: var(--text-muted-gray);
-    font-size: 0.75em;
+    font-size: var(--fs-meta);
     text-overflow: ellipsis;
     white-space: nowrap;
   }
@@ -388,7 +388,7 @@ label.acc {
     margin: 0 auto 0.35rem;
     overflow: hidden;
     color: var(--red);
-    font-size: 0.72em;
+    font-size: var(--fs-meta);
     text-overflow: ellipsis;
     white-space: nowrap;
   }

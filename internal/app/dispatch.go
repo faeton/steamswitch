@@ -1,18 +1,23 @@
 package app
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"strings"
 	"text/tabwriter"
 
 	"steamswitch/internal/basic"
 	"steamswitch/internal/cli"
+	"steamswitch/internal/i18n"
 	"steamswitch/internal/platform"
 	"steamswitch/internal/security"
 	"steamswitch/internal/shortcuts"
 	"steamswitch/internal/steam"
+	"steamswitch/internal/vault"
 	"steamswitch/internal/winutil"
 )
 
@@ -31,6 +36,54 @@ type ListAccountRow struct {
 type ListPlatformRow struct {
 	Code string `json:"code"`
 	Name string `json:"name"`
+}
+
+// RunSealRoster executes `--seal-roster`: read a plaintext roster and its passphrase from in,
+// write the sealed bundle to out or to the path the flag named.
+//
+// It deliberately touches nothing else — no data dir, no vault, no app-lock. Sealing is pure
+// cryptography over a stream, and requiring an unlocked vault to perform it would mean the
+// automation producing the roster had to get past the app-lock first, which it has no business
+// holding. The bundle is only useful to a machine that can already open the vault it goes into.
+func (d *Dispatch) RunSealRoster(p cli.Parsed, in io.Reader, out io.Writer) error {
+	dest := strings.TrimSpace(p.SealRosterOut)
+	if dest == "" {
+		return humanizeVaultError(vault.SealRosterStream(in, out))
+	}
+
+	// Buffer, then write with owner-only permissions. Handing the file handle straight to
+	// SealRosterStream would create the file with the process umask — world-readable on a
+	// default Unix setup — and leave a zero-byte or half-written bundle behind if sealing
+	// failed, which the next import would report as a corrupt file rather than a failed seal.
+	var buf bytes.Buffer
+	if err := vault.SealRosterStream(in, &buf); err != nil {
+		return humanizeVaultError(err)
+	}
+	if err := security.WriteSecretFile(dest, buf.Bytes()); err != nil {
+		return err
+	}
+	fmt.Fprintln(out, dest)
+	return nil
+}
+
+// humanizeVaultError turns an `internal/vault` sentinel into something worth printing.
+//
+// Those errors carry an i18n *key* as their message, because the vault's callers are toasts
+// that look the key up. Printing `Toast_Roster_Unreadable` at a terminal tells the person
+// piping into `--seal-roster` nothing at all, so the key is resolved here — falling back to
+// itself, as i18n.T does, when the resource files are not next to the binary.
+func humanizeVaultError(err error) error {
+	if err == nil {
+		return nil
+	}
+	exeDir, dirErr := platform.ResolveExeDir()
+	if dirErr != nil {
+		return err
+	}
+	if msg := i18n.T(exeDir, "en-US", err.Error(), nil); msg != "" && msg != err.Error() {
+		return errors.New(msg)
+	}
+	return err
 }
 
 func (d *Dispatch) RunList(p cli.Parsed, idx *cli.PlatformIndex) error {

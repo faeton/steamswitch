@@ -15,6 +15,7 @@
  * until the user resolves it.
  */
 import { derived, get, writable, type Readable } from "svelte/store";
+import { advanceStep, stepForStatusKey, type SwitchStepId } from "../lib/steam/switchSteps";
 
 /** A button rendered on the strip. `id` is dispatched to the host page, not handled here. */
 export type StatusAction = {
@@ -43,8 +44,29 @@ export type StatusStripState =
       kind: "switching";
       /** Target account display name, shown for the whole run. */
       toLabel: string;
+      /** Account being left, so the dock can say which login is being saved. */
+      fromLabel: string;
       /** Already-localised narration for the current step ("Saving their setup…"). */
       phase: string;
+      /**
+       * Furthest step the engine has reported, or null before the first one arrives.
+       * Advances monotonically — see `advanceStep`.
+       */
+      step: SwitchStepId | null;
+      /**
+       * True once the engine is done, while the dock still shows the result.
+       * A finished switch is not the same as an idle strip: the brief requires a clear
+       * success state the user dismisses, not a dock that vanishes mid-read.
+       */
+      finished: boolean;
+      /**
+       * Whether Steam is actually running once the switch finished.
+       *
+       * Observed, not inferred. The engine reports `Status_StartingPlatform` even when the
+       * `AutoStart` setting makes `LaunchSteam` a no-op, so the step alone cannot tell
+       * "relaunched" from "left closed" — and the result line must not guess.
+       */
+      launched: boolean;
     }
   | {
       kind: "kit-active";
@@ -71,6 +93,15 @@ export type StatusStripState =
       /** Already-localised message. */
       message: string;
       action?: StatusAction;
+      /**
+       * Which surface owns this failure.
+       *
+       * `switch` failures belong to the progress dock, which can give them a heading and
+       * room for a recovery action; everything else — a failed account-list load, a failed
+       * tool run — belongs on the one-line strip. Without the distinction the dock titled a
+       * list-load error "The switch did not finish", and both surfaces showed it at once.
+       */
+      scope: "switch" | "general";
     };
 
 /**
@@ -176,16 +207,26 @@ export function setIdleFacts(facts: {
  * otherwise both pass a caller-side check and issue concurrent swaps against the same live
  * Steam files.
  */
-export function beginSwitch(toLabel: string, initialPhase = ""): boolean {
+export function beginSwitch(toLabel: string, fromLabel = "", initialPhase = ""): boolean {
   const cur = get(internal);
-  if (cur.kind === "recovery" || cur.kind === "switching") {
+  // A finished-but-undismissed switch must not block the next one: the dock is showing a
+  // result, not doing work. Anything genuinely in flight still refuses.
+  if (cur.kind === "recovery" || (cur.kind === "switching" && !cur.finished)) {
     return false;
   }
   // Starting any switch retires the previous failure: the Retry button is about to be
   // replaced by narration, and leaving the target set would let a later Retry fire at an
   // account the user has since moved on from.
   retryTarget.set("");
-  internal.set({ kind: "switching", toLabel, phase: initialPhase });
+  internal.set({
+    kind: "switching",
+    toLabel,
+    fromLabel,
+    phase: initialPhase,
+    step: null,
+    finished: false,
+    launched: false,
+  });
   return true;
 }
 
@@ -195,16 +236,31 @@ export function beginSwitch(toLabel: string, initialPhase = ""): boolean {
  * Only meaningful during a switch — outside one the backend's `action-bar-status` events are
  * noise from tools and background work, which belong in toasts, not on the strip.
  */
-export function narrate(phase: string): void {
+export function narrate(phase: string, statusKey = ""): void {
+  const cur = get(internal);
+  if (cur.kind !== "switching" || cur.finished) {
+    return;
+  }
+  internal.set({ ...cur, phase, step: advanceStep(cur.step, stepForStatusKey(statusKey)) });
+}
+
+/**
+ * Mark the switch complete. The dock stays up showing the result until dismissed.
+ *
+ * Deliberately not a settle-to-idle: brief A13 requires the success state to be unambiguous,
+ * and a dock that disappears the instant the engine returns leaves the user staring at the
+ * same grid wondering whether anything happened.
+ */
+export function endSwitch(launched = false): void {
   const cur = get(internal);
   if (cur.kind !== "switching") {
     return;
   }
-  internal.set({ ...cur, phase });
+  internal.set({ ...cur, finished: true, launched });
 }
 
-/** Leave the switching state successfully, settling to kit-active or idle. */
-export function endSwitch(): void {
+/** Dismiss a finished switch's result and settle back to kit-active or idle. */
+export function dismissSwitch(): void {
   const cur = get(internal);
   if (cur.kind !== "switching") {
     return;
@@ -213,11 +269,15 @@ export function endSwitch(): void {
 }
 
 /** Show a failure. Sticky until retried, dismissed, or superseded by something more urgent. */
-export function setError(message: string, action?: StatusAction): void {
+export function setError(
+  message: string,
+  action?: StatusAction,
+  scope: "switch" | "general" = "general",
+): void {
   if (isRecovery(get(internal))) {
     return;
   }
-  internal.set({ kind: "error", message, action });
+  internal.set({ kind: "error", message, action, scope });
 }
 
 export function clearError(): void {
@@ -280,14 +340,14 @@ export function resetStatusStrip(): void {
  */
 export const switchingBlocked = derived(
   statusStrip,
-  ($s) => $s.kind === "switching" || $s.kind === "recovery",
+  ($s) => ($s.kind === "switching" && !$s.finished) || $s.kind === "recovery",
 );
 
 /** Severity for styling. Never the *only* signal — the strip always carries text too. */
 export const statusTone = derived(statusStrip, ($s): "neutral" | "busy" | "warn" | "error" => {
   switch ($s.kind) {
     case "switching":
-      return "busy";
+      return $s.finished ? "neutral" : "busy";
     case "kit-active":
       return "warn";
     case "recovery":

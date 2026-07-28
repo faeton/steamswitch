@@ -96,6 +96,11 @@ func DropCache() {
 	cacheMu.Lock()
 	cached = nil
 	cacheMu.Unlock()
+	// A roster waiting in the import review is decrypted secrets too — a whole file of them,
+	// often for accounts not yet in the vault. Dropping it here rather than at the lock hook
+	// means no future caller of DropCache can forget it and leave a buffer readable through a
+	// lock the user believes closed everything.
+	DropImportSessions()
 }
 
 // load returns the decrypted document, reading and decrypting it on first use after unlock.

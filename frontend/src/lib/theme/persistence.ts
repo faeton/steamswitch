@@ -34,6 +34,7 @@ import {
   removeThemeGoogleFontLinks,
   applyAccentOverlay,
   applyResolvedAccent,
+  defaultAccentColorFor,
   validateAccentKey,
   clearThemeAccentState,
   ensureWindowsAccentSubscription,
@@ -74,14 +75,18 @@ export function resolveThemeAccent(
       isCustom: false,
     };
   }
-  const preset =
-    theme.accents.find((option) => option.id === accentKey) ??
-    theme.accents.find((option) => option.id === theme.defaultAccentKey) ?? {
-      id: theme.defaultAccentKey,
-      label: "Accent",
-      color: theme.defaultAccentColor,
-    };
-  return { ...preset, isCustom: false };
+  const explicit = theme.accents.find((option) => option.id === accentKey);
+  if (explicit) {
+    return { ...explicit, isCustom: false };
+  }
+  // No explicit pick: the base theme's default depends on the scheme, so ask `dom.ts` rather
+  // than reading `defaultAccentColor` — otherwise the Appearance picker would mark Instrument
+  // Blue as current while Ledger Green is what is actually painted.
+  const color = defaultAccentColorFor(theme);
+  const matching = theme.accents.find((option) => option.color === color);
+  return matching
+    ? { ...matching, isCustom: false }
+    : { id: theme.defaultAccentKey, label: "Accent", color, isCustom: false };
 }
 
 async function refreshWindowsThemeAccentColor(): Promise<string> {
@@ -214,14 +219,31 @@ export async function initTheme(): Promise<void> {
 
   appearanceMode.set(mode);
   ensureSystemSchemeSubscription();
-  // From here on, an OS scheme flip (or a mode change) only has to re-stamp the attributes;
-  // both base palettes are already in the bundle.
-  resolvedAppearance.subscribe(() => syncAppearanceDom());
 
   ensureWindowsAccentSubscription();
   await refreshWindowsThemeAccentColor();
   await applyTheme(id);
   applyResolvedAccent(id, storedAccent.accentKey, storedAccent.customColor);
+
+  /*
+    From here on, an OS scheme flip (or a mode change) re-stamps the attributes *and*
+    re-resolves the accent. The second half matters because the base theme's default accent
+    is per-scheme (Instrument Blue / Ledger Green): without it, switching to Light would paint
+    Ledger's paper surfaces but keep Instrument's blue.
+
+    Subscribed after the initial apply on purpose — Svelte stores emit immediately, and doing
+    this before `applyTheme` would run the accent path against half-initialised state. A user
+    who *has* picked an accent keeps it: `applyResolvedAccent` only falls through to the
+    scheme default when the stored key is empty.
+  */
+  resolvedAppearance.subscribe(() => {
+    syncAppearanceDom();
+    applyResolvedAccent(
+      get(currentThemeId),
+      get(currentThemeAccentKey),
+      get(currentThemeCustomAccentColor),
+    );
+  });
 }
 
 /** Switch between System / Light / Dark. No-op for the palette while a classic pack is active. */

@@ -5,6 +5,7 @@ import {
   clearError,
   clearKitActive,
   clearRecovery,
+  dismissSwitch,
   endSwitch,
   narrate,
   resetStatusStrip,
@@ -55,18 +56,99 @@ describe("switching", () => {
     });
   });
 
-  it("settles back to idle when the switch ends", () => {
+  /*
+    A completed switch holds the result until dismissed rather than settling on its own. Brief
+    A13 requires the success state to be unambiguous, and a dock that vanishes the instant the
+    engine returns leaves the user staring at the same grid wondering whether anything happened.
+  */
+  it("holds the result after the switch ends, then settles to idle on dismiss", () => {
     setIdleFacts({ accountLabel: "Faeton", isHome: true, steamRunning: false });
     beginSwitch("SharedAcc");
     endSwitch();
+    expect(get(statusStrip)).toMatchObject({ kind: "switching", finished: true });
+    dismissSwitch();
     expect(get(statusStrip)).toMatchObject({ kind: "idle", accountLabel: "Faeton" });
   });
 
-  it("settles to kit-active when a kit is live", () => {
+  it("settles to kit-active on dismiss when a kit is live", () => {
     setKitActive({ accountLabel: "SharedAcc", modules: ["Dota 2"], cloudRisk: true });
     beginSwitch("SharedAcc");
     endSwitch();
+    dismissSwitch();
     expect(get(statusStrip)).toMatchObject({ kind: "kit-active", accountLabel: "SharedAcc" });
+  });
+
+  // An undismissed *result* is not work in progress: the next switch must not be refused
+  // just because the user has not clicked Done yet.
+  it("does not let an undismissed result block the next switch", () => {
+    beginSwitch("A");
+    endSwitch();
+    expect(get(switchingBlocked)).toBe(false);
+    expect(beginSwitch("B")).toBe(true);
+    expect(get(statusStrip)).toMatchObject({ kind: "switching", toLabel: "B", finished: false });
+  });
+
+  it("tracks the account being left, for the dock's 'Saving X\'s login' step", () => {
+    beginSwitch("Ash", "Marlow");
+    expect(get(statusStrip)).toMatchObject({ toLabel: "Ash", fromLabel: "Marlow" });
+  });
+
+  /*
+    The engine reports `Status_UpdatingFile` several times across two different writes, so
+    progress has to be monotonic or the bar walks backwards mid-switch.
+  */
+  it("advances the step monotonically from backend status keys", () => {
+    beginSwitch("Ash", "Marlow");
+    expect(get(statusStrip)).toMatchObject({ step: null });
+    narrate("Closing Steam", "Status_ClosingPlatform");
+    expect(get(statusStrip)).toMatchObject({ step: "close" });
+    narrate("Writing", "Status_UpdatingFile");
+    expect(get(statusStrip)).toMatchObject({ step: "login" });
+    narrate("Closing Steam", "Status_ClosingPlatform");
+    expect(get(statusStrip)).toMatchObject({ step: "login" });
+    narrate("Launching", "Status_StartingPlatform");
+    expect(get(statusStrip)).toMatchObject({ step: "launch" });
+  });
+
+  it("ignores narration with no recognised key rather than resetting progress", () => {
+    beginSwitch("Ash", "Marlow");
+    narrate("Writing", "Status_UpdatingFile");
+    narrate("something the frontend does not know");
+    expect(get(statusStrip)).toMatchObject({ step: "login", phase: "something the frontend does not know" });
+  });
+
+  /*
+    The switcher goes through the session-kit engine, which reports kit work *between*
+    closing Steam and writing the login. Mapping those keys is what stopped the dock sitting
+    on "Closing Steam" for the whole kit stage and then mislabelling the login write.
+  */
+  it("maps the session-kit phases the switcher actually emits", () => {
+    beginSwitch("Ash", "Marlow");
+    narrate("Closing", "Status_ClosingPlatform");
+    narrate("Saving their setup", "Status_Kit_SavingTheirSetup");
+    expect(get(statusStrip)).toMatchObject({ step: "kit" });
+    narrate("Applying", "Status_Kit_ApplyingKit");
+    expect(get(statusStrip)).toMatchObject({ step: "kit" });
+    narrate("Login", "Status_ActionBar_UpdatingSteamLogin");
+    expect(get(statusStrip)).toMatchObject({ step: "login" });
+  });
+
+  /*
+    The engine emits "starting Steam" even when the AutoStart setting makes the launch a
+    no-op, so whether Steam came back has to be observed and passed in — never inferred from
+    the step having been reported.
+  */
+  it("records the observed Steam state rather than assuming the launch worked", () => {
+    beginSwitch("Ash", "Marlow");
+    narrate("Launching", "Status_StartingPlatform");
+    endSwitch(false);
+    expect(get(statusStrip)).toMatchObject({ finished: true, launched: false });
+
+    dismissSwitch();
+    beginSwitch("Ash", "Marlow");
+    narrate("Launching", "Status_StartingPlatform");
+    endSwitch(true);
+    expect(get(statusStrip)).toMatchObject({ finished: true, launched: true });
   });
 
   it("blocks interaction while switching", () => {
@@ -180,7 +262,10 @@ describe("tone", () => {
     expect(get(statusTone)).toBe("neutral");
     beginSwitch("SharedAcc");
     expect(get(statusTone)).toBe("busy");
+    // A finished-but-undismissed switch is a result, not work: it stops reading as busy.
     endSwitch();
+    expect(get(statusTone)).toBe("neutral");
+    dismissSwitch();
     setKitActive({ accountLabel: "SharedAcc", modules: [], cloudRisk: false });
     expect(get(statusTone)).toBe("warn");
     setRecovery("steam-running", "…", []);

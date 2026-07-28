@@ -84,7 +84,7 @@
 
   .userDataMoveOverlay__pct {
     margin: 0;
-    font-size: 0.95rem;
+    font-size: var(--fs-secondary);
     font-weight: 600;
     color: var(--whiteSecondary);
   }

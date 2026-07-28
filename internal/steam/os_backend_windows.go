@@ -3,6 +3,7 @@
 package steam
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 
@@ -75,9 +76,47 @@ func (windowsBackend) DeleteRegistryValue(_, valueName string) (bool, error) {
 	return false, err
 }
 
-// DefaultRoot is left to Platforms.json, whose ExeLocationDefault already carries the Windows
-// path and is user-overridable.
-func (windowsBackend) DefaultRoot() string { return "" }
+// steamInstallPathValues are where the client records its own install directory, most
+// authoritative first.
+//
+// HKCU is written by the running client for the current user and tracks a move; the HKLM
+// values are written by the installer. WOW6432Node is listed before the plain key because
+// Steam ships a 32-bit installer, so on a 64-bit Windows the redirected key is the one that
+// exists — but a 32-bit or ARM host has it under the plain path instead.
+var steamInstallPathValues = []string{
+	`HKCU\Software\Valve\Steam:SteamPath`,
+	`HKLM\SOFTWARE\WOW6432Node\Valve\Steam:InstallPath`,
+	`HKLM\SOFTWARE\Valve\Steam:InstallPath`,
+}
+
+// DefaultRoot asks Steam where it is rather than guessing.
+//
+// This used to return "" and defer to Platforms.json's `%ProgramFiles(x86)%\Steam\steam.exe`.
+// That was a guess dressed as a default: it is wrong for everyone who installed Steam on
+// another drive, and it was never even consulted, because the hardcoded `FolderPath` in
+// settings won first. The registry values below are the client's own record of where it
+// lives, so they are right for a custom install and for one that has been moved.
+//
+// Platforms.json remains the fallback for the case where none of them can be read.
+func (windowsBackend) DefaultRoot() string {
+	for _, encoded := range steamInstallPathValues {
+		v, _, err := winutil.RegistryRead(encoded)
+		if err != nil {
+			continue
+		}
+		s, _ := v.(string)
+		// Steam writes HKCU\SteamPath with forward slashes ("c:/program files (x86)/steam"),
+		// which every path join downstream would carry through unchanged.
+		s = filepath.FromSlash(strings.TrimSpace(s))
+		if s == "" {
+			continue
+		}
+		if st, err := os.Stat(s); err == nil && st.IsDir() {
+			return filepath.Clean(s)
+		}
+	}
+	return ""
+}
 
 func (windowsBackend) Launch(steamRoot string, args []string, opts LaunchOpts) error {
 	return winutil.Start(filepath.Join(steamRoot, "steam.exe"), args, winutil.StartOpts{

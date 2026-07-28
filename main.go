@@ -186,6 +186,18 @@ func main() {
 		os.Exit(0)
 	}
 
+	// Before the singleton on purpose: --seal-roster is a stream filter over stdin that opens
+	// nothing this app owns, so an automation piping into it must not be blocked by — or
+	// forwarded to — a SteamSwitch the user happens to have open.
+	if parsed.IsStdioCommand() {
+		winutil.AttachParentConsole()
+		if err := disp.RunSealRoster(parsed, os.Stdin, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
 	releaseSingleton, running, err := winutil.TryAcquireSingleton()
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "singleton:", err)

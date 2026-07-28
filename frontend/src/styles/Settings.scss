@@ -10,30 +10,34 @@
   color: var(--whiteSecondary);
 }
 
+/*
+  Section heading *inside* a settings category (REDESIGN_BRIEF.md A11).
+
+  It used to be the app's only structural device on a single flat scrolling column, styled
+  with an accent bar borrowed from upstream — the "still looks like TcNo" tell in Part B #11.
+  Now that each category is its own page with a `PageHeader` above it, this is a plain section
+  heading and no longer has to shout to be found.
+*/
 .SettingsHeader {
-  line-height: 1.3em;
-  color: var(--whiteSecondary);
-  font-weight: bold;
-  padding: 0 0.1em 0.5em 0;
-  margin: 1.25rem 0 0.75rem;
+  margin: 0;
+  padding: 0;
   border: 0;
-  border-left: 3px solid var(--settings-header-border, var(--accent));
-  padding: 0.15rem 0 0.15rem 0.65rem;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-semibold);
+  line-height: var(--lh-tight);
+  color: var(--fg-primary, var(--whiteSecondary));
 }
 
-.acc_list_actionbar > div .btn_login,
-.btn_close span {
-  padding: 0.25em 5em;
-}
-
-.settingsCol .buttoncol button.btn_app_login {
-  width: 250px;
-  margin: 1em 0;
-}
+/*
+  Retired with the flat Settings column: `.acc_list_actionbar > div .btn_login`, `.btn_close
+  span` and `.settingsCol .buttoncol button.btn_app_login` were upstream's account-list action
+  bar and login buttons, none of which exist in this fork's Settings any more. The action bar
+  itself still lives in `acclist.scss` for the preview page that renders it.
+*/
 
 div.form-text {
   color: var(--text-body-muted);
-  font-size: 12px !important;
+  font-size: var(--fs-secondary);
 }
 
 div.form-text > label,
@@ -41,10 +45,23 @@ div.form-text > span {
   color: var(--whiteSecondary);
 }
 
-input[type="number"],
-input[type="text"],
-input[type="password"],
-textarea {
+/*
+  Opting the redesigned control vocabulary out of the inherited form styling.
+
+  Everything below styles bare *type selectors* — `input[type="text"]`, `input[type="checkbox"]`,
+  `label`. Those are specificity (0,1,1), which beats a class like `.ss-field` (0,1,0), so once
+  any page that imports this file has loaded, the new fields silently reverted to upstream's
+  bottom-underline look and the new switches went to `opacity: 0` and vanished.
+
+  The fix is here rather than by escalating specificity in `tokens.scss`, because this is the
+  side that should shrink: the exclusions below are a short, greppable list of the classes the
+  redesign owns, and every legacy surface keeps exactly the styling it had.
+*/
+
+input[type="number"]:not(.ss-field),
+input[type="text"]:not(.ss-field),
+input[type="password"]:not(.ss-field),
+textarea:not(.ss-field) {
   appearance: textfield;
   -moz-appearance: textfield;
   display: inline-block;
@@ -57,51 +74,51 @@ textarea {
   color: var(--whiteSecondary);
 }
 
-textarea {
+textarea:not(.ss-field) {
   border-bottom: 2px solid transparent;
   resize: both;
 }
 
-input[type="number"],
-input[type="text"],
-input[type="password"],
-textarea {
+input[type="number"]:not(.ss-field),
+input[type="text"]:not(.ss-field),
+input[type="password"]:not(.ss-field),
+textarea:not(.ss-field) {
   border-bottom: 2px solid var(--input-number-border);
 }
 
-input[type="number"]::placeholder,
-input[type="text"]::placeholder,
-input[type="password"]::placeholder,
-textarea::placeholder {
+input[type="number"]:not(.ss-field)::placeholder,
+input[type="text"]:not(.ss-field)::placeholder,
+input[type="password"]:not(.ss-field)::placeholder,
+textarea:not(.ss-field)::placeholder {
   color: var(--modal-placeholder-fg, var(--whiteSecondary));
   opacity: 1;
 }
 
-input[type="number"]:focus,
-input[type="text"]:focus,
-input[type="password"]:focus,
-textarea:focus {
+input[type="number"]:not(.ss-field):focus,
+input[type="text"]:not(.ss-field):focus,
+input[type="password"]:not(.ss-field):focus,
+textarea:not(.ss-field):focus {
   border-bottom: 2px solid var(--accent);
 }
 
-input[type="number"][aria-invalid="true"],
-input[type="text"][aria-invalid="true"],
-input[type="password"][aria-invalid="true"],
-textarea[aria-invalid="true"] {
+input[type="number"]:not(.ss-field)[aria-invalid="true"],
+input[type="text"]:not(.ss-field)[aria-invalid="true"],
+input[type="password"]:not(.ss-field)[aria-invalid="true"],
+textarea:not(.ss-field)[aria-invalid="true"] {
   border-bottom-color: var(--error-text-soft, var(--red, #ff5555));
   border-bottom-style: double;
   border-bottom-width: 3px;
   box-shadow: inset 0 -1px 0 var(--error-text-soft, var(--red, #ff5555));
 }
 
-.input-modality-keyboard input[type="number"]:focus,
-.input-modality-keyboard input[type="text"]:focus,
-.input-modality-keyboard input[type="password"]:focus,
-.input-modality-keyboard textarea:focus,
-.input-modality-controller input[type="number"]:focus,
-.input-modality-controller input[type="text"]:focus,
-.input-modality-controller input[type="password"]:focus,
-.input-modality-controller textarea:focus {
+.input-modality-keyboard input[type="number"]:not(.ss-field):focus,
+.input-modality-keyboard input[type="text"]:not(.ss-field):focus,
+.input-modality-keyboard input[type="password"]:not(.ss-field):focus,
+.input-modality-keyboard textarea:not(.ss-field):focus,
+.input-modality-controller input[type="number"]:not(.ss-field):focus,
+.input-modality-controller input[type="text"]:not(.ss-field):focus,
+.input-modality-controller input[type="password"]:not(.ss-field):focus,
+.input-modality-controller textarea:not(.ss-field):focus {
   box-shadow:
     0 0 0 2px var(--mainContentBackground, var(--code-background, #111)),
     0 0 0 4px var(--accent);
@@ -113,7 +130,7 @@ input::-webkit-inner-spin-button {
   margin: 0;
 }
 
-label {
+label:not(.field):not(.row__label):not(.add-login__choice) {
   padding: 0 0.5em;
   color: var(--whiteSecondary);
 }
@@ -160,11 +177,11 @@ label {
   }
 }
 
-input[type="checkbox"] {
+input[type="checkbox"]:not(.ss-toggle):not(.ss-checkbox) {
   opacity: 0;
 }
 
-input[type="checkbox"] + label {
+input[type="checkbox"]:not(.ss-toggle):not(.ss-checkbox) + label {
   display: inline-block;
   position: relative;
   width: 20px;
@@ -179,12 +196,12 @@ input[type="checkbox"] + label {
   vertical-align: middle;
 }
 
-input[type="checkbox"]:checked + label {
+input[type="checkbox"]:not(.ss-toggle):not(.ss-checkbox):checked + label {
   border: 1px solid var(--form-checkbox-border);
   background: var(--accent);
 }
 
-input[type="checkbox"]:focus-visible + label {
+input[type="checkbox"]:not(.ss-toggle):not(.ss-checkbox):focus-visible + label {
   --custom-focus-ring-color: var(--focus-ring-color, var(--whiteSecondary, var(--accent)));
   --custom-focus-ring-offset-color: var(--focus-ring-offset-color, var(--mainContentBackground, var(--code-background, #111)));
   border-color: var(--custom-focus-ring-color) !important;

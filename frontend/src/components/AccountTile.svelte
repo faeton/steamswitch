@@ -1,22 +1,28 @@
 <script lang="ts">
   /**
-   * One account row in the compact list (REDESIGN.md §3).
+   * One account in the switcher grid (REDESIGN_BRIEF.md A6 "The account list & tile").
    *
    * A single click switches — there is no select-then-act step, because at three or four
-   * accounts selection buys nothing. Right-click (or the ⋯ button) opens the account menu.
-   * At most two badges, and the Home accent ring is never the only way to tell Home apart:
-   * the badge text says so too.
+   * accounts selection buys nothing. Right-click (or the ⋯ button) opens the account menu;
+   * Shift-click opens the detail panel instead of switching.
+   *
+   * The keycap is the visible change from before. It used to be a bare `1` with
+   * `aria-hidden`, no tooltip and no affordance — brief Part B #6, "unexplained". It now
+   * reads as a key (a doubled bottom border), says what it does on hover, and is announced.
+   * It is a *bordered key*; health is a *dot plus words*. The brief calls out that those two
+   * must never be confusable, so they differ in shape, not just colour.
    */
   import { createEventDispatcher } from "svelte";
   import SteamAccountAvatar from "./SteamAccountAvatar.svelte";
   import AccountTagBubbles from "./AccountTagBubbles.svelte";
+  import HealthBadge from "./vault/HealthBadge.svelte";
   import { t, locale } from "../stores/i18n";
   import { formatLastLoginForLocale } from "../lib/formatLastLogin";
   import { accountMetaLine, accountNotePreview } from "../lib/steam/accountMetaLine";
   import type { SteamAccountRow } from "../lib/steam/types";
   import type { AccountRole } from "../lib/steam/accountRoles";
   import { vaultHealth } from "../stores/vault";
-  import { tileDot } from "../lib/vault/health";
+  import { healthState } from "../lib/vault/health";
 
   export let account: SteamAccountRow;
   export let role: AccountRole = "plain";
@@ -25,13 +31,18 @@
   export let current = false;
   /** Disabled while a switch is running or a recovery is blocking. */
   export let disabled = false;
-  /** 1-based position, rendered as the `1–4` keyboard hint. */
+  /** 1-based position in the *visible* order, rendered as the keyboard hint. 0 = none. */
   export let index = 0;
   export let avatarEpoch = 0;
   export let boundary: HTMLElement | null = null;
+  /** True while this specific account is the target of a running switch. */
+  export let switching = false;
+  /** Only show vault-derived health when the vault is actually in use. */
+  export let showHealth = false;
 
   const dispatch = createEventDispatcher<{
     switch: string;
+    detail: string;
     menu: { id: string; x: number; y: number };
   }>();
 
@@ -41,10 +52,20 @@
   $: label = account.displayName?.trim() || account.personaName?.trim() || id;
   $: meta = accountMetaLine(account, (raw) => formatLastLoginForLocale(raw, $locale));
   $: notePreview = accountNotePreview(account);
-  $: healthDot = tileDot($vaultHealth[id]);
+  $: health = showHealth ? healthState($vaultHealth[id]) : null;
+  // Only warn and fail earn tile space. A green badge on every healthy account is noise that
+  // trains people to ignore the colour, and "never checked" would mark every account on a
+  // machine where the vault is never used.
+  $: showHealthLine = !!health && (health.tone === "warn" || health.tone === "fail");
+  $: tone = showHealthLine ? health?.tone : undefined;
 
-  function activate(): void {
-    if (disabled || current) {
+  function activate(e: MouseEvent | KeyboardEvent): void {
+    if (disabled) return;
+    // Shift opens detail instead of switching — the same modifier the keyboard shortcut uses,
+    // so the two ways of reaching detail agree. The current account has nothing to switch to,
+    // so clicking it goes to detail as well.
+    if (e.shiftKey || current) {
+      dispatch("detail", id);
       return;
     }
     dispatch("switch", id);
@@ -68,7 +89,7 @@
   function onKeydown(e: KeyboardEvent): void {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      activate();
+      activate(e);
       return;
     }
     // The keyboard equivalent of right-click, for users who never reach for a mouse.
@@ -84,55 +105,46 @@
   class="tile"
   class:tile--home={role === "home"}
   class:tile--current={current}
+  class:tile--switching={switching}
   class:tile--disabled={disabled}
+  data-tone={tone}
   role="button"
   tabindex={disabled ? -1 : 0}
   aria-disabled={disabled}
   aria-current={current ? "true" : undefined}
+  aria-busy={switching}
+  aria-keyshortcuts={index > 0 && index <= 9 && !current ? String(index) : undefined}
   on:click={activate}
   on:keydown={onKeydown}
   on:contextmenu={onContextMenu}
 >
-  <div class="tile__avatar">
-    <SteamAccountAvatar
-      {account}
-      epoch={avatarEpoch}
-      fallback={PROFILE_PLACEHOLDER}
-      {boundary}
-    />
-  </div>
+  <SteamAccountAvatar {account} epoch={avatarEpoch} fallback={PROFILE_PLACEHOLDER} {boundary} />
 
   <div class="tile__body">
     <div class="tile__name" title={label}>{label}</div>
-    {#if meta}
-      <div class="tile__sub meta-mono" title={meta}>{meta}</div>
+    {#if account.accountName}
+      <div class="tile__login meta-mono" title={account.accountName}>{account.accountName}</div>
     {/if}
+
+    {#if switching}
+      <div class="tile__state">{$t("Switch_Tile_Switching")}</div>
+    {:else if showHealthLine}
+      <!-- Health replaces the last-used line rather than joining it: "used 3 weeks ago" is
+           small talk next to "token expired", and stacking both makes tiles uneven. -->
+      <HealthBadge report={$vaultHealth[id]} />
+    {:else if meta}
+      <div class="tile__meta" title={meta}>{meta}</div>
+    {/if}
+
     {#if notePreview}
       <div class="tile__note" title={notePreview}>{notePreview}</div>
     {/if}
-    <!-- Tags get their own row rather than joining the badge cluster: the two-badge cap in
-         REDESIGN §3 is about the fixed role markers, and a user can define any number of
-         tags. Capped at three plus a "+N" so one heavily tagged account cannot grow to
-         several times the height of its neighbours. A tile with no tags renders nothing and
-         stays the original height. -->
     {#if account.tags?.length}
       <div class="tile__tags"><AccountTagBubbles tags={account.tags} maxVisible={3} /></div>
     {/if}
   </div>
 
-  <div class="tile__badges">
-    {#if healthDot}
-      <!--
-        Only warn and fail get a dot. A green dot on every healthy account is noise that
-        trains people to ignore the colour, and a dot for "not checked" would mark every
-        account on a machine where the vault is never used.
-      -->
-      <span
-        class="badge badge--health badge--health-{healthDot}"
-        title={$t(healthDot === "fail" ? "Vault_Tile_Fail" : "Vault_Tile_Warn")}
-        aria-label={$t(healthDot === "fail" ? "Vault_Tile_Fail" : "Vault_Tile_Warn")}
-      ></span>
-    {/if}
+  <div class="tile__end">
     {#if role === "home"}
       <span class="badge badge--home">{$t("Badge_Home")}</span>
     {:else if role === "shared"}
@@ -143,152 +155,197 @@
         >⧉</span
       >
     {/if}
+
+    {#if index > 0 && index <= 9 && !current}
+      <kbd class="keycap" title={$t("Switch_Keycap_Tooltip", { number: index, name: label })}>
+        {index}
+      </kbd>
+    {/if}
+
+    <button
+      type="button"
+      class="tile__menu"
+      aria-label={$t("Aria_AccountMenu", { name: label })}
+      on:click={onMenuButton}>⋯</button
+    >
   </div>
-
-  {#if index > 0 && index <= 4}
-    <kbd class="tile__hint meta-mono" aria-hidden="true">{index}</kbd>
-  {/if}
-
-  <button
-    type="button"
-    class="tile__menu"
-    aria-label={$t("Aria_AccountMenu", { name: label })}
-    on:click={onMenuButton}>⋯</button
-  >
 </div>
 
 <style>
   .tile {
+    --avatar-size: var(--avatar-tile-size, 42px);
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 8px 10px;
+    gap: 13px;
+    padding: var(--space-4);
     border: 1px solid var(--hairline, var(--button-bg));
-    border-radius: 10px;
-    background: var(--role-panel-bg, var(--mainContentBackground));
+    border-radius: var(--radius-lg);
+    background: var(--surface-panel, var(--mainContentBackground));
     cursor: pointer;
     min-width: 0;
   }
+
   :global(.animations-enabled) .tile {
     transition:
-      background-color 140ms ease-out,
-      border-color 140ms ease-out;
+      background-color var(--dur-fast) ease-out,
+      border-color var(--dur-fast) ease-out;
   }
+
   .tile:hover:not(.tile--disabled) {
-    background: var(--button-bg-hover);
+    border-color: var(--accent);
+    background: var(--button-bg);
   }
+
   .tile:focus-visible {
     outline: 2px solid var(--role-focus-ring, var(--accent));
     outline-offset: 2px;
   }
+
+  /*
+    A tile carrying a health warning keeps that colour on its border in the resting state and
+    on hover, so scanning the grid surfaces the unhappy accounts without reading every line.
+  */
+  .tile[data-tone="warn"] {
+    border-color: var(--border-warn);
+  }
+  .tile[data-tone="warn"]:hover:not(.tile--disabled) {
+    border-color: var(--orange);
+    background: var(--bg-warn);
+  }
+  .tile[data-tone="fail"] {
+    border-color: var(--border-fail);
+  }
+  .tile[data-tone="fail"]:hover:not(.tile--disabled) {
+    border-color: var(--red);
+    background: var(--bg-fail);
+  }
+
   .tile--home {
-    border-color: var(--accent);
     box-shadow: inset 0 0 0 1px var(--accent-overlay-border, transparent);
   }
+
   .tile--current {
     background: var(--accent-fill-very-soft, var(--button-bg));
-    cursor: default;
   }
+
+  .tile--switching {
+    border-color: var(--accent);
+    background: var(--accent-fill-very-soft, var(--button-bg));
+  }
+
   .tile--disabled {
     opacity: var(--role-disabled-opacity, 0.55);
     cursor: default;
   }
 
-  .tile__avatar {
-    flex: 0 0 auto;
-    width: 36px;
-    height: 36px;
-    display: flex;
-  }
   .tile__body {
     flex: 1 1 auto;
     min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
   }
+
   .tile__name {
-    font-size: 13px;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    color: var(--fg-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-  .tile__sub,
-  .tile__note {
-    color: var(--role-text-muted, var(--text-subtle-gray));
+
+  .tile__login {
+    color: var(--fg-muted);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+
+  .tile__meta,
+  .tile__note,
+  .tile__state {
+    font-size: var(--fs-meta);
+    color: var(--fg-disabled);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tile__state {
+    color: var(--accent-text-bright, var(--accent));
+  }
+
   .tile__note {
-    font-size: 11px;
     font-style: italic;
   }
+
   .tile__tags {
     margin-top: 3px;
   }
 
-  .tile__badges {
-    display: flex;
-    gap: 4px;
+  .tile__end {
     flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-1);
   }
+
   .badge {
-    font-size: 9px;
+    font-size: var(--fs-meta);
     letter-spacing: 0.06em;
-    padding: 2px 5px;
-    border-radius: 5px;
+    padding: 1px 5px;
+    border-radius: var(--radius-sm);
     border: 1px solid var(--hairline-strong, var(--button-bg));
-    color: var(--role-text-muted, var(--text-subtle-gray));
-    line-height: 1.2;
+    color: var(--fg-muted);
+    line-height: 1.3;
   }
+
   .badge--home {
     border-color: var(--accent);
     color: var(--accent-text-bright, var(--accent));
   }
-  .badge--kit {
-    font-size: 11px;
-    padding: 1px 4px;
-  }
 
-  /* A dot, not a word: the badge row already carries up to two text badges, and the health
-     marker has to fit alongside them without pushing the name column narrower. Colour is
-     never the only carrier — the title and aria-label say which state it is. */
-  .badge--health {
-    width: 8px;
-    height: 8px;
-    padding: 0;
-    border-radius: 50%;
-    align-self: center;
-    border: none;
-  }
-  .badge--health-warn {
-    background: var(--warning, #d19a20);
-  }
-  .badge--health-fail {
-    background: var(--danger, #c0392b);
-  }
-
-  .tile__hint {
-    flex: 0 0 auto;
-    color: var(--role-text-muted, var(--text-subtle-gray));
-    border: 1px solid var(--hairline, var(--button-bg));
-    border-radius: 4px;
+  /*
+    The keycap. Its whole job is to look pressable rather than informational: a doubled bottom
+    border reads as key depth, and the monospace digit matches the physical key. The tooltip
+    carries the actual instruction, because a lone digit can never explain itself.
+  */
+  .keycap {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: var(--keycap-size);
+    height: var(--keycap-size);
     padding: 0 4px;
-    line-height: 15px;
+    border: 1px solid var(--hairline-strong, var(--button-bg));
+    border-bottom-width: 2px;
+    border-radius: var(--radius-xs);
+    font-family: var(--font-mono, monospace);
+    font-size: var(--keycap-fs);
+    line-height: 1;
+    color: var(--fg-muted);
   }
 
   .tile__menu {
-    flex: 0 0 auto;
     background: none;
     border: none;
-    color: var(--role-text-muted, var(--text-subtle-gray));
+    color: var(--fg-muted);
     font-size: 15px;
     line-height: 1;
-    padding: 4px 6px;
-    border-radius: 6px;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-md);
     cursor: pointer;
   }
+
   .tile__menu:hover {
-    background: var(--button-bg);
-    color: var(--white);
+    background: var(--button-bg-hover);
+    color: var(--fg-primary);
+  }
+
+  .tile__menu:focus-visible {
+    outline: 2px solid var(--role-focus-ring, var(--accent));
+    outline-offset: 1px;
   }
 
   @media (prefers-reduced-motion: reduce) {

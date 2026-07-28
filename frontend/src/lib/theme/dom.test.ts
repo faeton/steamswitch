@@ -208,3 +208,67 @@ describe("Windows accent live updates", () => {
     expect(resolveThemeAccent(DEFAULT_THEME_ID).id).toBe(WINDOWS_THEME_ACCENT_KEY);
   });
 });
+
+/*
+  The base theme's two schemes are two visual languages (Instrument / Ledger), so "the user
+  never picked an accent" resolves to a different colour in each. Easy to regress into a single
+  default, which would put Instrument's blue on Ledger's paper.
+*/
+describe("base theme default accent follows the scheme", () => {
+  beforeEach(() => {
+    runtimeMock.handlers.clear();
+    runtimeMock.Events.On.mockClear();
+    updaterThemeMock.scheduleUpdaterThemeSync.mockClear();
+    Object.defineProperty(globalThis, "document", {
+      value: undefined,
+      configurable: true,
+    });
+    vi.resetModules();
+    installFakeBrowserGlobals();
+  });
+
+  it("uses Instrument Blue in dark and Ledger Green in light", async () => {
+    const { dom, persistence, stores, types } = await loadThemeModules();
+    const appearance = await import("./appearance");
+    const { applyResolvedAccent } = dom;
+    const { resolveThemeAccent } = persistence;
+    const { currentThemeAccentKey, currentThemeCustomAccentColor, currentThemeId } = stores;
+    const { BASE_THEME_ID, BASE_ACCENT_INSTRUMENT, BASE_ACCENT_LEDGER } = types;
+
+    currentThemeId.set(BASE_THEME_ID);
+    currentThemeAccentKey.set("");
+    currentThemeCustomAccentColor.set("");
+
+    appearance.appearanceMode.set("dark");
+    applyResolvedAccent(BASE_THEME_ID, "", "");
+    expect(cssVar(getAccentOverlayCss(), "--accent")).toBe(BASE_ACCENT_INSTRUMENT);
+    expect(resolveThemeAccent(BASE_THEME_ID).color).toBe(BASE_ACCENT_INSTRUMENT);
+
+    appearance.appearanceMode.set("light");
+    applyResolvedAccent(BASE_THEME_ID, "", "");
+    expect(cssVar(getAccentOverlayCss(), "--accent")).toBe(BASE_ACCENT_LEDGER);
+    expect(resolveThemeAccent(BASE_THEME_ID).color).toBe(BASE_ACCENT_LEDGER);
+  });
+
+  it("keeps an explicitly chosen accent across a scheme flip", async () => {
+    const { dom, persistence, stores, types } = await loadThemeModules();
+    const appearance = await import("./appearance");
+    const { applyResolvedAccent } = dom;
+    const { resolveThemeAccent } = persistence;
+    const { currentThemeAccentKey, currentThemeCustomAccentColor, currentThemeId } = stores;
+    const { BASE_THEME_ID } = types;
+
+    currentThemeId.set(BASE_THEME_ID);
+    currentThemeAccentKey.set("");
+    currentThemeCustomAccentColor.set("");
+
+    appearance.appearanceMode.set("dark");
+    applyResolvedAccent(BASE_THEME_ID, "violet", "");
+    expect(cssVar(getAccentOverlayCss(), "--accent")).toBe("#8b5cf6");
+
+    appearance.appearanceMode.set("light");
+    applyResolvedAccent(BASE_THEME_ID, "violet", "");
+    expect(cssVar(getAccentOverlayCss(), "--accent")).toBe("#8b5cf6");
+    expect(resolveThemeAccent(BASE_THEME_ID, "violet").id).toBe("violet");
+  });
+});

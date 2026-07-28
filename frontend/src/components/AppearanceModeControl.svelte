@@ -80,7 +80,7 @@
   }
   .hint {
     color: var(--role-text-muted, var(--text-subtle-gray));
-    font-size: 11px;
+    font-size: var(--fs-secondary);
     margin: 4px 0 0;
   }
 </style>

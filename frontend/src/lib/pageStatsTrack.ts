@@ -8,8 +8,14 @@ function routeToStatsPath(r: Route): string {
   switch (r.page) {
     case "home":
       return "/";
+    // Settings categories collapse to one key: the stat is "how long in Settings", and
+    // six sub-paths would fragment it without answering a question anyone asks.
     case "settings":
       return "/settings";
+    case "vault":
+      return "/vault";
+    case "about":
+      return "/about";
     case "preview-css":
       return "/preview-css";
     case "dota-configs":

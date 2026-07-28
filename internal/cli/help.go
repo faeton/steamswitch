@@ -30,6 +30,16 @@ List:                --list-platforms
                      --list-accounts=<PlatformNameOrAlias>
                      --json        JSON instead of plain text (use with list flags only)
 
+Seal a roster:       --seal-roster            (bundle to stdout)
+                     --seal-roster=<file>     (bundle to a file, owner-only)
+                     Reads one JSON document on stdin:
+                       {"passphrase":"...","accounts":[{"steamId64":"765...", ...}]}
+                     Writes a passphrase-sealed .ssroster the app can import.
+                     The passphrase is read from stdin, never from argv, so it does
+                     not appear in the process list or shell history. Pipe the
+                     document in — do not write it to a file first; a plaintext file
+                     of credentials cannot be reliably erased afterwards.
+
 Other:               -h, --help    Show this help
                      -v, --verbose Debug logging (same as --log-level=debug)
                      --log-level=  Logging: debug, info, warn, error (app + Wails; default info)
