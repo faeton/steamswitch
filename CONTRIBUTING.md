@@ -46,5 +46,17 @@ Notes:
 
 ## Translations
 
-Only edit `frontend/src/Resources/en-US.json`; other locale files are managed
-separately. Validate with `python3 tools/validate_i18n.py`.
+`frontend/src/Resources/en-US.json` is the source — put new strings there and
+nowhere else. Both loaders (`stores/i18n.ts` and `internal/i18n`) merge a locale
+over en-US per key, so a string nobody has translated yet shows in English
+rather than as a raw key name.
+
+The fork ships `ru-RU`, `uk-UA` and `zh-CN` alongside it, translated by hand and
+currently around a third complete. Upstream's Crowdin pipeline does not exist
+here, so those files only change when someone edits them. Filling in the gaps is
+welcome; so is adding a locale, provided you are prepared to keep it up.
+
+Validate with `python3 tools/validate_i18n.py`. It fails on keys that are not in
+en-US, on `{placeholder}` mismatches and on broken markup — the things that
+actually render wrong. Untranslated keys are reported as coverage; pass
+`--strict` to fail on those too.
