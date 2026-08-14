@@ -68,7 +68,12 @@ func Now(secret string) (code string, remaining time.Duration, err error) {
 	if err != nil {
 		return "", 0, err
 	}
-	elapsed := time.Duration(t.Unix()%int64(Period.Seconds())) * time.Second
+	// Sub-second precision matters, and in one direction only. Rounding elapsed down to whole
+	// seconds overstates what is left by up to 999ms, and the caller truncates that to a whole
+	// second for the countdown — so a code with 120ms of life would be advertised as having a
+	// full second of it. The user types it, Steam has already rotated, and the failure looks
+	// like a wrong code rather than a late one. Overstating is the unsafe direction; don't.
+	elapsed := time.Duration(t.UnixNano() % int64(Period))
 	return code, Period - elapsed, nil
 }
 

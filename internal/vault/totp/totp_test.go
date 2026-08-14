@@ -109,6 +109,34 @@ func TestNow_ReportsRemaining(t *testing.T) {
 	}
 }
 
+// Remaining may run short, never long. The UI truncates it to whole seconds for a countdown,
+// so a value rounded up hands the user a code that Steam has already rotated — a failure that
+// looks like a wrong password rather than a late keystroke.
+func TestNow_NeverOverstatesRemaining(t *testing.T) {
+	secret := base64.StdEncoding.EncodeToString(rfcKey)
+
+	before := time.Now()
+	_, remaining, err := Now(secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	after := time.Now()
+
+	// A call that straddles a window boundary has no single right answer; the next window is
+	// 30s away, so simply try again rather than assert against an ambiguous clock.
+	if before.Unix()/int64(Period.Seconds()) != after.Unix()/int64(Period.Seconds()) {
+		t.Skip("the call straddled a window boundary")
+	}
+
+	boundary := before.Truncate(Period).Add(Period)
+	if max := boundary.Sub(before); remaining > max {
+		t.Fatalf("remaining = %v, want no more than %v (the time actually left in the window)", remaining, max)
+	}
+	if min := boundary.Sub(after); remaining < min {
+		t.Fatalf("remaining = %v, want at least %v", remaining, min)
+	}
+}
+
 func TestValid(t *testing.T) {
 	if Valid("") {
 		t.Fatal("an empty secret reported valid")

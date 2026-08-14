@@ -198,6 +198,52 @@ func TestBeginLoginAssist_OpensTheWindow(t *testing.T) {
 	}
 }
 
+// Two callers begin the same sign-in: the page, before it restarts Steam, and the assist
+// panel when it opens. The anchor exists to predate Steam's mail, so the second begin must
+// not push it forward past the mail the first one was placed to catch.
+func TestBeginLoginAssist_KeepsAnAnchorAlreadyOpen(t *testing.T) {
+	newVault(t)
+	t.Cleanup(resetPrewarmForTest)
+
+	const id = "76561198000000031"
+	if err := Put(Draft{SteamID64: id, Password: ptr("x")}); err != nil {
+		t.Fatal(err)
+	}
+
+	BeginLoginAssist(id)
+	first := codeAnchor(id)
+
+	time.Sleep(10 * time.Millisecond)
+	BeginLoginAssist(id)
+
+	if got := codeAnchor(id); !got.Equal(first) {
+		t.Fatalf("anchor = %v after a second begin, want the original %v", got, first)
+	}
+}
+
+// An assist that has aged out is not an assist. Re-beginning has to open a fresh window,
+// otherwise codeAnchor would keep handing back a dead one until the process restarted.
+func TestBeginLoginAssist_ReopensAfterTheWindowExpires(t *testing.T) {
+	newVault(t)
+	t.Cleanup(resetPrewarmForTest)
+
+	const id = "76561198000000032"
+	if err := Put(Draft{SteamID64: id, Password: ptr("x")}); err != nil {
+		t.Fatal(err)
+	}
+
+	stale := time.Now().Add(-LoginWindow - time.Minute)
+	assistMu.Lock()
+	assists[id] = stale
+	assistMu.Unlock()
+
+	BeginLoginAssist(id)
+
+	if got := codeAnchor(id); !got.After(stale) {
+		t.Fatalf("anchor = %v, want a fresh one after the stale %v", got, stale)
+	}
+}
+
 // The deep-check schedule is persisted so quitting the app cannot reset the clock, and it
 // backs off after failures because retrying a credential login on a timer is what gets an
 // account rate-limited out of its own logins.

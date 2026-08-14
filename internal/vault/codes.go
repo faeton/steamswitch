@@ -152,7 +152,17 @@ func BeginLoginAssist(steamID64 string) {
 	if id == "" {
 		return
 	}
+	// Idempotent on purpose. Two callers begin the same sign-in — the page, before it restarts
+	// Steam, and the assist panel when it opens — and the whole value of the anchor is that it
+	// predates Steam's mail. A second begin that re-stamped it to now would move the anchor
+	// *forward past* the mail the first one was placed to catch, turning the fix into the bug.
+	// So an assist already open and still inside its window wins, and its pre-warm is left
+	// alone rather than cancelled and restarted from cold.
 	assistMu.Lock()
+	if started, ok := assists[id]; ok && time.Since(started) <= LoginWindow {
+		assistMu.Unlock()
+		return
+	}
 	assists[id] = time.Now()
 	assistMu.Unlock()
 	Prewarm(id)
@@ -163,9 +173,15 @@ func BeginLoginAssist(steamID64 string) {
 func EndLoginAssist(steamID64 string) {
 	id := normID(steamID64)
 	assistMu.Lock()
+	_, owned := assists[id]
 	delete(assists, id)
 	assistMu.Unlock()
-	CancelPrewarm(id)
+	// Only cancel a pre-warm this assist is responsible for. A switch starts one of its own
+	// (internal/steam/switcher.go), and closing a credentials panel that never began an assist
+	// would otherwise throw away a code that was already most of the way fetched.
+	if owned {
+		CancelPrewarm(id)
+	}
 }
 
 // codeAnchor is the notBefore a direct fetch should use: the start of a declared sign-in if
@@ -242,7 +258,10 @@ func Prewarm(steamID64 string) {
 	prewarms[id] = p
 	prewarmMu.Unlock()
 
-	notBefore := time.Now()
+	// Anchor the pre-warm where a direct fetch would anchor it. Using time.Now() here meant a
+	// pre-warm started for a sign-in already in progress rejected the very mail it was warming
+	// for, then polled the full budget and returned nothing.
+	notBefore := codeAnchor(id)
 	go func() {
 		defer cancel()
 		code, err := src.FetchCode(ctx, notBefore)

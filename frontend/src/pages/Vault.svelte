@@ -276,7 +276,33 @@
    * one has to end up here.
    */
   async function openSignInAssist(entry: VaultEntry): Promise<void> {
-    const body = await import("../components/modals/VaultSignInAssistModalBody.svelte");
+    // Reached directly from the row action as well as from signInHere, and that route has no
+    // anchor of its own: without this the backend judges an emailed code against *now* with
+    // 60s of skew, so the mail Steam sent while the user was walking over to this button is
+    // classed as belonging to an older login and refused. BeginLoginAssist keeps an anchor
+    // that is already open, so calling it on both routes cannot move signInHere's earlier one.
+    try {
+      await beginLoginAssist(entry.steamId64);
+    } catch {
+      /* no anchor, no pre-warm; the panel still works, just slower and stricter. */
+    }
+
+    let body: typeof import("../components/modals/VaultSignInAssistModalBody.svelte");
+    try {
+      body = await import("../components/modals/VaultSignInAssistModalBody.svelte");
+    } catch (e) {
+      // The panel is what ends the assist, so a panel that never mounts leaks the anchor for
+      // the full 15-minute window — and a later fetch anchored that far back can hand over an
+      // already-consumed code with confidence. End it here instead.
+      void endLoginAssist(entry.steamId64);
+      pushToast({
+        type: "error",
+        message: formatToastWithError($t("Toast_Vault_SignInFailed"), e),
+        duration: 8000,
+      });
+      return;
+    }
+
     await openAlert({
       title: $t("Vault_SignIn_Assist_Title"),
       dismissLabel: $t("Button_Close"),

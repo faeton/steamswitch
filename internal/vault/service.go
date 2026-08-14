@@ -7,6 +7,7 @@ import (
 	"sync"
 	"time"
 
+	"steamswitch/internal/actionlog"
 	"steamswitch/internal/security"
 )
 
@@ -52,9 +53,15 @@ func haveAPIKey() bool {
 	return apiKey != ""
 }
 
-// VaultService is the frontend-facing API. Every method opens with RequireUnlocked: this is
-// the one service that *is* the secrets, so the ~98-call-site convention is not optional
-// here, and "the caller already checked" is not a reason to skip it.
+// VaultService is the frontend-facing API. Every method that reads, writes or derives from
+// stored data opens with RequireUnlocked: this is the one service that *is* the secrets, so
+// the ~98-call-site convention is not optional here, and "the caller already checked" is not
+// a reason to skip it.
+//
+// EndLoginAssist is the sole exception, and deliberately so: it only tears down in-memory
+// state this process created. It runs from the assist panel's onDestroy, which is exactly the
+// path that fires when an idle auto-lock closes the UI — gating it would mean the anchor and
+// its in-flight mailbox fetch survive the lock that was supposed to clean them up.
 //
 // Only methods the UI actually needs may be exported on this type — Wails binds all of them.
 type VaultService struct{}
@@ -129,7 +136,14 @@ func (s *VaultService) RevealField(steamID64, field string) (string, error) {
 	if err := security.RequireVaultUnlocked(); err != nil {
 		return "", ErrLocked
 	}
-	return Reveal(steamID64, field)
+	v, err := Reveal(steamID64, field)
+	if err != nil {
+		return "", err
+	}
+	// Which field, never its value. "This account's password was put on screen" is precisely
+	// what the action ring exists to carry into a crash report; logsanitize aliases the ID.
+	actionlog.Record("vault.reveal", steamID64, field, nil)
+	return v, nil
 }
 
 // HasEntry backs the tile badge without decrypting anything the caller then has to be

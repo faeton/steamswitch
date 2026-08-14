@@ -21,6 +21,9 @@
   import { t } from "../../stores/i18n";
   import { pushToast } from "../../stores/toast";
   import { formatToastWithError } from "../../lib/formatWailsError";
+  import { CLIPBOARD_CLEAR_SECONDS, copySecret } from "../../lib/clipboardSecret";
+  import { clipboardClearEnabled, revealMs } from "../../stores/autoLock";
+  import { securityStatus } from "../../stores/security";
   import {
     VAULT_FIELDS,
     endLoginAssist,
@@ -33,20 +36,29 @@
   export let accountName = "";
   export let hasPassword = false;
 
-  /** Matches the reveal window in the login-details panel — long enough to type, short enough
-   *  that a secret is not left on screen behind an app the user has walked away from. */
-  const REVEAL_MS = 20_000;
-
   let password = "";
   let revealTimer: ReturnType<typeof setTimeout> | null = null;
 
   let code: VaultCode | null = null;
   let codeError = "";
   let codeLoading = false;
+  let codeExpired = false;
   let remaining = 0;
   let ticker: ReturnType<typeof setInterval> | null = null;
 
+  /**
+   * Bumped by every clear and by teardown, exactly as the login-details panel does it.
+   *
+   * Both calls below are async and one of them — a mailbox fetch — can run for the full 90s
+   * budget. Without this, closing the panel, locking the vault or hiding the value while a
+   * call is in flight still lands the secret afterwards: on screen, and on the clipboard, at
+   * a moment the user believes they dismissed it.
+   */
+  let generation = 0;
+  let destroyed = false;
+
   function clearPassword(): void {
+    generation += 1;
     password = "";
     if (revealTimer) {
       clearTimeout(revealTimer);
@@ -61,34 +73,64 @@
     }
   }
 
-  onDestroy(() => {
-    clearPassword();
+  function clearCode(): void {
+    generation += 1;
     clearTicker();
+    code = null;
+    remaining = 0;
+  }
+
+  /** The vault locking has to take the secrets with it, or the lock is decorative. */
+  $: if ($securityStatus.vaultLocked) {
+    clearPassword();
+    clearCode();
+  }
+
+  onDestroy(() => {
+    destroyed = true;
+    clearPassword();
+    clearCode();
     // Closing the panel is the only signal the app gets that the sign-in is over — either it
     // worked or the user gave up. Both mean the anchor should stop widening and any inbox
     // connection still open behind it should be dropped.
     void endLoginAssist(steamId64);
+    // The clipboard scrub is deliberately left running: it holds no component state, and
+    // cancelling it here would mean closing the panel within the window leaves the secret in
+    // the clipboard for good — the outcome the setting exists to prevent.
   });
 
   async function copy(value: string): Promise<void> {
-    if (!value) {
+    const outcome = await copySecret(value, {
+      clearEnabled: clipboardClearEnabled,
+      writeText: (v) => navigator.clipboard.writeText(v),
+      readText: () => navigator.clipboard.readText(),
+      setTimer: (fn, ms) => setTimeout(fn, ms),
+    });
+    if (outcome === "refused") {
+      // The value is on screen; a refused clipboard is not worth an error toast.
       return;
     }
-    try {
-      await navigator.clipboard.writeText(value);
-      pushToast({ type: "success", message: $t("Toast_Copied"), duration: 2000 });
-    } catch {
-      // The value is on screen; a refused clipboard is not worth an error toast.
-    }
+    pushToast({
+      type: "success",
+      message:
+        outcome === "copied-will-clear"
+          ? $t("Toast_CopiedClearsIn", { seconds: CLIPBOARD_CLEAR_SECONDS })
+          : $t("Toast_Copied"),
+      duration: outcome === "copied-will-clear" ? 4000 : 2000,
+    });
   }
 
   async function revealPassword(): Promise<void> {
     clearPassword();
+    const mine = generation;
     try {
-      password = await revealField(steamId64, VAULT_FIELDS.password);
-      revealTimer = setTimeout(clearPassword, REVEAL_MS);
+      const value = await revealField(steamId64, VAULT_FIELDS.password);
+      if (destroyed || mine !== generation) return;
+      password = value;
+      revealTimer = setTimeout(clearPassword, revealMs());
       await copy(password);
     } catch (e) {
+      if (destroyed) return;
       pushToast({
         type: "error",
         message: formatToastWithError($t("Toast_Vault_RevealFailed"), e),
@@ -97,28 +139,47 @@
     }
   }
 
+  /** Re-hide on blur, the same promise the reveal setting makes in Settings (A10). */
+  function onWindowBlur(): void {
+    clearPassword();
+  }
+
   async function fetchCode(): Promise<void> {
+    clearCode();
+    const mine = generation;
     codeLoading = true;
     codeError = "";
-    clearTicker();
+    codeExpired = false;
     try {
-      code = await guardCode(steamId64);
-      remaining = code.remainingSeconds ?? 0;
+      const got = await guardCode(steamId64);
+      if (destroyed || mine !== generation) return;
+      code = got;
+      remaining = got.remainingSeconds ?? 0;
       if (remaining > 0) {
         ticker = setInterval(() => {
           remaining = Math.max(0, remaining - 1);
+          // An authenticator code that has run out is not a code any more. Leaving it on
+          // screen invites the user to type something Steam has already rotated past, and
+          // read the rejection as a wrong password.
+          if (remaining === 0) {
+            clearCode();
+            codeExpired = true;
+          }
         }, 1000);
       }
       // Copying straight away is the point: the user is at a prompt with a cursor in it.
-      await copy(code.code);
+      await copy(got.code);
     } catch (e) {
+      if (destroyed || mine !== generation) return;
       codeError = formatToastWithError($t("Toast_Vault_CodeFailed"), e);
       code = null;
     } finally {
-      codeLoading = false;
+      if (!destroyed) codeLoading = false;
     }
   }
 </script>
+
+<svelte:window on:blur={onWindowBlur} />
 
 <div class="assist">
   <p class="intro">{$t("Vault_SignIn_Assist_Intro")}</p>
@@ -155,11 +216,13 @@
       <span class="row__value row__value--empty">{$t("Vault_Code_Fetching")}</span>
     {:else if code}
       <span class="row__value row__value--code">{code.code}</span>
+    {:else if codeExpired}
+      <span class="row__value row__value--empty">{$t("Vault_Code_Expired")}</span>
     {:else}
       <span class="row__value row__value--empty">{$t("Vault_SignIn_Assist_CodeIdle")}</span>
     {/if}
     <button type="button" class="ss-btn" disabled={codeLoading} on:click={() => void fetchCode()}>
-      {code ? $t("Vault_Code_Again") : $t("Vault_SignIn_Assist_GetCode")}
+      {code || codeExpired ? $t("Vault_Code_Again") : $t("Vault_SignIn_Assist_GetCode")}
     </button>
   </div>
 

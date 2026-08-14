@@ -25,6 +25,7 @@
   import { pushToast } from "../../stores/toast";
   import { formatToastWithError } from "../../lib/formatWailsError";
   import { clipboardClearEnabled, revealMs, vaultSecurityPrefs } from "../../stores/autoLock";
+  import { CLIPBOARD_CLEAR_SECONDS, copySecret } from "../../lib/clipboardSecret";
   import { isValidSteamId64 } from "../../lib/steam/steamId";
   import {
     VAULT_FIELDS,
@@ -156,38 +157,28 @@
 
   async function copyRevealed(): Promise<void> {
     if (!revealed) return;
-    const value = revealed.value;
-    try {
-      await navigator.clipboard.writeText(value);
-    } catch {
+    const outcome = await copySecret(revealed.value, {
+      clearEnabled: clipboardClearEnabled,
+      writeText: (v) => navigator.clipboard.writeText(v),
+      readText: () => navigator.clipboard.readText(),
+      setTimer: (fn, ms) => {
+        if (clipboardTimer) clearTimeout(clipboardTimer);
+        clipboardTimer = setTimeout(fn, ms);
+        return clipboardTimer;
+      },
+    });
+    if (outcome === "refused") {
       // Clipboard access can be refused; the value is on screen, so this is not fatal.
       return;
     }
-    if (!clipboardClearEnabled()) {
-      pushToast({ type: "success", message: $t("Toast_Copied"), duration: 2000 });
-      return;
-    }
-    const seconds = 20;
-    pushToast({ type: "success", message: $t("Toast_CopiedClearsIn", { seconds }), duration: 4000 });
-    if (clipboardTimer) clearTimeout(clipboardTimer);
-    clipboardTimer = setTimeout(() => {
-      /*
-        Prefer to clear only what we put there — overwriting whatever the user copied since
-        would be its own small betrayal. But the app denies clipboard *read* permission
-        (`PermissionClipboardRead: PermissionDeny` in gui.go), so on the real build that read
-        rejects and the earlier version silently swallowed it and cleared nothing at all.
-
-        So: try the read-back, and if it is unavailable, clear anyway. The user turned this
-        setting on; leaving a password on the clipboard indefinitely is the worse failure.
-      */
-      void navigator.clipboard
-        .readText()
-        .then((current) => {
-          if (current === value) return navigator.clipboard.writeText("");
-          return undefined;
-        })
-        .catch(() => navigator.clipboard.writeText("").catch(() => {}));
-    }, seconds * 1000);
+    pushToast({
+      type: "success",
+      message:
+        outcome === "copied-will-clear"
+          ? $t("Toast_CopiedClearsIn", { seconds: CLIPBOARD_CLEAR_SECONDS })
+          : $t("Toast_Copied"),
+      duration: outcome === "copied-will-clear" ? 4000 : 2000,
+    });
   }
 
   function draft(): Record<string, unknown> {
