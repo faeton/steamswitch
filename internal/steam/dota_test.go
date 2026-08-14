@@ -264,8 +264,36 @@ func TestApplyDotaSnapshot_AppliesOnlyStoredParts(t *testing.T) {
 
 func TestDotaSteamRunningGuard_IgnoresLocalOnlyCopies(t *testing.T) {
 	// local/ is not cloud-synced, so a running Steam is not a hazard for it.
-	if err := dotaSteamRunningGuard([]string{DotaPartLocal}); err != nil {
+	if err := dotaSteamRunningGuard([]string{DotaPartLocal}, false); err != nil {
 		t.Fatalf("guard blocked a local-only copy: %v", err)
+	}
+}
+
+// remote/ holds keybinds, hero grids and item builds — the parts people actually want to
+// copy. Refusing outright meant the feature declined its own main use case, so the user is
+// told what Cloud will do and allowed to answer. What must not happen is the answer being
+// assumed for them.
+func TestDotaSteamRunningGuard_AcceptedRiskAllowsARemoteCopy(t *testing.T) {
+	if err := dotaSteamRunningGuard([]string{DotaPartLocal, DotaPartRemote}, true); err != nil {
+		t.Fatalf("guard blocked a remote copy the user accepted the risk for: %v", err)
+	}
+}
+
+// The parameter defaulting to false is the whole safety story: a caller that forgets it, or
+// a future call site added without thinking about Cloud, gets the refusal.
+//
+// Driven through a backend that cannot see processes, because that is the case with a fixed
+// answer on every OS — "cannot tell" must refuse just as firmly as "Steam is running".
+func TestDotaSteamRunningGuard_DefaultsToRefusingRemote(t *testing.T) {
+	prev := backend
+	backend = unsupportedBackend{}
+	t.Cleanup(func() { backend = prev })
+
+	if err := dotaSteamRunningGuard([]string{DotaPartRemote}, false); err == nil {
+		t.Fatal("guard allowed a remote copy on a backend that cannot tell whether Steam is running")
+	}
+	if err := dotaSteamRunningGuard([]string{DotaPartRemote}, true); err != nil {
+		t.Fatalf("accepted risk still blocked: %v", err)
 	}
 }
 

@@ -107,7 +107,7 @@ Three config parts can be selected independently:
 | Part | Path | Notes |
 |---|---|---|
 | `local` | `userdata/<id32>/570/local` | Video settings and other local options. Not cloud-synced, so copies stick. |
-| `remote` | `userdata/<id32>/570/remote` | Hero grids and cloud-synced prefs. **Steam Cloud will overwrite this on next launch if Steam is running** — the backend refuses the copy and the UI warns. |
+| `remote` | `userdata/<id32>/570/remote` | Keybinds, hero grids, item builds and other cloud-synced prefs. **Steam Cloud may overwrite this on next launch if Steam is running.** The backend refuses by default; `allowCloudRisk` is the user having been shown that and said yes, and the UI asks before setting it. Closing Steam first is still the reliable route, and a `cloudFollowUp` toast explains how to answer the conflict prompt when there is one. |
 | `globalcfg` | `<library>/steamapps/common/dota 2 beta/game/dota/cfg` | `autoexec.cfg` and friends. Resolved across every library in `libraryfolders.vdf`, since Dota is often on a second drive. Machine-wide and shared by every account, so it is captured in snapshots but never copied account-to-account (it would be a no-op). Applying a snapshot *can* write it, behind an explicit warning. |
 
 ### One-click refresh presets (`internal/steam/refresh_preset.go`)

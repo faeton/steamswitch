@@ -60,6 +60,26 @@
     !busy && !!sourceId && !!destId && sourceId !== destId && copyParts.length > 0;
   $: cloudWarning = parts[PART_REMOTE] && steamRunning;
 
+  /**
+   * Ask before writing cloud-synced files under a running Steam.
+   *
+   * The backend refuses this by default and takes the answer as an argument, so the choice
+   * has to be made here. It is a question rather than a refusal because remote/ holds the
+   * keybinds, hero grids and item builds — refusing outright declined the main reason anyone
+   * opens this page, and "close Steam first" is a worse answer than the truth.
+   *
+   * Returns false when there is no risk to accept, true when the user accepted it, and null
+   * when they backed out — which the caller must treat as cancel, not as "no".
+   */
+  async function cloudRiskAccepted(usesRemote: boolean): Promise<boolean | null> {
+    if (!usesRemote || !steamRunning) return false;
+    const ok = await openConfirm({
+      title: $t("Dota_Confirm_CloudRiskTitle"),
+      body: $t("Dota_Confirm_CloudRiskBody"),
+    });
+    return ok ? true : null;
+  }
+
   function accountLabel(a: Account): string {
     return a.displayName?.trim() || a.accountName?.trim() || a.steamId64;
   }
@@ -136,9 +156,14 @@
 
   async function undoLastWrite(): Promise<void> {
     if (!lastRevertId || busy) return;
+    // Undoing a write under a running Steam carries the same Cloud hazard as making one, and
+    // asking again is not redundant: the user accepted the risk for a copy they wanted, which
+    // is not the same as accepting it for putting things back.
+    const risk = await cloudRiskAccepted(selectedParts.includes(PART_REMOTE));
+    if (risk === null) return;
     busy = true;
     try {
-      await ApplyDotaSnapshot(lastRevertId, destId, selectedParts);
+      await ApplyDotaSnapshot(lastRevertId, destId, selectedParts, risk);
       pushToast({ type: "success", message: $t("Dota_Toast_Reverted"), duration: 5000 });
       lastRevertId = "";
       await refreshAll();
@@ -172,9 +197,11 @@
       }),
     });
     if (!ok) return;
+    const risk = await cloudRiskAccepted(copyParts.includes(PART_REMOTE));
+    if (risk === null) return;
     busy = true;
     try {
-      const res = await CopyDotaConfigBetween(sourceId, destId, copyParts);
+      const res = await CopyDotaConfigBetween(sourceId, destId, copyParts, risk);
       reportResult(
         res,
         $t("Dota_Toast_Copied", {
@@ -233,9 +260,15 @@
           : ""),
     });
     if (!ok) return;
+    // What actually gets written is the intersection: a snapshot with no remote/ carries no
+    // cloud risk however the checkboxes are set.
+    const risk = await cloudRiskAccepted(
+      selectedParts.includes(PART_REMOTE) && snap.parts.includes(PART_REMOTE),
+    );
+    if (risk === null) return;
     busy = true;
     try {
-      const res = await ApplyDotaSnapshot(snap.id, destId, selectedParts);
+      const res = await ApplyDotaSnapshot(snap.id, destId, selectedParts, risk);
       reportResult(
         res,
         $t("Dota_Toast_Applied", {

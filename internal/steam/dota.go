@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"steamswitch/internal/actionlog"
 	"steamswitch/internal/fsutil"
 	"steamswitch/internal/paths"
 	"steamswitch/internal/platform"
@@ -198,8 +199,22 @@ func containsPart(parts []string, want string) bool {
 
 // dotaSteamRunningGuard blocks writes to the cloud-synced remote/ folder while Steam
 // is running, because Steam Cloud would overwrite them on next launch.
-func dotaSteamRunningGuard(parts []string) error {
+//
+// allowCloudRisk is the user having been told exactly that and having said yes anyway. It is
+// a parameter rather than a setting because the answer belongs to one copy, not to the app:
+// remote/ is where keybinds, hero grids and item builds live, so refusing outright meant
+// refusing the only part most people want, and telling them to close Steam first is a worse
+// answer than telling them the truth and letting them decide.
+//
+// The default is still refusal. A caller that forgets this argument gets the safe behaviour.
+func dotaSteamRunningGuard(parts []string, allowCloudRisk bool) error {
 	if !containsPart(parts, DotaPartRemote) {
+		return nil
+	}
+	if allowCloudRisk {
+		// Worth recording: when a copy does get reverted by Cloud, this line is the difference
+		// between "the app is broken" and "the warning was accepted at 14:02".
+		actionlog.Record("dota.copy.cloudRiskAccepted", "", strings.Join(parts, ","), nil)
 		return nil
 	}
 	// "Cannot tell" must not read as "not running" — see requireProcessInspection. This is the
@@ -576,7 +591,7 @@ func (s *SteamService) applyDotaParts(
 // CopyDotaConfigBetween copies Dota 2 configuration directly from one account to
 // another. Unlike CopySteamGameSettingsFrom, neither account has to be the one
 // currently signed in to Steam.
-func (s *SteamService) CopyDotaConfigBetween(sourceSteamID64, destSteamID64 string, parts []string) (DotaCopyResult, error) {
+func (s *SteamService) CopyDotaConfigBetween(sourceSteamID64, destSteamID64 string, parts []string, allowCloudRisk bool) (DotaCopyResult, error) {
 	// Before dotaWriteMu, never after. The guard reads the engine's state, which takes
 	// Engine.mu; taking dotaWriteMu first would invert the documented lock order and deadlock
 	// against a transaction that already holds Engine.mu and is waiting for dotaWriteMu.
@@ -598,7 +613,7 @@ func (s *SteamService) CopyDotaConfigBetween(sourceSteamID64, destSteamID64 stri
 	if sourceSteamID64 == destSteamID64 {
 		return res, errDotaSameAccount
 	}
-	if err := dotaSteamRunningGuard(sel); err != nil {
+	if err := dotaSteamRunningGuard(sel, allowCloudRisk); err != nil {
 		return res, err
 	}
 	root, err := s.steamInstallRoot()
@@ -625,7 +640,7 @@ func (s *SteamService) CopyDotaConfigBetween(sourceSteamID64, destSteamID64 stri
 
 // ApplyDotaSnapshot writes a labelled snapshot onto a destination account, taking a
 // revert point of that account first.
-func (s *SteamService) ApplyDotaSnapshot(snapshotID, destSteamID64 string, parts []string) (DotaCopyResult, error) {
+func (s *SteamService) ApplyDotaSnapshot(snapshotID, destSteamID64 string, parts []string, allowCloudRisk bool) (DotaCopyResult, error) {
 	// See CopyDotaConfigBetween: the engine guard must run before dotaWriteMu.
 	if err := guardManualConfigWrite(); err != nil {
 		return DotaCopyResult{}, err
@@ -658,7 +673,7 @@ func (s *SteamService) ApplyDotaSnapshot(snapshotID, destSteamID64 string, parts
 	if len(usable) == 0 {
 		return res, errDotaNothingCopied
 	}
-	if err := dotaSteamRunningGuard(usable); err != nil {
+	if err := dotaSteamRunningGuard(usable, allowCloudRisk); err != nil {
 		return res, err
 	}
 	root, err := s.steamInstallRoot()
