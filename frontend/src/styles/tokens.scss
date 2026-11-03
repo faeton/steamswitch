@@ -426,3 +426,18 @@
     line-height: var(--lh-prose);
     color: var(--fg-muted);
 }
+
+/* The preferred action of a confirmation that destroys something (delete, forget, wipe).
+   Still the dialog's primary — it keeps the primary's place in the button order — but drawn
+   in the danger colour, so "Delete entry" no longer looks exactly like "Save". */
+.ss-btn--primary.ss-btn--destructive,
+.ss-btn--primary.ss-btn--destructive:hover:not(:disabled) {
+    /* Not `--red`: white on it is ~4.2:1. This red holds 5.4:1 against white text. */
+    border-color: var(--danger-solid, #c0392b);
+    background: var(--danger-solid, #c0392b);
+    color: #fff;
+}
+
+.ss-btn--primary.ss-btn--destructive:hover:not(:disabled) {
+    filter: brightness(1.08);
+}

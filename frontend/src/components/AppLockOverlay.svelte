@@ -20,6 +20,7 @@
    * conversation that ends in "there is nothing we can do".
    */
   import { modalFocus } from "../lib/modalFocus";
+  import Icon from "./Icon.svelte";
   import { t } from "../stores/i18n";
   import {
     securityStatus,
@@ -64,62 +65,36 @@
       aria-labelledby={titleId}
       on:submit|preventDefault={submit}
     >
-      <div class="app-lock-panel-inner">
-        <header class="app-lock-headerbar">
-          <span class="app-lock-title-left">
-            <svg
-              class="header_icon"
-              xmlns="http://www.w3.org/2000/svg"
-              viewBox="0 0 768 264"
-              fill-rule="evenodd"
-              stroke-linejoin="round"
-              stroke-miterlimit="2"
-              aria-hidden="true"
-            >
-              <use href="img/SteamSwitch_Logo.svg#logo"></use>
-            </svg>
-          </span>
-          <span id={titleId} class="app-lock-title-drag">
-            {$t("Security_Locked_Title")}
-          </span>
-          <span class="app-lock-title-right" aria-hidden="true"></span>
-        </header>
+      <span class="app-lock-mark" aria-hidden="true"><Icon name="lock" size={20} /></span>
+      <h2 id={titleId} class="app-lock-title">{$t("Security_Locked_Title")}</h2>
+      <p class="app-lock-body">{$t("Security_Locked_Body")}</p>
+      <p class="app-lock-sub">{$t("Security_Locked_Sub")}</p>
 
-        <div class="app-lock-scroll">
-          <div class="modal-block">
-            <p class="app-lock-body">{$t("Security_Locked_Body")}</p>
-            <p class="app-lock-sub">{$t("Security_Locked_Sub")}</p>
-            <label class="app-lock-field" for={passwordId}>
-              <span>{$t("Security_Password")}</span>
-              <input
-                id={passwordId}
-                bind:this={passwordEl}
-                bind:value={password}
-                type="password"
-                autocomplete="current-password"
-                class="modal-input"
-                disabled={loading}
-                aria-invalid={error ? "true" : undefined}
-                aria-describedby={error ? errorId : undefined}
-              />
-            </label>
-            {#if error}
-              <p id={errorId} class="app-lock-error" role="alert">{error}</p>
-            {/if}
-            <div class="app-lock-actions modal-inline-actions settingsCol inputAndButton">
-              <span class="modal-actions-spacer"></span>
-              <button type="submit" class="btnicontext modal-primary" disabled={loading}>
-                {$t("Security_Unlock")}
-              </button>
-            </div>
+      <label class="app-lock-field" for={passwordId}>{$t("Security_Password")}</label>
+      <input
+        id={passwordId}
+        bind:this={passwordEl}
+        bind:value={password}
+        type="password"
+        autocomplete="current-password"
+        class="ss-field"
+        disabled={loading}
+        aria-invalid={error ? "true" : undefined}
+        aria-describedby={error ? errorId : undefined}
+      />
+      {#if error}
+        <p id={errorId} class="app-lock-error" role="alert">
+          <Icon name="warn" size={14} />{error}
+        </p>
+      {/if}
+      <button type="submit" class="ss-btn ss-btn--primary app-lock-submit" disabled={loading}>
+        {$t("Security_Unlock")}
+      </button>
 
-            <details class="app-lock-forgot">
-              <summary>{$t("Security_Forgot_Summary")}</summary>
-              <p class="app-lock-forgot-body">{$t("Security_Locked_Forgot")}</p>
-            </details>
-          </div>
-        </div>
-      </div>
+      <details class="app-lock-forgot">
+        <summary>{$t("Security_Forgot_Summary")}</summary>
+        <p class="app-lock-forgot-body">{$t("Security_Locked_Forgot")}</p>
+      </details>
     </form>
   </div>
 {/if}
@@ -131,90 +106,81 @@
     z-index: 50;
     display: grid;
     place-items: center;
-    padding: 1rem;
+    padding: var(--space-5);
     box-sizing: border-box;
     background: var(--modal-scrim, var(--backdrop-scrim-55));
   }
 
+  /* The same panel as every other dialog (ModalShell), minus the header: there is nothing to
+     close and nowhere to drag it, so a title bar would only be decoration. */
   .app-lock-panel {
-    width: min(420px, calc(100vw - 2rem));
-    max-height: min(75vh, calc(100vh - 2rem));
-    display: flex;
-    flex-direction: column;
-    padding: 0;
-    border: var(--border-bar-size, 1px) solid var(--border-bar-bg);
-    background: var(--modal-bg, var(--mainContentBackground, var(--program-bg)));
-    box-shadow: 0 12px 40px var(--shadow-color-45);
-    overflow: hidden;
-  }
-
-  .app-lock-panel-inner {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-  }
-
-  .app-lock-headerbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 32px;
-    min-height: 32px;
-    background: var(--modal-header-bg, var(--border-bar-bg));
-    color: var(--modal-header-fg, var(--whiteSecondary));
-    user-select: none;
-  }
-
-  .app-lock-title-left,
-  .app-lock-title-right {
-    display: flex;
-    align-items: center;
-    height: 100%;
-    width: 46px;
-  }
-
-  .app-lock-headerbar .header_icon {
-    height: 10px;
-    margin: 0 12px;
-    display: block;
-    fill: var(--modal-header-fg, var(--whiteSecondary));
-  }
-
-  .app-lock-title-drag {
-    flex: 1;
-    font-family: "Segoe UI", sans-serif;
-    font-size: 12px;
-    font-weight: 500;
-    text-align: center;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    padding: 0 8px;
-  }
-
-  .app-lock-scroll {
-    min-height: 0;
+    width: min(400px, 100%);
+    max-height: 100%;
     overflow: auto;
-    padding: 1.25rem 1.5rem;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    padding: var(--space-7);
+    border: 1px solid var(--modal-border, var(--hairline-strong));
+    border-radius: var(--radius-xl);
+    background: var(--modal-bg, var(--mainContentBackground, var(--program-bg)));
+    box-shadow: var(--shadow-panel, 0 10px 26px rgba(0, 0, 0, 0.5));
+    color: var(--fg-primary);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+  }
+
+  .app-lock-mark {
+    display: grid;
+    place-items: center;
+    width: 40px;
+    height: 40px;
+    margin-bottom: var(--space-5);
+    border-radius: var(--radius-lg);
+    background: var(--accent-fill-very-soft, var(--row-hover-strong));
+    color: var(--accent-text-bright, var(--accent));
+  }
+
+  .app-lock-title {
+    margin: 0 0 var(--space-2);
+    font-size: var(--fs-title);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
   }
 
   .app-lock-body {
-    margin: 0 0 0.85rem;
-    color: var(--white, #fff);
-    line-height: 1.45;
-  }
-
-  .app-lock-field {
-    display: grid;
-    gap: 0.35rem;
-    margin-bottom: 0.75rem;
+    margin: 0 0 var(--space-2);
+    color: var(--fg-secondary);
   }
 
   .app-lock-sub {
-    margin: 0 0 0.85rem;
+    margin: 0 0 var(--space-6);
     font-size: var(--fs-secondary);
     line-height: var(--lh-prose);
-    color: var(--fg-muted, var(--text-subtle-gray));
+    color: var(--fg-muted);
+  }
+
+  .app-lock-field {
+    /* A global legacy `label` rule pads every label; this one sits flush with its field. */
+    padding: 0;
+    margin: 0 0 var(--space-2);
+    font-size: var(--fs-secondary);
+    font-weight: var(--fw-medium);
+    color: var(--fg-secondary);
+  }
+
+  .app-lock-error {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: var(--space-2) 0 0;
+    font-size: var(--fs-secondary);
+    color: var(--fg-fail);
+  }
+
+  .app-lock-submit {
+    width: 100%;
+    margin-top: var(--space-4);
   }
 
   /*
@@ -222,29 +188,25 @@
     password should not have to read it every launch. It is one click away, not hidden.
   */
   .app-lock-forgot {
-    margin-top: 1rem;
+    margin-top: var(--space-5);
     font-size: var(--fs-secondary);
 
     summary {
       cursor: pointer;
       user-select: none;
-      color: var(--fg-muted, var(--text-subtle-gray));
+      color: var(--fg-muted);
+      width: fit-content;
+    }
+
+    summary:hover {
+      color: var(--fg-primary);
     }
   }
 
   .app-lock-forgot-body {
-    margin: 0.5rem 0 0;
+    margin: var(--space-2) 0 0;
     font-size: var(--fs-meta);
     line-height: var(--lh-prose);
-    color: var(--fg-muted, var(--text-subtle-gray));
-  }
-
-  .app-lock-error {
-    color: var(--danger, #ff6b6b) !important;
-    margin: 0;
-  }
-
-  .app-lock-actions {
-    margin-top: 0.35rem;
+    color: var(--fg-muted);
   }
 </style>

@@ -97,7 +97,7 @@
   </div>
   <div class="modal-inline-actions settingsCol inputAndButton">
     <span class="modal-actions-spacer"></span>
-    <button type="button" class="btnicontext modal-primary" on:click={ok}>
+    <button type="button" class="ss-btn ss-btn--primary" on:click={ok}>
       {positiveLabel}
     </button>
   </div>

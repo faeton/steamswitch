@@ -25,18 +25,18 @@
   <p class="modal-crash-report-body">{$t("Modal_CrashReport_Body")}</p>
   <div class="modal-inline-actions settingsCol inputAndButton">
     <span class="modal-actions-spacer"></span>
-    <button type="button" class="btnicontext" on:click={() => choose("no")}>
+    <button type="button" class="ss-btn" on:click={() => choose("no")}>
       {$t("No")}
     </button>
     <button
       type="button"
-      class="btnicontext modal-primary"
+      class="ss-btn ss-btn--primary"
       bind:this={yesEl}
       on:click={() => choose("yes")}
     >
       {$t("Yes")}
     </button>
-    <button type="button" class="btnicontext" on:click={() => choose("always")}>
+    <button type="button" class="ss-btn" on:click={() => choose("always")}>
       {$t("Button_Always")}
     </button>
   </div>

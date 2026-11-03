@@ -76,6 +76,7 @@
   async function onReset(): Promise<void> {
     const ok = await openConfirm({
       title: get(t)("Settings_ClearStats"),
+      destructive: true,
       style: "okcancel",
       body: get(t)("Prompt_ClearStats"),
     });
@@ -118,7 +119,7 @@
   <pre class="stats-report__mono stats-report__mono--detail">{detailBlock}</pre>
 
   <div class="stats-report__actions">
-    <button type="button" class="btnicontext" disabled={resetBusy} on:click={() => void onReset()}>
+    <button type="button" class="ss-btn" disabled={resetBusy} on:click={() => void onReset()}>
       {$t("Settings_ClearStats")}
     </button>
   </div>

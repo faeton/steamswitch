@@ -133,14 +133,14 @@
     {#if showPortableButton}
       <button
         type="button"
-        class="btnicontext"
+        class="ss-btn"
         on:click={appData}
       >
         AppData
       </button>
       <button
         type="button"
-        class="btnicontext"
+        class="ss-btn"
         use:tooltip={$t("Tooltip_PortableMode")}
         on:click={portable}
       >
@@ -149,7 +149,7 @@
     {/if}
     <button
       type="button"
-      class="btnicontext modal-primary"
+      class="ss-btn ss-btn--primary"
       disabled={primaryDisabled}
       on:click={ok}
     >

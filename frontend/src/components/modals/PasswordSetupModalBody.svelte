@@ -91,10 +91,10 @@
 
   <div class="modal-inline-actions settingsCol inputAndButton">
     <span class="modal-actions-spacer"></span>
-    <button type="button" class="btnicontext modal-primary" on:click={submit}>
+    <button type="button" class="ss-btn ss-btn--primary" on:click={submit}>
       {positiveLabel}
     </button>
-    <button type="button" class="btnicontext" on:click={cancel}>
+    <button type="button" class="ss-btn" on:click={cancel}>
       {negativeLabel}
     </button>
   </div>

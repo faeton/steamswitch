@@ -86,12 +86,12 @@
   {/if}
   <div class="modal-inline-actions settingsCol inputAndButton">
     <span class="modal-actions-spacer"></span>
-    <button type="button" class="btnicontext" on:click={cancel}>
+    <button type="button" class="ss-btn" on:click={cancel}>
       {$t("Button_Cancel")}
     </button>
     <button
       type="button"
-      class="btnicontext modal-primary"
+      class="ss-btn ss-btn--primary"
       disabled={submitDisabled}
       on:click={submit}
     >

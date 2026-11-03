@@ -9,6 +9,7 @@
   export let positiveLabel = "";
   export let negativeLabel: string | undefined = undefined;
   export let style: string = "";
+  export let destructive = false;
 
   const dispatch = createEventDispatcher<{ resolve: boolean }>();
 
@@ -29,11 +30,11 @@
   />
   <div class="modal-inline-actions settingsCol inputAndButton">
     <span class="modal-actions-spacer"></span>
-    <button type="button" class="btnicontext modal-primary" on:click={positive}>
+    <button type="button" class="ss-btn ss-btn--primary" class:ss-btn--destructive={destructive} on:click={positive}>
       {positiveLabel}
     </button>
     {#if style === "yesno"}
-      <button type="button" class="btnicontext" on:click={negative}>
+      <button type="button" class="ss-btn" on:click={negative}>
         {negativeLabel}
       </button>
     {/if}

@@ -201,19 +201,6 @@
     <div class="modalFG-inner">
       <!-- svelte-ignore a11y-no-noninteractive-element-interactions -->
       <header class="modal-headerbar" bind:this={headerEl} on:pointerdown={onHeaderPointerDown}>
-        <span class="modal-title-left">
-          <svg
-            class="header_icon"
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 0 768 264"
-            fill-rule="evenodd"
-            stroke-linejoin="round"
-            stroke-miterlimit="2"
-            aria-hidden="true"
-          >
-            <use href="img/SteamSwitch_Logo.svg#logo"></use>
-          </svg>
-        </span>
         <span id={titleId} class="modal-title-drag">
           {title}
         </span>
@@ -249,15 +236,24 @@
     box-sizing: border-box;
   }
 
+  /*
+    One dialog look for every modal: a rounded panel with a hairline edge and the panel shadow,
+    the title as the dialog's own heading rather than a second title bar with a logo in it,
+    and a single close control. Still draggable by its header and resizable from any edge.
+  */
   .modalFG {
     display: flex;
     flex-direction: column;
     position: absolute;
     background: var(--modal-bg, var(--mainContentBackground, var(--program-bg)));
-    border: var(--modal-frame-border-width, 1px) solid var(--modal-border, var(--border-bar-bg));
-    box-shadow: 0 12px 40px var(--shadow-color-45);
+    border: var(--modal-frame-border-width, 1px) solid var(--modal-border, var(--hairline-strong));
+    border-radius: var(--radius-xl);
+    box-shadow: var(--shadow-panel, 0 10px 26px rgba(0, 0, 0, 0.5));
     overflow: visible;
     box-sizing: border-box;
+    color: var(--fg-primary);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
   }
 
   .modalFG-inner {
@@ -267,6 +263,7 @@
     min-height: 0;
     height: 100%;
     overflow: hidden;
+    border-radius: inherit;
   }
 
   .modalFG:not(.modalFG--ready) {
@@ -274,8 +271,10 @@
     top: 50%;
     transform: translate(-50%, -50%);
     width: max-content;
-    min-width: min(320px, calc(100% - 2rem));
-    max-width: min(80%, calc(100% - 2rem));
+    min-width: min(360px, calc(100% - 2rem));
+    /* A readable line, not 80% of a maximised window: a one-sentence confirmation used to
+       stretch to ~140 characters. The frame is fitted from this first layout. */
+    max-width: min(560px, calc(100% - 2rem));
     max-height: min(75%, calc(100% - 2rem));
     height: auto;
 
@@ -383,10 +382,13 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    height: 32px;
-    min-height: 32px;
-    background: var(--modal-header-bg, var(--border-bar-bg));
-    color: var(--modal-header-fg, var(--whiteSecondary));
+    gap: var(--space-3);
+    min-height: 52px;
+    padding: var(--space-3) var(--space-3) 0 var(--space-6);
+    /* Part of the panel, not a band across it: no fill, no rule underneath. */
+    background: transparent;
+    border: 0;
+    color: var(--fg-primary);
     flex-shrink: 0;
     user-select: none;
     cursor: grab;
@@ -399,52 +401,42 @@
     }
   }
 
-  .modal-title-left {
-    display: flex;
-    align-items: center;
-    height: 100%;
-  }
-
-  .modal-headerbar .header_icon {
-    height: 10px;
-    margin: 0 12px;
-    display: block;
-    fill: var(--modal-header-fg, var(--whiteSecondary));
-  }
-
   .modal-title-drag {
     flex: 1;
-    font-family: "Segoe UI", sans-serif;
-    font-size: 12px;
-    font-weight: 500;
-    text-align: center;
+    min-width: 0;
+    font-size: var(--fs-section);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
-    padding: 0 8px;
   }
 
   .modal-window-controls {
     display: flex;
-    height: 100%;
     cursor: default;
   }
 
   .modal-window-controls .win-btn {
-    border-radius: 0;
+    border-radius: var(--radius-md);
     background: none;
     border: 0;
     margin: 0;
     display: flex;
     justify-content: center;
     align-items: center;
-    width: 46px;
-    height: 100%;
+    width: 32px;
+    height: 32px;
     cursor: pointer;
     padding: 0;
-    color: var(--modal-header-fg, var(--whiteSecondary));
+    color: var(--fg-muted);
     &:hover {
-      background: var(--window-control-hover-bg);
+      background: var(--row-hover-strong);
+      color: var(--fg-primary);
+    }
+    &:focus-visible {
+      outline: 2px solid var(--role-focus-ring, var(--accent));
+      outline-offset: 0;
     }
   }
 
@@ -463,15 +455,11 @@
     forced-color-adjust: auto;
   }
 
-  .modal-window-controls .win-btn-close:hover {
-    background: var(--window-close-hover);
-  }
-
   .modal-scroll {
     flex: 1;
     min-height: 0;
     overflow: auto;
-    padding: 1.25rem 1.5rem;
+    padding: var(--space-4) var(--space-6) var(--space-6);
   }
 
   :global(.modal-block) {
@@ -485,16 +473,35 @@
     flex-direction: row;
     flex-wrap: wrap;
     align-items: center;
-    gap: 0.35rem;
+    gap: var(--space-3);
     width: 100%;
-    margin-top: 0.15rem;
+    margin-top: var(--space-3);
 
     button {
-      min-width: 7.5rem;
+      min-width: 88px;
     }
   }
 
-  :global(.modal-inline-actions .btnicontext:disabled) {
+  /*
+    Button order is a platform convention, so it is decided here rather than in each body.
+    Windows puts the preferred action first ([OK] [Cancel]); macOS and GNOME put it last, next
+    to the window edge. Bodies were written both ways, which is how the same app ended up
+    asking "Cancel / Send" in one dialog and "Yes / No" in the next.
+  */
+  :global(.modal-inline-actions .modal-actions-spacer) {
+    order: 0;
+  }
+  :global(.modal-inline-actions > .ss-btn) {
+    order: 2;
+  }
+  :global(.modal-inline-actions > .ss-btn--primary) {
+    order: 1;
+  }
+  :global(html:is([data-os="macos"], [data-os="linux"]) .modal-inline-actions > .ss-btn--primary) {
+    order: 3;
+  }
+
+  :global(.modal-inline-actions .ss-btn:disabled) {
     opacity: 0.45;
     cursor: not-allowed;
     pointer-events: none;
@@ -510,20 +517,23 @@
     width: 100%;
   }
 
+  /* The same field as `.ss-field`, kept under its own name because theme packs target it. */
   :global(.modal-input) {
     flex: 1;
-    padding: 8px;
+    min-height: var(--control-height);
+    padding: 6px 11px;
     margin: 0;
     width: 100%;
     box-sizing: border-box;
-    background: var(--modal-input-bg, var(--even-darker-code-background));
-    border: 1px solid var(--modal-input-border, var(--button-bg));
-    color: var(--modal-body-fg, var(--whiteSecondary));
+    background: var(--modal-input-bg, var(--surface-field, var(--role-field-bg)));
+    border: 1px solid var(--modal-input-border, var(--hairline-strong));
+    border-radius: var(--radius-md);
+    color: var(--modal-body-fg, var(--fg-primary));
     font: inherit;
-    &:focus {
-      outline: 1px solid var(--accent);
-      outline-offset: -1px;
-      border-color: var(--accent);
+    font-size: var(--fs-control);
+    &:focus-visible {
+      outline: 2px solid var(--role-focus-ring, var(--accent));
+      outline-offset: 1px;
     }
   }
 

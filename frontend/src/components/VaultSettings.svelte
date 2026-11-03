@@ -175,6 +175,7 @@
   async function deleteVault(): Promise<void> {
     const first = await openConfirm({
       title: $t("Vault_Delete_All_Title"),
+      destructive: true,
       body: $t("Vault_Delete_All_Body"),
       positiveLabel: $t("Vault_Delete_All_Continue"),
       style: "yesno",

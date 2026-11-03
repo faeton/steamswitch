@@ -423,6 +423,7 @@ async function forgetAccount(deps: AccountMenuDeps): Promise<void> {
     title: deps.t("Modal_ConfirmAction"),
     body: deps.t("Modal_ForgetAccount", { name: deps.label }),
     style: "yesno",
+    destructive: true,
   });
   if (!ok) return;
   try {

@@ -6,7 +6,7 @@
    * whatever font the platform falls back to, at a weight and baseline that matches nothing
    * around them. Add a glyph here rather than inlining another SVG in a component.
    */
-  export type IconName = "more" | "plus" | "kit" | "keyboard" | "play" | "refresh" | "warn";
+  export type IconName = "more" | "plus" | "kit" | "keyboard" | "play" | "refresh" | "warn" | "lock";
 </script>
 
 <script lang="ts">
@@ -46,6 +46,9 @@
     <path d="M5 3.5v9l7-4.5z" />
   {:else if name === "refresh"}
     <path d="M13 8a5 5 0 1 1-1.46-3.54M13 3v2.5h-2.5" />
+  {:else if name === "lock"}
+    <rect x="3" y="7" width="10" height="6.5" rx="1.5" />
+    <path d="M5.5 7V5a2.5 2.5 0 0 1 5 0v2" />
   {:else if name === "warn"}
     <path d="M8 2.5 14 13H2zM8 6.5v3M8 11.25h.01" />
   {/if}

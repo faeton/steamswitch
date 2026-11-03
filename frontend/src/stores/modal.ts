@@ -24,6 +24,8 @@ type ActiveModal =
       style: "yesno" | "okcancel";
       positiveLabel?: string;
       negativeLabel?: string;
+      /** The positive action destroys something; it is drawn in the danger colour. */
+      destructive?: boolean;
     } & ModalBodyOptions)
   | (ModalBase & {
       kind: "prompt";
@@ -123,6 +125,7 @@ export function openConfirm(
     style?: "yesno" | "okcancel";
     positiveLabel?: string;
     negativeLabel?: string;
+    destructive?: boolean;
   } & ModalBodyOptions,
 ): Promise<boolean> {
   return new Promise((resolve) => {
@@ -134,6 +137,7 @@ export function openConfirm(
       style: opts.style ?? "yesno",
       positiveLabel: opts.positiveLabel,
       negativeLabel: opts.negativeLabel,
+      destructive: opts.destructive ?? false,
       body: opts.body,
       bodyComponent: opts.bodyComponent,
       bodyProps: opts.bodyProps,

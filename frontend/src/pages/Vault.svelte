@@ -166,6 +166,7 @@
     const label = entry.label?.trim() || entry.accountName?.trim() || entry.steamId64;
     const ok = await openConfirm({
       title: $t("Vault_Delete_Title"),
+      destructive: true,
       body: $t("Vault_Delete_Confirm", { name: label }),
       positiveLabel: $t("Vault_Action_Delete"),
       style: "yesno",

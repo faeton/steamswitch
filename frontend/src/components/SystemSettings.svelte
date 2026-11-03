@@ -424,6 +424,7 @@
   async function onDeleteQuarantine(id: string): Promise<void> {
     const ok = await openConfirm({
       title: $t("Security_QuarantineDelete"),
+      destructive: true,
       body: $t("Security_QuarantineDeleteBody"),
       positiveLabel: $t("Security_QuarantineDelete"),
       negativeLabel: $t("Button_Cancel"),

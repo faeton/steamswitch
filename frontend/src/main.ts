@@ -16,6 +16,11 @@ import { initI18n } from './stores/i18n'
 import { initOfflineMode } from './stores/offlineMode'
 import { resolveInitialRoute, installHashSync } from './stores/nav'
 import { initTheme } from './lib/themes'
+import { hostOS } from './lib/hostOS'
+
+// Platform conventions that are pure CSS (dialog button order, for one) key off this, so the
+// first paint is already right for the OS the app is running on.
+document.documentElement.dataset.os = hostOS
 
 const app = void (async () => {
   await initI18n()

@@ -18,8 +18,8 @@
 <style lang="scss">
   .modal-text {
     margin: 0;
-    color: var(--white, #fff);
-    line-height: 1.45;
+    color: var(--fg-secondary);
+    line-height: var(--lh-body);
   }
 
   .modal-html :global(p) {

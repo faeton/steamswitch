@@ -308,6 +308,7 @@
   async function deleteSnapshot(snap: Snapshot): Promise<void> {
     const ok = await openConfirm({
       title: $t("Dota_Confirm_DeleteTitle"),
+      destructive: true,
       body: $t("Dota_Confirm_DeleteBody", { label: snap.label }),
     });
     if (!ok) return;
