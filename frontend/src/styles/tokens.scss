@@ -77,6 +77,11 @@
         Part B #6 and A6. Must stay visually distinct from a health badge, which is a dot.
     */
     --keycap-size: 22px;
+
+    /* Row hover: a wash of the text colour, so it works on any theme's surface without a
+       per-theme value. Strong is for a control sitting inside an already-hovered row. */
+    --row-hover: color-mix(in srgb, var(--fg-primary) 6%, transparent);
+    --row-hover-strong: color-mix(in srgb, var(--fg-primary) 11%, transparent);
     --keycap-fs: 12px;
 
     /* ---------------------------------------------------------- text roles */

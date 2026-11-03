@@ -13,6 +13,8 @@ import {
   setError,
   setIdleFacts,
   setKitActive,
+  stripEarnsSpace,
+  type StatusStripState,
   setRecovery,
   statusStrip,
   statusTone,
@@ -272,5 +274,25 @@ describe("tone", () => {
     expect(get(statusTone)).toBe("warn");
     setRecovery("interrupted-switch", "…", []);
     expect(get(statusTone)).toBe("error");
+  });
+});
+
+describe("stripEarnsSpace", () => {
+  // The hero already says who is signed in and whether Steam is running, and the dock owns a
+  // running switch and its failure. A strip repeating either is a row of chrome in a window
+  // whose minimum height is 600px; it shows only what nothing else on screen is saying.
+  it("hides when idle: the hero already says it", () => {
+    expect(stripEarnsSpace({ kind: "idle", accountLabel: "Faeton", isHome: true, steamRunning: false })).toBe(false);
+  });
+
+  it("hides while switching and for a switch error: the dock owns those", () => {
+    expect(stripEarnsSpace({ kind: "error", message: "x", scope: "switch" } as StatusStripState)).toBe(false);
+    expect(stripEarnsSpace({ kind: "switching" } as StatusStripState)).toBe(false);
+  });
+
+  it("shows a live kit, a recovery and any other error", () => {
+    expect(stripEarnsSpace({ kind: "kit-active" } as StatusStripState)).toBe(true);
+    expect(stripEarnsSpace({ kind: "recovery" } as StatusStripState)).toBe(true);
+    expect(stripEarnsSpace({ kind: "error", message: "x", scope: "general" } as StatusStripState)).toBe(true);
   });
 });

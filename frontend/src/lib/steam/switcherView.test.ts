@@ -5,6 +5,7 @@ import {
   filterAccounts,
   quickSwitchDigit,
   quickSwitchIndex,
+  switchTargets,
   shouldShowFilters,
   tagsInUse,
 } from "./switcherView";
@@ -177,5 +178,26 @@ describe("quickSwitchDigit", () => {
     expect(quickSwitchDigit({ key: "0", code: "Digit0" })).toBe(0);
     expect(quickSwitchDigit({ key: "a", code: "KeyA" })).toBe(0);
     expect(quickSwitchDigit({ key: "!", code: "" })).toBe(0);
+  });
+});
+
+describe("switchTargets", () => {
+  // The signed-in account is shown once, in the current-account bar. Listing it again among
+  // the accounts to switch *to* put the same name on screen three times and offered a click
+  // that does nothing.
+  it("leaves out the account Steam is signed in as", () => {
+    const current = ROSTER[1].steamId64;
+    const rows = switchTargets(ROSTER, current);
+    expect(rows.map((r) => r.steamId64)).not.toContain(current);
+    expect(rows).toHaveLength(ROSTER.length - 1);
+  });
+
+  it("keeps everything when no account is current (none, mismatch, unknown)", () => {
+    expect(switchTargets(ROSTER, "")).toEqual(ROSTER);
+  });
+
+  it("preserves the user's order", () => {
+    const rows = switchTargets(ROSTER, ROSTER[0].steamId64);
+    expect(names(rows)).toEqual(names(ROSTER.slice(1)));
   });
 });

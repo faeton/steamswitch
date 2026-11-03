@@ -20,7 +20,8 @@
   import { onDestroy, onMount } from "svelte";
   import { get } from "svelte/store";
   import { Events } from "@wailsio/runtime";
-  import AccountTile from "../components/AccountTile.svelte";
+  import AccountRow from "../components/AccountRow.svelte";
+  import Icon from "../components/Icon.svelte";
   import AccountListSkeleton from "../components/AccountListSkeleton.svelte";
   import AccountDetailPanel from "../components/AccountDetailPanel.svelte";
   import CurrentAccountHero from "../components/CurrentAccountHero.svelte";
@@ -79,6 +80,7 @@
     filterAccounts,
     quickSwitchDigit,
     quickSwitchIndex,
+    switchTargets,
     shouldShowFilters,
     tagsInUse,
     type SwitcherFilters,
@@ -127,6 +129,12 @@
 
   const RETRY_SWITCH = "retry-switch";
 
+  /**
+   * Past this many rows the list goes to two columns on a wide window. Below it, one column
+   * reads top to bottom with no zig-zag, and the 1–9 digits run down a single edge.
+   */
+  const WIDE_LIST_THRESHOLD = 12;
+
   const listGuard = createLatestRequestGuard();
   /** Session-only refreshes (window focus, failed switch); a full load invalidates these. */
   const sessionGuard = createLatestRequestGuard();
@@ -159,6 +167,9 @@
   $: activeFilters = filtersVisible ? filters : EMPTY_SWITCHER_FILTERS;
   $: visible = filterAccounts(ordered, activeFilters);
   $: keycaps = quickSwitchIndex(visible, currentId);
+  $: targets = switchTargets(visible, currentId);
+  /** Every account a click could switch to, before search and tag filters. */
+  $: others = switchTargets(ordered, currentId);
   // Which tile shows the "switching…" state. Tracked locally rather than derived from the
   // strip, because the strip carries a display *label* and two accounts can share one.
   $: switchTargetId =
@@ -772,20 +783,22 @@
 <div class="switcher" bind:this={rootEl}>
   <PageHeader title={$t("Nav_Switcher")}>
     <svelte:fragment slot="actions">
-      <button type="button" class="ss-btn" on:click={() => (shortcutsOpen = true)}>
-        {$t("Shortcuts_Title")}
+      <button type="button" class="ss-btn switcher__head-btn" on:click={() => (shortcutsOpen = true)}>
+        <Icon name="keyboard" />
+        <span>{$t("Shortcuts_Title")}</span>
       </button>
       {#if ordered.length > 0}
-        <!-- Hidden on an empty roster: the first-run panel below already carries this as its
-             focal call to action, and two identical primary buttons on one screen is the
-             fastest way to make neither look like the one to press. -->
+        <!-- Secondary, not primary: switching is what this page is for, and adding a login is
+             occasional. Hidden on an empty roster, where the first-run panel carries it as the
+             one primary action. -->
         <button
           type="button"
-          class="ss-btn ss-btn--primary"
+          class="ss-btn switcher__head-btn"
           disabled={addingAccount || blocked}
           on:click={addAccount}
         >
-          {$t("AddLogin_Title")}
+          <Icon name="plus" />
+          <span>{$t("AddLogin_Title")}</span>
         </button>
       {/if}
     </svelte:fragment>
@@ -837,11 +850,13 @@
       <div class="switcher__list-head">
         <div class="switcher__list-title">
           <h2 class="switcher__h2">{$t("Switcher_SwitchTo")}</h2>
-          <span class="switcher__count meta-mono">
-            {visible.length === ordered.length
-              ? $t("Switcher_Count", { count: ordered.length })
-              : $t("Switcher_CountFiltered", { shown: visible.length, total: ordered.length })}
-          </span>
+          {#if others.length > 0}
+            <span class="switcher__count">
+              {targets.length === others.length
+                ? $t("Switcher_Count", { count: others.length })
+                : $t("Switcher_CountFiltered", { shown: targets.length, total: others.length })}
+            </span>
+          {/if}
         </div>
 
         {#if filtersVisible}
@@ -894,7 +909,18 @@
               on:click={addAccount}>{$t("AddLogin_Title")}</button
             >
           </div>
-        {:else if visible.length === 0}
+        {:else if others.length === 0}
+          <!-- One saved account, and Steam is signed in as it: nothing to switch to yet. -->
+          <div class="empty">
+            <p class="empty__body">{$t("Switcher_OnlyOne")}</p>
+            <button
+              type="button"
+              class="ss-btn ss-btn--primary"
+              disabled={addingAccount || blocked}
+              on:click={addAccount}>{$t("AddLogin_Title")}</button
+            >
+          </div>
+        {:else if targets.length === 0}
           <div class="empty">
             <p class="empty__body">{$t("Switcher_NoMatches")}</p>
             <button
@@ -905,14 +931,13 @@
             >
           </div>
         {:else}
-          <div class="grid" role="list">
-            {#each visible as acc (acc.steamId64)}
-              <div role="listitem">
-                <AccountTile
+          <ul class="list" class:list--wide={targets.length > WIDE_LIST_THRESHOLD}>
+            {#each targets as acc (acc.steamId64)}
+              <li>
+                <AccountRow
                   account={acc}
                   role={roleOf(roles, acc.steamId64)}
                   kitTravels={kitTravelsTo(roles, acc.steamId64)}
-                  current={acc.steamId64 === currentId}
                   disabled={blocked}
                   switching={acc.steamId64 === switchTargetId}
                   showHealth={vaultInUse}
@@ -923,25 +948,9 @@
                   on:detail={(e) => (detailId = e.detail)}
                   on:menu={onTileMenu}
                 />
-              </div>
+              </li>
             {/each}
-
-            <button
-              type="button"
-              class="add-tile"
-              disabled={addingAccount || blocked}
-              on:click={addAccount}
-            >
-              <span aria-hidden="true">＋</span>
-              {$t("AddLogin_Tile")}
-            </button>
-          </div>
-
-          {#if Object.keys(keycaps).length > 0}
-            <!-- Says out loud what the digits bind to. Without it the numbers look arbitrary
-                 the first time a filter renumbers them. -->
-            <p class="switcher__hint">{$t("Shortcuts_OrderNote")}</p>
-          {/if}
+          </ul>
         {/if}
       </div>
     </div>
@@ -1037,6 +1046,7 @@
   }
 
   .switcher__count {
+    font-size: var(--fs-secondary);
     color: var(--fg-muted);
   }
 
@@ -1068,56 +1078,31 @@
   }
 
   /*
-    `auto-fill` rather than a fixed column count: the doc draws three columns at 1280 and two
-    at its 1000px minimum, and letting the browser derive that from a minimum tile width means
-    every window size in between is handled without a breakpoint per size.
+    One column of rows, in a single quiet panel. Two columns only past WIDE_LIST_THRESHOLD and
+    only when the window can fit two rows side by side without truncating names.
   */
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(var(--tile-min-width, 300px), 1fr));
-    gap: 14px;
-    align-content: start;
-  }
-
-  .add-tile {
+  .list {
     display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: var(--space-3);
-    min-height: 74px;
-    padding: var(--space-4);
-    border: 1px dashed var(--hairline-strong, var(--button-bg));
-    border-radius: var(--radius-lg);
-    background: none;
-    color: var(--fg-muted);
-    font: inherit;
-    font-size: var(--fs-control);
-    cursor: pointer;
-  }
-
-  .add-tile > :global(span) {
-    line-height: inherit;
-  }
-
-  .add-tile:hover:not(:disabled) {
-    border-color: var(--accent);
-    color: var(--accent-text-bright, var(--accent));
-  }
-
-  .add-tile:disabled {
-    opacity: var(--role-disabled-opacity, 0.55);
-    cursor: not-allowed;
-  }
-
-  .add-tile:focus-visible {
-    outline: 2px solid var(--role-focus-ring, var(--accent));
-    outline-offset: 2px;
-  }
-
-  .switcher__hint {
+    flex-direction: column;
+    gap: 2px;
     margin: 0;
-    font-size: var(--fs-meta);
-    color: var(--fg-disabled);
+    padding: var(--space-1);
+    list-style: none;
+    border: 1px solid var(--hairline, var(--button-bg));
+    border-radius: var(--radius-lg);
+    background: var(--surface-panel, var(--mainContentBackground));
+  }
+
+  .list--wide {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(440px, 1fr));
+    column-gap: var(--space-2);
+  }
+
+  .switcher__head-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
   }
 
   .empty {

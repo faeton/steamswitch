@@ -26,7 +26,7 @@
   import { route, applyNavigateJSON, navigateBackLikeButton, navigateForward } from './stores/nav'
   import { installPageStatsTracking } from "./lib/pageStatsTrack";
   import { loadPageModule, prefetchCommonPages } from "./lib/pageLoaders";
-  import { narrate, statusStripAction } from './stores/statusStrip'
+  import { narrate, statusStrip, statusStripAction, stripEarnsSpace } from './stores/statusStrip'
   import { t } from "./stores/i18n";
   import { NotifyLaunchUpdateCheck } from "../bindings/steamswitch/internal/platform/platformservice.js";
   import * as PlatformService from "../bindings/steamswitch/internal/platform/platformservice.js";
@@ -89,8 +89,8 @@
   }
 
   $: activeBg = resolveActiveBg($appBgInfo, $currentThemeBgUrl, $userOverriddenAppBg);
-  // The strip is the app's status channel, not a page decoration: it is always mounted.
-  $: showStatusStrip = true;
+  // Mounted only when it says something nothing else on screen says (see stripEarnsSpace).
+  $: showStatusStrip = stripEarnsSpace($statusStrip);
 
   let restoreRepairPromptOpen = false;
   let restoreRepairPromptDismissed = false;

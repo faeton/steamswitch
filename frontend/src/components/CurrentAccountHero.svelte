@@ -22,9 +22,9 @@
    * inferred here from whether an account happens to be present.
    */
   import { createEventDispatcher } from "svelte";
-  import { t, locale } from "../stores/i18n";
+  import { t } from "../stores/i18n";
   import SteamAccountAvatar from "./SteamAccountAvatar.svelte";
-  import { formatLastLoginForLocale } from "../lib/formatLastLogin";
+  import Icon from "./Icon.svelte";
   import type { SteamAccountRow } from "../lib/steam/types";
   import type { SessionState } from "../lib/steam/sessionState";
 
@@ -69,7 +69,6 @@
   $: label = account
     ? account.displayName?.trim() || account.personaName?.trim() || account.steamId64
     : "";
-  $: lastLogin = account?.lastLogin ? formatLastLoginForLocale(account.lastLogin, $locale) : "";
   // Under a mismatch the app knows two names and cannot rank them, so both are shown: the one
   // its own records point at, and the one Steam will actually sign in as.
   $: mismatchBody =
@@ -84,7 +83,6 @@
   {#if state === "switching"}
     <div class="hero__empty">
       <div class="hero__lead">
-        <div class="ss-eyebrow">{$t("Hero_Eyebrow_Switching")}</div>
         <div class="hero__none-title">{$t("Hero_Switching_Title", { name: switchingTo })}</div>
         <p class="hero__none-body">
           {label ? $t("Hero_Switching_Body", { name: label }) : $t("Hero_Switching_Body_NoFrom")}
@@ -93,16 +91,14 @@
     </div>
   {:else if state === "mismatch" || state === "unknown"}
     <!--
-      The whole point of A4. Neither branch shows an avatar or a "Signed in as" eyebrow:
+      The whole point of A4. Neither branch shows an avatar or a "Signed in as" line:
       those are the visual grammar of a confident answer, and reusing them here would be the
       same assertion in a warning colour. What is on offer instead is the fact and a refresh.
     -->
     <div class="hero__empty">
       <div class="hero__lead">
-        <div class="ss-eyebrow hero__eyebrow--warn">
-          {state === "mismatch" ? $t("Hero_Eyebrow_Mismatch") : $t("Hero_Eyebrow_Unknown")}
-        </div>
-        <div class="hero__none-title">
+        <div class="hero__none-title hero__none-title--warn">
+          <Icon name="warn" size={15} />
           {state === "mismatch" ? $t("Hero_Mismatch_Title") : $t("Hero_Unknown_Title")}
         </div>
         <p class="hero__none-body">
@@ -123,14 +119,12 @@
   {:else if state === "none"}
     <div class="hero__empty">
       <div class="hero__lead">
-        <div class="ss-eyebrow">{$t("Hero_Eyebrow_NotSignedIn")}</div>
         <div class="hero__none-title">{$t("Hero_NotSignedIn_Title")}</div>
         <p class="hero__none-body">{$t("Hero_NotSignedIn_Body")}</p>
       </div>
       <div class="hero__actions">
-        <!-- Refresh only. "Add another Steam login" is the page header's primary action,
-             directly above this card; repeating it here put the same button on screen twice
-             and made neither read as *the* thing to do. -->
+        <!-- Refresh only. "Add another Steam login" is in the page header directly above;
+             repeating it here would put the same button on screen twice. -->
         <button type="button" class="ss-btn" disabled={busy} on:click={() => dispatch("refresh")}>
           {$t("Hero_Action_Refresh")}
         </button>
@@ -140,9 +134,10 @@
     <div class="hero__identity">
       <SteamAccountAvatar {account} epoch={avatarEpoch} fallback="/img/BasicDefault.webp" />
       <div class="hero__lead">
-        <div class="hero__top">
-          <span class="ss-eyebrow hero__eyebrow">{$t("Hero_Eyebrow_SignedInAs")}</span>
-          <!-- Steam's state is a pill of its own rather than a colour on the card: whether
+        <div class="hero__name" title={label}>{label}</div>
+        <div class="hero__meta">
+          <span class="hero__login">{$t("Hero_SignedInAs", { login: account.accountName || label })}</span>
+          <!-- Steam's state is a pill of its own rather than a colour on the bar: whether
                Steam is *running* changes what a switch will do to the user (it gets closed),
                so it has to be legible, not inferred. -->
           <span class="pill" data-running={steamRunning}>
@@ -150,13 +145,6 @@
             {steamRunning ? $t("Status_SteamRunning") : $t("Status_SteamClosed")}
           </span>
         </div>
-        <div class="hero__name" title={label}>{label}</div>
-        <div class="hero__meta meta-mono">
-          {account.accountName ? `${account.accountName} · ` : ""}{account.steamId64}
-        </div>
-        {#if lastLogin && !steamRunning}
-          <div class="hero__meta">{lastLogin}</div>
-        {/if}
       </div>
     </div>
 
@@ -190,51 +178,53 @@
 </section>
 
 <style>
+  /*
+    The current-account bar: one compact row, because the list below it is the point of the
+    page. It used to be a 270px card with an uppercase eyebrow, a 60px avatar, the SteamID and
+    a last-login date — the same account then appeared again as the first tile and a third
+    time in the status strip.
+  */
   .hero {
-    --avatar-size: var(--avatar-hero-size, 60px);
-    --avatar-radius: 7px;
+    --avatar-size: 44px;
+    --avatar-radius: var(--radius-md);
     flex: 0 0 auto;
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--space-6);
-    padding: var(--space-5);
+    gap: var(--space-5);
+    min-height: 68px;
+    padding: var(--space-4) var(--space-5);
     border: 1px solid var(--surface-hero-border, var(--hairline-strong));
-    border-radius: var(--radius-xl);
+    border-radius: var(--radius-lg);
     background: var(--surface-hero, var(--surface-panel));
-    box-shadow: var(--shadow);
+    line-height: var(--lh-tight);
     min-width: 0;
   }
 
-  /*
-    The "we do not know" state is visually distinct from a confident one — softer border, no
-    accent — so it never reads as an assertion about who is signed in.
-  */
+  /* "We do not know" must never look like a confident answer: no accent, no avatar. */
   .hero[data-state="none"] {
     border-style: dashed;
     border-color: var(--hairline-strong, var(--border-bar-bg));
-    background: var(--surface-panel, var(--mainContentBackground));
+    background: transparent;
   }
 
-  /*
-    Mismatch and unknown are warnings, not errors: nothing is broken and no data is at risk,
-    the app simply cannot vouch for its answer. So they take the warn border and tint rather
-    than the danger colours, which are reserved for a failed switch.
-  */
+  /* Mismatch and unknown are warnings, not errors: nothing is broken, the app simply cannot
+     vouch for its answer. The danger colours are kept for a failed switch. */
   .hero[data-state="mismatch"],
   .hero[data-state="unknown"] {
     border-color: var(--border-warn);
     background: var(--bg-warn, var(--surface-panel));
   }
 
-  .hero__eyebrow--warn {
-    color: var(--fg-warn, var(--fg-muted));
+  .hero[data-state="switching"] {
+    border-color: var(--accent);
+    background: var(--accent-fill-very-soft, var(--surface-panel));
   }
 
   .hero__identity {
     display: flex;
     align-items: center;
-    gap: 18px;
+    gap: var(--space-4);
     min-width: 0;
   }
 
@@ -242,7 +232,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: var(--space-6);
+    gap: var(--space-5);
     width: 100%;
     min-width: 0;
   }
@@ -250,25 +240,13 @@
   .hero__lead {
     display: flex;
     flex-direction: column;
-    gap: var(--space-2);
+    gap: var(--space-1);
     min-width: 0;
   }
 
-  .hero__top {
-    display: flex;
-    align-items: center;
-    gap: var(--space-4);
-    flex-wrap: wrap;
-  }
-
-  .hero__eyebrow {
-    color: var(--accent-text-bright, var(--fg-muted));
-  }
-
   .hero__name {
-    font-size: var(--fs-hero);
+    font-size: var(--fs-section);
     font-weight: var(--fw-semibold);
-    line-height: var(--lh-tight);
     color: var(--fg-primary);
     overflow: hidden;
     text-overflow: ellipsis;
@@ -276,22 +254,36 @@
   }
 
   .hero__none-title {
-    font-size: var(--fs-section);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    font-size: var(--fs-body);
     font-weight: var(--fw-semibold);
     color: var(--fg-primary);
   }
 
+  .hero__none-title--warn :global(.icon) {
+    color: var(--fg-warn);
+  }
+
   .hero__none-body {
     margin: 0;
-    max-width: 52ch;
+    max-width: 68ch;
     font-size: var(--fs-secondary);
-    line-height: var(--lh-prose);
+    line-height: var(--lh-body);
     color: var(--fg-muted);
   }
 
   .hero__meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
     font-size: var(--fs-secondary);
     color: var(--fg-muted);
+  }
+
+  .hero__login {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -301,15 +293,14 @@
     display: flex;
     gap: var(--space-3);
     flex: 0 0 auto;
-    flex-wrap: wrap;
-    justify-content: flex-end;
   }
 
   .pill {
     display: inline-flex;
     align-items: center;
     gap: var(--space-2);
-    padding: 3px 9px;
+    height: 20px;
+    padding: 0 var(--space-3);
     border: 1px solid var(--hairline-strong, var(--button-bg));
     border-radius: var(--radius-pill);
     font-size: var(--fs-meta);
@@ -331,38 +322,24 @@
   }
 
   .pill[data-running="true"] .pill__dot {
-    background: var(--green);
+    background: var(--fg-ok);
   }
 
   .hero__skeleton-avatar {
-    width: var(--avatar-hero-size, 60px);
-    height: var(--avatar-hero-size, 60px);
-    border-radius: 7px;
-    background: var(--button-bg);
+    width: 44px;
+    height: 44px;
+    border-radius: var(--radius-md);
+    background: var(--row-hover-strong);
   }
 
   .hero__skeleton-line {
     height: 12px;
-    width: 220px;
+    width: 200px;
     border-radius: var(--radius-xs);
-    background: var(--button-bg);
+    background: var(--row-hover-strong);
   }
 
   .hero__skeleton-line--short {
-    width: 110px;
-  }
-
-  /* At the doc's 1000px minimum the actions wrap under the identity rather than crushing the
-     account name, which is the one thing on this card that must stay readable. */
-  /* +190px nav, and the hero shares its row with a 340px detail panel when one is open. */
-  @media (max-width: 1010px) {
-    .hero,
-    .hero__empty {
-      flex-direction: column;
-      align-items: flex-start;
-    }
-    .hero__actions {
-      justify-content: flex-start;
-    }
+    width: 120px;
   }
 </style>

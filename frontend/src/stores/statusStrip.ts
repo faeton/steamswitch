@@ -358,3 +358,17 @@ export const statusTone = derived(statusStrip, ($s): "neutral" | "busy" | "warn"
       return "neutral";
   }
 });
+
+/**
+ * Whether the strip has anything to say that nothing else on screen is saying.
+ *
+ * Idle repeated the hero ("Now: X · Steam closed") and, off the switcher page, said "no account
+ * selected" because only that page feeds it. A running switch and its failure belong to the
+ * progress dock. What is left — a live kit, a recovery, an error outside a switch — has no
+ * other home, so the strip mounts for those alone.
+ */
+export function stripEarnsSpace(s: StatusStripState): boolean {
+  if (s.kind === "idle" || s.kind === "switching") return false;
+  if (s.kind === "error") return s.scope !== "switch";
+  return true;
+}

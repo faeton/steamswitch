@@ -61,6 +61,17 @@ export function tagsInUse(accounts: SteamAccountRow[]): string[] {
   return [...seen].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: "base" }));
 }
 
+/**
+ * The accounts a click can switch *to*: everything except the one Steam is signed in as.
+ *
+ * That account is shown once, in the current-account bar above the list. `currentId` is ""
+ * whenever the app will not assert a current account (none / mismatch / unknown), and then
+ * nothing is removed — an account the app is unsure about must stay reachable.
+ */
+export function switchTargets(accounts: SteamAccountRow[], currentId: string): SteamAccountRow[] {
+  return currentId ? accounts.filter((a) => a.steamId64 !== currentId) : accounts;
+}
+
 export const MAX_QUICK_SWITCH = 9;
 
 /**
