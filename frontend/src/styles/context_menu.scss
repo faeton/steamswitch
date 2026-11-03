@@ -5,73 +5,78 @@
     background: var(--accent);
 }
 
+/*
+    The account menu and every other right-click menu.
+
+    Drawn the way Windows 11 draws its own (the app is used on Windows first): one rounded
+    panel with a hairline edge and a soft offset shadow, a few pixels of inner padding, and
+    each item a rounded wash on hover rather than a full-bleed bar. The old version drew a
+    hard 10px block shadow, slid a 3px accent bar in from the left on hover, and let a global
+    `hr` margin turn every separator into a ~30px hole in the list.
+
+    Colours stay on the `--surface-context-*` names the classic theme packs already set.
+*/
 .contextmenu {
+    --ctx-pad: 4px;
+    --ctx-width: 15em;
     background: var(--surface-context-submenu);
-    border: 0;
-    box-shadow: 10px 10px 5px -3px var(--shadow-color-30);
+    border: 1px solid var(--context-menu-border, var(--hairline-strong));
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-panel, 0 10px 26px rgba(0, 0, 0, 0.5));
     position: absolute;
-    width: 15em;
+    width: var(--ctx-width);
     max-height: 30em;
     margin: 0;
-    padding: 0;
+    padding: var(--ctx-pad);
     list-style: none;
     z-index: 999999;
     box-sizing: border-box;
     overflow: visible;
+    font-size: var(--fs-control);
+    line-height: var(--lh-tight);
+    color: var(--fg-primary);
 
     li {
         box-sizing: border-box;
-        padding-left: 0.5em;
-        transition: background 0.2s ease;
         position: relative;
+        border-radius: var(--radius-sm);
 
-        /* Accent animates via transform (no border-width change → no wrap jump). */
-        &:not(.contextSearch):not(.ctx-pagination-li):not(.ctx-sep)::before {
-            content: "";
-            position: absolute;
-            left: 0;
-            top: 0;
-            bottom: 0;
-            width: 3px;
-            background: var(--accent);
-            transform: scaleX(0);
-            transform-origin: left center;
-            transition: transform 0.2s ease;
-            pointer-events: none;
-            z-index: 0;
-        }
-
+        /* The submenu chevron: drawn with borders, so it follows the text colour in every
+           theme and in high-contrast mode. */
         &.hasSubmenu::after {
             content: "";
             position: absolute;
-            right: 6px;
+            right: 10px;
             top: 50%;
             transform: translateY(-50%) rotate(-45deg);
-            width: 0.45em;
-            height: 0.45em;
+            width: 5px;
+            height: 5px;
             z-index: 2;
-            border-right: 0.14em solid currentColor;
-            border-bottom: 0.14em solid currentColor;
+            border-right: 1.5px solid currentColor;
+            border-bottom: 1.5px solid currentColor;
+            color: var(--fg-muted);
             pointer-events: none;
             forced-color-adjust: auto;
         }
 
         &.hasSubmenu.hasSubmenu--parent-action > button.ctx-menu__parent-action {
-            padding-right: 1.85em;
+            padding-right: 26px;
         }
 
         a, span, button {
             text-decoration: none;
-            transition: ease 0.2s;
             display: block;
             width: 100%;
+            min-height: 28px;
             text-align: left;
-            padding: 0.4rem 0.85rem;
+            padding: 6px 10px;
             margin: 0;
             border: none;
+            border-radius: inherit;
             background: transparent;
-            color: var(--whiteSecondary);
+            color: var(--fg-primary);
             font: inherit;
+            line-height: var(--lh-tight);
             cursor: pointer;
             position: relative;
             z-index: 1;
@@ -80,15 +85,28 @@
 
         button:disabled,
         button.ctx-menu__btn--disabled {
-            opacity: 0.45;
+            color: var(--fg-disabled);
             cursor: not-allowed;
+        }
+    }
+
+    /* A separator is a hairline with breathing room, not a gap. */
+    li.ctx-sep {
+        height: 1px;
+        margin: var(--ctx-pad) 6px;
+        padding: 0;
+        background: var(--hairline-strong);
+        border-radius: 0;
+
+        hr {
+            display: none;
         }
     }
 
     .submenu {
         display: none;
         list-style: none;
-        box-shadow: 10px 10px 5px -3px var(--shadow-color-30);
+        box-shadow: var(--shadow-panel, 0 10px 26px rgba(0, 0, 0, 0.5));
         height: var(--ctx-submenu-planned-height, auto);
         overflow: visible;
 
@@ -122,40 +140,33 @@
             overflow: hidden;
         }
 
-        li {
-            color: var(--whiteSecondary);
-            list-style: none;
-
-            a {
-                color: var(--whiteSecondary) !important;
-            }
-        }
-
         /* In-flow footer row (valid <ul><li>…); avoids overlapping the last menu row */
         li.ctx-pagination-li {
-            border-left: 2px solid transparent;
             list-style: none;
             margin-top: auto;
             flex-shrink: 0;
-            padding-left: 0;
+            padding: var(--ctx-pad) 0 0;
+            border-top: 1px solid var(--hairline-strong);
+            border-radius: 0;
 
             .paginationContainer {
                 width: 100%;
-                border-left: none;
             }
 
             .pagination {
                 display: flex;
                 justify-content: space-between;
                 align-items: center;
-                color: var(--whiteSecondary);
+                color: var(--fg-secondary);
 
                 a,
                 button.paginationButton {
-                    padding: 0.4rem 0.85rem;
                     width: 38px;
+                    min-height: 28px;
+                    padding: 6px 0;
                     text-align: center;
                     border: none;
+                    border-radius: var(--radius-sm);
                     background: transparent;
                     color: inherit;
                     font: inherit;
@@ -164,64 +175,31 @@
 
                     &:hover {
                         background: var(--surface-context-row);
-
-                        i,
-                        svg {
-                            color: var(--accent);
-                            fill: var(--accent);
-                        }
-                    }
-
-                    border-left: 0px solid var(--accent);
-                    transition: ease 0.075s;
-
-                    &:first-of-type:hover {
-                        transition: ease 0.075s;
-                        border-left: 2px solid var(--accent);
-                    }
-
-                    &:last-of-type:hover {
-                        transition: ease 0.075s;
-                        border-right: 2px solid var(--accent);
+                        color: var(--fg-primary);
                     }
                 }
 
                 span {
-                    border-bottom: 2px solid var(--accent);
                     width: fit-content;
+                    min-height: 0;
+                    padding: 0;
+                    font-size: var(--fs-meta);
+                    color: var(--fg-muted);
                 }
             }
         }
 
         .contextSearch {
-            border-left: 2px solid transparent;
-            background: var(--even-darker-code-background);
-            padding-left: 0;
-            transition: border-left-color 0.2s ease, background 0.2s ease;
-
-            &:hover {
-                border-left-color: var(--accent);
-            }
-
-            .input-modality-keyboard &:has(.ctx-menu__search:focus),
-            .input-modality-controller &:has(.ctx-menu__search:focus) {
-                border-left-color: var(--accent);
-            }
+            padding: 0 0 var(--ctx-pad);
+            border-radius: 0;
 
             input {
-                background: transparent!important;
-                border: none!important;
                 margin: 0;
-                padding: 0.4em;
                 width: 100%;
-                outline: none;
-
-                &:placeholder-shown {
-                    opacity: 0.8;
-                }
             }
         }
     }
+
     /* Only second submenu has shortenable names - for now (Game names). Evertyhing else wrap. */
     .submenu2 > li > a {
         white-space: nowrap;
@@ -229,20 +207,8 @@
         text-overflow: ellipsis;
     }
 
-    li:hover:not(.contextSearch):not(.ctx-pagination-li):not(.ctx-sep)::before,
-    .input-modality-keyboard & li:has(> .ctx-menu__btn:focus):not(.contextSearch):not(.ctx-pagination-li):not(.ctx-sep)::before,
-    .input-modality-keyboard & li.hasSubmenu:has(> .ctx-menu__label:focus):not(.contextSearch):not(.ctx-pagination-li):not(.ctx-sep)::before,
-    .input-modality-controller & li:has(> .ctx-menu__btn:focus):not(.contextSearch):not(.ctx-pagination-li):not(.ctx-sep)::before,
-    .input-modality-controller & li.hasSubmenu:has(> .ctx-menu__label:focus):not(.contextSearch):not(.ctx-pagination-li):not(.ctx-sep)::before {
-        transform: scaleX(1);
-    }
-
-    li:hover {
+    li:hover:not(.ctx-sep):not(.contextSearch):not(.ctx-pagination-li) {
         background: var(--surface-context-row);
-
-        a {
-            color: var(--whiteSecondary);
-        }
     }
 
     /* Keyboard focus — mirror hover when roving tabindex focuses controls / submenu rows */
@@ -253,6 +219,7 @@
     .input-modality-controller & li.hasSubmenu:focus,
     .input-modality-controller & li.hasSubmenu:has(> .ctx-menu__label:focus) {
         background: var(--surface-context-row);
+        box-shadow: inset 0 0 0 1px var(--role-focus-ring, var(--accent));
     }
 
     /* Submenus open via JS (.submenu-expanded) after first paint; not CSS :hover alone. */
@@ -264,18 +231,27 @@
         z-index: 50;
     }
 
+    /* The flyout starts at the parent panel's outer edge (the item sits `--ctx-pad` inside it)
+       and is lifted by the same amount, so its first item lines up with the item that opened it. */
     li.hasSubmenu.submenu-expanded > .submenu {
         display: block;
         position: absolute;
         top: 0;
-        right: -15em;
-        width: 15em;
-        border: 0;
-        padding: 0;
+        /* A margin, not `top`: the flyout placement code writes `top` inline to keep the
+           column on screen, and would overwrite the alignment. */
+        margin-top: calc(-1 * var(--ctx-pad) - 1px);
+        right: calc(-1 * var(--ctx-width) - var(--ctx-pad) + 2px);
+        /* Content-box: the pagination planner sets `height` from the rows alone
+           (`--ctx-submenu-planned-height`), so padding and border must sit outside it. */
+        box-sizing: content-box;
+        width: calc(var(--ctx-width) - 2 * var(--ctx-pad) - 2px);
+        padding: var(--ctx-pad);
+        border: 1px solid var(--context-menu-border, var(--hairline-strong));
+        border-radius: var(--radius-lg);
         font-size: 1em;
         /* Fixed width for the whole transition — do not animate width (was expand @keyframes),
            or wrapping reflows every frame and jitters on long labels. */
-        animation: submenuFlyout 0.25s ease-out forwards;
+        animation: submenuFlyout var(--dur-base) var(--ease-out) forwards;
         opacity: 1;
         background: var(--surface-context-submenu);
         z-index: 51;
@@ -298,16 +274,22 @@
         z-index: 1;
     }
 }
+
 .ctx-menu__search {
   width: 100%;
   box-sizing: border-box;
-  margin: 0.15rem 0 0.35rem;
-  padding: 0.35rem 0.5rem;
-  border-radius: 4px;
-  border: 1px solid var(--overlay-white-15);
-  background: var(--backdrop-dark-35);
-  color: var(--whiteSecondary);
+  min-height: 28px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--hairline-strong);
+  background: var(--surface-field, var(--role-field-bg));
+  color: var(--fg-primary);
   font: inherit;
+}
+
+.ctx-menu__search:focus-visible {
+  outline: 2px solid var(--role-focus-ring, var(--accent));
+  outline-offset: -1px;
 }
 
 hr {
@@ -318,13 +300,19 @@ hr {
 
 @keyframes submenuFlyout {
   from {
-    opacity: 0.88;
-    transform: translateX(-0.45rem);
+    opacity: 0;
+    transform: translateX(-4px);
   }
 
   to {
     opacity: 1;
     transform: translateX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .contextmenu li.hasSubmenu.submenu-expanded > .submenu {
+    animation: none;
   }
 }
 
