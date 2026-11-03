@@ -53,15 +53,32 @@ export function viewportDropdown(node: HTMLElement) {
     frame = requestAnimationFrame(measure);
   }
 
+  /**
+   * Escape closes the open list and goes no further: the pages listen for Escape on window to
+   * go back, so it used to leave Settings with the list still open. Every dropdown using this
+   * action toggles from its `.dropdown-toggle`, so clicking that is the one way to close it.
+   */
+  function onKeydown(e: KeyboardEvent): void {
+    if (e.key !== "Escape") return;
+    const trigger = node.parentElement?.querySelector<HTMLElement>(".dropdown-toggle");
+    if (!trigger) return;
+    e.preventDefault();
+    e.stopPropagation();
+    trigger.click();
+    trigger.focus();
+  }
+
   measure();
   window.addEventListener("resize", schedule);
   window.addEventListener("scroll", schedule, true);
+  window.addEventListener("keydown", onKeydown, true);
 
   return {
     destroy(): void {
       if (frame) cancelAnimationFrame(frame);
       window.removeEventListener("resize", schedule);
       window.removeEventListener("scroll", schedule, true);
+      window.removeEventListener("keydown", onKeydown, true);
     },
   };
 }

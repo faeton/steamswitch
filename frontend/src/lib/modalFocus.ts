@@ -51,6 +51,10 @@ export function modalFocus(node: HTMLElement, initialOptions: FocusTrapOptions =
 
     if (event.key === "Escape") {
       event.preventDefault();
+      // The key is spent on this dialog. Pages listen for Escape on window to go back and skip
+      // it while a modal is open — but onEscape has closed the modal by the time the event
+      // gets there, so without this, closing any dialog also left the page behind it.
+      event.stopPropagation();
       options.onEscape?.();
       return;
     }

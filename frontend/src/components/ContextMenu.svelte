@@ -147,6 +147,12 @@
 
   function onKey(ev: KeyboardEvent): void {
     if (ev.key === "Escape") {
+      // This listener stays mounted with no menu open; leave Escape alone for everyone else.
+      if (!get(contextMenu)) return;
+      // Spent on the menu. This runs in the capture phase, ahead of the pages' window listeners
+      // that go back on Escape — they would otherwise see no menu open and leave the page.
+      ev.preventDefault();
+      ev.stopPropagation();
       closeContextMenu();
       return;
     }
