@@ -161,8 +161,7 @@
   }
 
   .app-lock-field {
-    /* A global legacy `label` rule pads every label; this one sits flush with its field. */
-    padding: 0;
+    /* Excluded from the legacy global `label` padding in Settings.scss. */
     margin: 0 0 var(--space-2);
     font-size: var(--fs-secondary);
     font-weight: var(--fw-medium);

@@ -27,6 +27,7 @@
   import { openFolderPicker } from "../stores/modal";
   import SharedSettingCheckbox from "./settings/SharedSettingCheckbox.svelte";
   import ProcessMethodDropdown from "./settings/ProcessMethodDropdown.svelte";
+  import SettingRow from "./settings/SettingRow.svelte";
   import {
     ARG_SILENT,
     closingValues,
@@ -38,7 +39,6 @@
     sanitizeSettingsPayload,
     withLaunchArgFlag,
   } from "../lib/platformSettingsShared";
-  import { viewportDropdown } from "../lib/actions/viewportDropdown";
   import * as SteamService from "../../bindings/steamswitch/internal/steam/steamservice.js";
   import type { Settings } from "../../bindings/steamswitch/internal/steam/models";
 
@@ -46,7 +46,6 @@
   const AUTO_REFRESH_MIN_MINUTES = 15;
 
   let settings: Settings | null = null;
-  let stateOpen = false;
   /** True once a save has failed, so the next successful one can say it recovered. */
   let saveFailed = false;
   /**
@@ -188,11 +187,6 @@
     await loadResolvedRoot();
   }
 
-  function overrideLabel(v: number): string {
-    const row = overrideStates.find((x) => x.v === v);
-    return row ? $t(row.key) : $t("NoDefault");
-  }
-
   $: silentOn = hasLaunchArgFlag(settings?.LaunchArguments ?? "", ARG_SILENT);
 
   onMount(() => {
@@ -205,28 +199,33 @@
 {#if !settings}
   <p class="subtext">{$t("Kit_Module_Loading")}</p>
 {:else}
-  <div class="form-text steam-root">
-    <span class="meta-mono">
-      {$t("Settings_CurrentLocation", { path: resolvedRoot?.path || settings.FolderPath || "—" })}
-    </span>
-    {#if resolvedRoot && !resolvedRoot.configured}
-      <span class="steam-root__tag">{$t("Settings_SteamFolder_Detected")}</span>
-    {/if}
-    {#if resolvedRoot && !resolvedRoot.exists}
-      <!-- The state where switching will fail. Worth saying out loud here rather than letting
-           the user discover it as an unexplained error on their first switch. -->
-      <span class="steam-root__tag steam-root__tag--warn">
-        {$t("Settings_SteamFolder_Missing")}
+<div class="steam-page">
+  <div class="steam-rows">
+    <SettingRow
+      label={$t("Settings_SteamFolder_Label")}
+      description={resolvedRoot?.path || settings.FolderPath || "—"}
+    >
+      <span slot="detail" class="steam-root__tags">
+        {#if resolvedRoot && !resolvedRoot.configured}
+          <span class="steam-root__tag">{$t("Settings_SteamFolder_Detected")}</span>
+        {/if}
+        {#if resolvedRoot && !resolvedRoot.exists}
+          <!-- The state where switching will fail. Worth saying out loud here rather than
+               letting the user discover it as an unexplained error on their first switch. -->
+          <span class="steam-root__tag steam-root__tag--warn">
+            {$t("Settings_SteamFolder_Missing")}
+          </span>
+        {/if}
       </span>
-    {/if}
-    <button type="button" on:click={() => void pickSteamFolder()}>
-      {$t("Settings_PickFolder", { platform: "Steam" })}
-    </button>
-    {#if resolvedRoot?.configured}
-      <button type="button" on:click={() => void useDetectedFolder()}>
-        {$t("Settings_SteamFolder_UseDetected")}
+      {#if resolvedRoot?.configured}
+        <button type="button" class="ss-btn" on:click={() => void useDetectedFolder()}>
+          {$t("Settings_SteamFolder_UseDetected")}
+        </button>
+      {/if}
+      <button type="button" class="ss-btn" on:click={() => void pickSteamFolder()}>
+        {$t("Settings_PickFolder", { platform: "Steam" })}
       </button>
-    {/if}
+    </SettingRow>
   </div>
 
   <SharedSettingCheckbox
@@ -264,48 +263,39 @@
       void save();
     }}
   />
-  <div class="rowSetting form-text launch-args-row">
-    <label for="steam-launch-args">{$t("Settings_LaunchArgumentsForPlatform", { platform: "Steam" })}</label>
-    <input
-      id="steam-launch-args"
-      type="text"
-      spellcheck="false"
-      autocomplete="off"
-      disabled={!settings.AutoStart}
-      bind:value={settings.LaunchArguments}
-      on:change={() => void save()}
-    />
-    <p class="subtext">{$t("Settings_LaunchArguments_Hint")}</p>
-  </div>
-
-  <div class="rowSetting rowDropdown">
-    <span>{$t("Steam_OverrideDefaultState")}</span>
-    <div class="dropdown" class:show={stateOpen}>
-      <button type="button" class="dropdown-toggle" on:click={() => (stateOpen = !stateOpen)}>
-        {overrideLabel(settings.Steam_OverrideState)}
-        <span class="caret" aria-hidden="true"></span>
-      </button>
-      {#if stateOpen}
-        <ul class="custom-dropdown-menu dropdown-menu" use:viewportDropdown>
-          {#each overrideStates as o (o.v)}
-            <li>
-              <button
-                type="button"
-                class="dropdown-item"
-                on:click={() => {
-                  if (!settings) return;
-                  settings.Steam_OverrideState = o.v;
-                  stateOpen = false;
-                  void save();
-                }}
-              >
-                {$t(o.key)}
-              </button>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </div>
+  <div class="steam-rows">
+    <SettingRow
+      label={$t("Settings_LaunchArgumentsForPlatform", { platform: "Steam" })}
+      description={$t("Settings_LaunchArguments_Hint")}
+      controlId="steam-launch-args"
+    >
+      <input
+        id="steam-launch-args"
+        class="ss-field ss-field--mono steam-field--wide"
+        type="text"
+        spellcheck="false"
+        autocomplete="off"
+        disabled={!settings.AutoStart}
+        bind:value={settings.LaunchArguments}
+        on:change={() => void save()}
+      />
+    </SettingRow>
+    <SettingRow label={$t("Steam_OverrideDefaultState")} controlId="steam-override-state">
+      <select
+        id="steam-override-state"
+        class="ss-field steam-field--select"
+        value={settings.Steam_OverrideState ?? -1}
+        on:change={(e) => {
+          if (!settings) return;
+          settings.Steam_OverrideState = Number(e.currentTarget.value);
+          void save();
+        }}
+      >
+        {#each overrideStates as o (o.v)}
+          <option value={o.v}>{$t(o.key)}</option>
+        {/each}
+      </select>
+    </SettingRow>
   </div>
 
   <h2 class="SettingsHeader">{$t("Settings_Header_AccountDisplay")}</h2>
@@ -374,31 +364,34 @@
     label={$t("Settings_Steam_AutoRefreshOnLaunch")}
     on:change={() => toggle("Steam_AutoRefreshOnLaunch")}
   />
-  <div class="rowSetting">
-    <label for="steam-auto-refresh-interval">{$t("Settings_Steam_AutoRefreshInterval")}</label>
-    <input
-      id="steam-auto-refresh-interval"
-      type="number"
-      min="0"
-      step="5"
-      disabled={!settings.CollectInfo}
-      bind:value={settings.Steam_AutoRefreshIntervalMinutes}
-      on:change={() => void save()}
-    />
-    <p class="subtext">
-      {$t("Settings_Steam_AutoRefreshIntervalHint", { min: AUTO_REFRESH_MIN_MINUTES })}
-    </p>
-  </div>
-  <div class="rowSetting">
-    <label for="steam-image-expiry">{$t("Settings_Steam_ImageExpiry")}</label>
-    <input
-      id="steam-image-expiry"
-      type="number"
-      min="0"
-      step="1"
-      bind:value={settings.Steam_ImageExpiryTime}
-      on:change={() => void save()}
-    />
+  <div class="steam-rows">
+    <SettingRow
+      label={$t("Settings_Steam_AutoRefreshInterval")}
+      description={$t("Settings_Steam_AutoRefreshIntervalHint", { min: AUTO_REFRESH_MIN_MINUTES })}
+      controlId="steam-auto-refresh-interval"
+    >
+      <input
+        id="steam-auto-refresh-interval"
+        class="ss-field steam-field--num"
+        type="number"
+        min="0"
+        step="5"
+        disabled={!settings.CollectInfo}
+        bind:value={settings.Steam_AutoRefreshIntervalMinutes}
+        on:change={() => void save()}
+      />
+    </SettingRow>
+    <SettingRow label={$t("Settings_Steam_ImageExpiry")} controlId="steam-image-expiry">
+      <input
+        id="steam-image-expiry"
+        class="ss-field steam-field--num"
+        type="number"
+        min="0"
+        step="1"
+        bind:value={settings.Steam_ImageExpiryTime}
+        on:change={() => void save()}
+      />
+    </SettingRow>
   </div>
 
   <h2 class="SettingsHeader">{$t("Settings_Header_TraySettings")}</h2>
@@ -408,16 +401,18 @@
     label={$t("Steam_Tray_AccountName")}
     on:change={() => toggle("Steam_TrayAccountName")}
   />
-  <div class="rowSetting">
-    <label for="steam-tray-max">{$t("Settings_TrayMax")}</label>
-    <input
-      id="steam-tray-max"
-      type="number"
-      min="0"
-      max="365"
-      bind:value={settings.TrayAccNumber}
-      on:change={() => void save()}
-    />
+  <div class="steam-rows">
+    <SettingRow label={$t("Settings_TrayMax")} controlId="steam-tray-max">
+      <input
+        id="steam-tray-max"
+        class="ss-field steam-field--num"
+        type="number"
+        min="0"
+        max="365"
+        bind:value={settings.TrayAccNumber}
+        on:change={() => void save()}
+      />
+    </SettingRow>
   </div>
   <h2 class="SettingsHeader">{$t("Settings_Header_ProcessManagement")}</h2>
   {#if !settings.ClosingMethodForced}
@@ -454,6 +449,7 @@
     label={$t("Settings_ShowSteamSwitcher")}
     on:change={() => toggle("ShowSteamSwitcher")}
   />
+</div>
 {/if}
 
 <style lang="scss">
@@ -463,11 +459,39 @@
     font-size: 12px;
   }
 
-  .steam-root {
+  /* One child of the settings pane, so the pane's 20px gap between *groups* does not open
+     up between every row of this one long group. */
+  .steam-page {
     display: flex;
-    align-items: center;
-    gap: var(--space-3, 8px);
-    flex-wrap: wrap;
+    flex-direction: column;
+  }
+
+  .steam-page :global(.SettingsHeader) {
+    margin-top: var(--space-7);
+  }
+
+  /* SettingRow brings its own padding; pulled flush to the toggle rows' left edge, with the
+     same hairline between rows. */
+  .steam-rows {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .steam-rows :global(.row) {
+    flex-shrink: 0;
+    padding-left: 0;
+    padding-right: 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .steam-root__tags {
+    display: flex;
+    gap: var(--space-2);
+    margin-top: var(--space-1);
+  }
+
+  .steam-root__tags:empty {
+    display: none;
   }
 
   .steam-root__tag {
@@ -483,5 +507,19 @@
     border-color: var(--border-warn);
     background: var(--bg-warn, transparent);
     color: var(--fg-warn);
+  }
+
+  .steam-field--wide {
+    width: 220px;
+  }
+
+  .steam-field--num {
+    width: 88px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .steam-field--select {
+    width: auto;
+    min-width: 160px;
   }
 </style>

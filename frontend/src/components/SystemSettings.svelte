@@ -4,7 +4,8 @@
   import { t } from "../stores/i18n";
   import { pushToast } from "../stores/toast";
   import { formatToastWithError } from "../lib/formatWailsError";
-  import { tooltip } from "../lib/actions/tooltip";
+  import SharedSettingCheckbox from "./settings/SharedSettingCheckbox.svelte";
+  import SettingRow from "./settings/SettingRow.svelte";
   import * as PlatformService from "../../bindings/steamswitch/internal/platform/platformservice.js";
   import { offlineMode, setUserOfflineMode } from "../stores/offlineMode";
   import { openConfirm, openPasswordSetupModal, openPrompt } from "../stores/modal";
@@ -480,267 +481,253 @@
 
 <h2 class="SettingsHeader">{$t("Settings_Header_System")}</h2>
 
-<div class="multilineSetting">
-  <span>{$t("Settings_CurrentDataLocation", { path: userDataPath || "…" })}</span>
-  <span>
+<div class="sys">
+  <SettingRow label={$t("Settings_Header_DataLocation_Short")} description={userDataPath || "…"}>
     <button
       type="button"
-      class="fancyLink"
+      class="ss-btn"
       disabled={$userDataMoveLoading}
       on:click={() => void openMoveUserDataModal(userDataMoveLoading, userDataPath)}
-    >{$t("Settings_SetDataLocation")}</button>
-    <button
-      type="button"
-      class="fancyLink"
-      on:click={() => void openUserDataFolder()}
-    >{$t("Settings_OpenUserDataFolder")}</button>
-    </span>
-</div>
+    >{$t("Settings_SetDataLocation_Short")}</button>
+    <button type="button" class="ss-btn" on:click={() => void openUserDataFolder()}
+      >{$t("Settings_OpenUserDataFolder_Short")}</button
+    >
+  </SettingRow>
 
-<div class="security-settings">
-  <div class="rowDropdown security-password-row">
-    <span>{$t("Settings_Header_Security")}</span>
+  <SettingRow label={$t("Settings_Header_Security")}>
     {#if $securityStatus.appPasswordSet}
-      <span class="security-password-controls">
-        <button
-          type="button"
-          class="btnicontext"
-          disabled={$securityLoading}
-          on:click={() => void onRemoveAppPassword()}
-        >
-          {$t("Security_RemoveAppPassword")}
-        </button>
-        <span class="security-encryption-inline">
-          <span class="form-check">
-            <input
-              id="security-encrypt-cache"
-              type="checkbox"
-              checked={$securityStatus.savedAccountDataEncrypted}
-              disabled={$securityLoading || $securityStatus.operationBusy}
-              on:click={onSavedDataEncryptionClick}
-            />
-            <label class="form-check-label" for="security-encrypt-cache"></label>
-          </span>
-          <label for="security-encrypt-cache">{$t("Security_EncryptSavedAccountData")}</label>
-        </span>
-      </span>
+      <button
+        type="button"
+        class="ss-btn"
+        disabled={$securityLoading}
+        on:click={() => void onRemoveAppPassword()}
+      >
+        {$t("Security_RemoveAppPassword")}
+      </button>
     {:else}
       <button
         type="button"
-        class="btnicontext"
+        class="ss-btn"
         disabled={$securityLoading}
         on:click={() => void onSetAppPassword()}
       >
         {$t("Security_SetAppPassword")}
       </button>
     {/if}
-  </div>
+  </SettingRow>
+
+  {#if $securityStatus.appPasswordSet}
+    <SharedSettingCheckbox
+      id="security-encrypt-cache"
+      label={$t("Security_EncryptSavedAccountData")}
+      checked={$securityStatus.savedAccountDataEncrypted}
+      disabled={$securityLoading || $securityStatus.operationBusy}
+      on:click={onSavedDataEncryptionClick}
+    />
+  {/if}
 
   {#if $securityStatus.interruptedRestorePending}
-    <div class="multilineSetting security-warning">
-      <span>{$t("Security_InterruptedRestorePending")}</span>
-      <button type="button" class="btnicontext" disabled={$securityLoading} on:click={() => void onRepairInterruptedRestore()}>
+    <SettingRow label={$t("Security_InterruptedRestorePending")} danger>
+      <button type="button" class="ss-btn" disabled={$securityLoading} on:click={() => void onRepairInterruptedRestore()}>
         {$t("Security_InterruptedRestore_Repair")}
       </button>
-    </div>
+    </SettingRow>
   {/if}
 
   {#if quarantines.length > 0}
-    <div class="multilineSetting security-warning">
-      <span>{$t("Security_QuarantineStatus", { count: quarantines.length })}</span>
-      {#each quarantines as q}
-        <span class="security-quarantine-row">
-          <span>{q.accounts.join(", ")}</span>
-          <button type="button" class="btnicontext" disabled={$securityLoading} on:click={() => void onRetryQuarantine(q.id)}>
-            {$t("Security_QuarantineRetry")}
-          </button>
-          <button type="button" class="btnicontext" disabled={$securityLoading} on:click={() => void onDeleteQuarantine(q.id)}>
-            {$t("Security_QuarantineDelete")}
-          </button>
-        </span>
-      {/each}
-    </div>
+    <SettingRow label={$t("Security_QuarantineStatus", { count: quarantines.length })} danger>
+      <span slot="detail" class="sys__quarantines">
+        {#each quarantines as q}
+          <span class="sys__quarantine">
+            <span class="sys__quarantine-names">{q.accounts.join(", ")}</span>
+            <button type="button" class="ss-btn sys__small" disabled={$securityLoading} on:click={() => void onRetryQuarantine(q.id)}>
+              {$t("Security_QuarantineRetry")}
+            </button>
+            <button type="button" class="ss-btn ss-btn--danger sys__small" disabled={$securityLoading} on:click={() => void onDeleteQuarantine(q.id)}>
+              {$t("Security_QuarantineDelete")}
+            </button>
+          </span>
+        {/each}
+      </span>
+    </SettingRow>
   {/if}
-</div>
 
-<div class="rowSetting">
-  <div class="form-check">
-    <input id="gs-offline" type="checkbox" checked={$offlineMode} disabled={$offlineLoading} on:change={() => void toggleOfflineMode()} />
-    <label class="form-check-label" for="gs-offline"></label>
-  </div>
-  <label for="gs-offline" use:tooltip={$t("Settings_OfflineMode")}>{$t("Settings_OfflineMode")}</label>
-</div>
+  <SharedSettingCheckbox
+    id="gs-offline"
+    label={$t("Settings_OfflineMode")}
+    checked={$offlineMode}
+    disabled={$offlineLoading}
+    on:change={() => void toggleOfflineMode()}
+  />
+  <SharedSettingCheckbox
+    id="gs-min-switch"
+    label={$t("Settings_MinimizeOnSwitch")}
+    checked={$minimizeOnSwitch.value}
+    disabled={$minimizeOnSwitch.loading}
+    on:change={() => void minimizeOnSwitch.toggle()}
+  />
 
-<div class="rowSetting">
-  <div class="form-check">
-    <input id="gs-min-switch" type="checkbox" checked={$minimizeOnSwitch.value} disabled={$minimizeOnSwitch.loading} on:change={() => void minimizeOnSwitch.toggle()} />
-    <label class="form-check-label" for="gs-min-switch"></label>
-  </div>
-  <label for="gs-min-switch" use:tooltip={$t("Settings_MinimizeOnSwitch")}>{$t("Settings_MinimizeOnSwitch")}</label>
-</div>
-
-{#if isWindows}
-  <div class="rowSetting">
-    <div class="form-check">
-      <input id="gs-start-tray-win" type="checkbox" checked={$startTrayWithWindows.value} disabled={$startTrayWithWindows.loading} on:change={() => void startTrayWithWindows.toggle()} />
-      <label class="form-check-label" for="gs-start-tray-win"></label>
-    </div>
-    <label for="gs-start-tray-win" use:tooltip={$t("Settings_Tray_StartWindows")}>{$t("Settings_Tray_StartWindows")}</label>
-
-    <div class="form-check">
-      <input id="gs-exit-tray" type="checkbox" checked={$exitToTray.value} disabled={$exitToTray.loading} on:change={() => void exitToTray.toggle()} />
-      <label class="form-check-label" for="gs-exit-tray"></label>
-    </div>
-    <label for="gs-exit-tray" use:tooltip={$t("Settings_ExitToTray")}>{$t("Settings_ExitToTray")}</label>
-  </div>
-
-  <div class="rowSetting">
-    <div class="form-check">
-      <input id="gs-protocol" type="checkbox" checked={$protocol.value} disabled={$protocol.loading} on:change={() => void protocol.toggle()} />
-      <label class="form-check-label" for="gs-protocol"></label>
-    </div>
-    <label for="gs-protocol" use:tooltip={$t("Settings_Protocol")}>{$t("Settings_Protocol")}</label>
-  </div>
-{/if}
-
-<div class="rowSetting">
-  <div class="form-check">
-    <input id="gs-start-centered" type="checkbox" checked={$startProgramCentered.value} disabled={$startProgramCentered.loading} on:change={() => void startProgramCentered.toggle()} />
-    <label class="form-check-label" for="gs-start-centered"></label>
-  </div>
-  <label for="gs-start-centered" use:tooltip={$t("Settings_StartCentered")}>{$t("Settings_StartCentered")}</label>
-</div>
-
-<div class="rowSetting">
-  <div class="form-check">
-    <input type="checkbox" id="settings-animations" checked={$animations.value} disabled={$animations.loading} on:change={() => void animations.toggle()} />
-    <label class="form-check-label" for="settings-animations"></label>
-  </div>
-  <label for="settings-animations">{$t("Settings_AnimationsEnabled")}</label>
-</div>
-
-<div class="rowSetting">
-  <div class="form-check">
-    <input
-      type="checkbox"
-      id="settings-controller-support"
-      checked={$controllerSupport.value}
-      disabled={$controllerSupport.loading}
-      on:change={() => void controllerSupport.toggle()}
+  {#if isWindows}
+    <SharedSettingCheckbox
+      id="gs-start-tray-win"
+      label={$t("Settings_Tray_StartWindows")}
+      checked={$startTrayWithWindows.value}
+      disabled={$startTrayWithWindows.loading}
+      on:change={() => void startTrayWithWindows.toggle()}
     />
-    <label class="form-check-label" for="settings-controller-support"></label>
-  </div>
-  <label for="settings-controller-support">{$t("Settings_ControllerSupport")}</label>
-</div>
+    <SharedSettingCheckbox
+      id="gs-exit-tray"
+      label={$t("Settings_ExitToTray")}
+      checked={$exitToTray.value}
+      disabled={$exitToTray.loading}
+      on:change={() => void exitToTray.toggle()}
+    />
+    <SharedSettingCheckbox
+      id="gs-protocol"
+      label={$t("Settings_Protocol")}
+      checked={$protocol.value}
+      disabled={$protocol.loading}
+      on:change={() => void protocol.toggle()}
+    />
+  {/if}
 
-{#if isWindows}
-  <div class="rowSetting">
-    <div class="form-check">
-      <input id="gs-desktop-home" type="checkbox" checked={$desktopHomeShortcut.value} disabled={$desktopHomeShortcut.loading} on:change={() => void desktopHomeShortcut.toggle()} />
-      <label class="form-check-label" for="gs-desktop-home"></label>
-    </div>
-    <label for="gs-desktop-home">{$t("Settings_DesktopShortcut")}</label>
-  </div>
-{/if}
+  <SharedSettingCheckbox
+    id="gs-start-centered"
+    label={$t("Settings_StartCentered")}
+    checked={$startProgramCentered.value}
+    disabled={$startProgramCentered.loading}
+    on:change={() => void startProgramCentered.toggle()}
+  />
+  <SharedSettingCheckbox
+    id="settings-animations"
+    label={$t("Settings_AnimationsEnabled")}
+    checked={$animations.value}
+    disabled={$animations.loading}
+    on:change={() => void animations.toggle()}
+  />
+  <SharedSettingCheckbox
+    id="settings-controller-support"
+    label={$t("Settings_ControllerSupport")}
+    checked={$controllerSupport.value}
+    disabled={$controllerSupport.loading}
+    on:change={() => void controllerSupport.toggle()}
+  />
 
-<div class="rowDropdown hotkey-row">
-  <span>{$t("Settings_CommandPaletteHotkey")}</span>
-  <button
-    type="button"
-    class="btnicontext hotkey-button"
-    class:capturing={commandPaletteHotkeyCaptureActive}
-    aria-pressed={commandPaletteHotkeyCaptureActive}
-    on:click={toggleCommandPaletteHotkeyCapture}
-  >
-    {commandPaletteHotkeyCaptureActive ? $t("Settings_CommandPaletteHotkey_Prompt") : $commandPaletteHotkey}
-  </button>
-</div>
+  {#if isWindows}
+    <SharedSettingCheckbox
+      id="gs-desktop-home"
+      label={$t("Settings_DesktopShortcut")}
+      checked={$desktopHomeShortcut.value}
+      disabled={$desktopHomeShortcut.loading}
+      on:change={() => void desktopHomeShortcut.toggle()}
+    />
+  {/if}
 
-<div class="rowDropdown version-row">
-  <span>{formatAppVersion(currentVersion || "0.0.0")}</span>
+  <SettingRow label={$t("Settings_CommandPaletteHotkey")}>
+    <button
+      type="button"
+      class="ss-btn sys__hotkey"
+      class:sys__hotkey--capturing={commandPaletteHotkeyCaptureActive}
+      aria-pressed={commandPaletteHotkeyCaptureActive}
+      on:click={toggleCommandPaletteHotkeyCapture}
+    >
+      {commandPaletteHotkeyCaptureActive ? $t("Settings_CommandPaletteHotkey_Prompt") : $commandPaletteHotkey}
+    </button>
+  </SettingRow>
+
+  <p class="sys__version">{formatAppVersion(currentVersion || "0.0.0")}</p>
 </div>
 
 <h2 class="SettingsHeader">{$t("Settings_Header_LocalStats")}</h2>
 
-<div class="rowSetting">
-  <div class="form-check">
-    <input id="gs-stats-enabled" type="checkbox" checked={$statsEnabled.value} disabled={$statsEnabled.loading} on:change={() => void statsEnabled.toggle()} />
-    <label class="form-check-label" for="gs-stats-enabled"></label>
+<div class="sys">
+  <SharedSettingCheckbox
+    id="gs-stats-enabled"
+    label={$t("Settings_CollectStats")}
+    checked={$statsEnabled.value}
+    disabled={$statsEnabled.loading}
+    on:change={() => void statsEnabled.toggle()}
+  />
+  <div class="sys__after-row">
+    <button type="button" class="ss-btn" on:click={() => void openStatsModal()}>
+      {$t("Settings_ViewStats")}
+    </button>
   </div>
-  <label for="gs-stats-enabled">{$t("Settings_CollectStats")}</label>
-  <button type="button" class="btnicontext" on:click={() => void openStatsModal()}>
-    {$t("Settings_ViewStats")}
-  </button>
-</div>
-
-<div class="rowSetting">
-  <div class="form-check">
-    <input id="gs-discord-rpc" type="checkbox" checked={$discordRpc.value} disabled={$discordRpc.loading || $offlineMode} on:change={() => void discordRpc.toggle()} />
-    <label class="form-check-label" for="gs-discord-rpc"></label>
-  </div>
-  <label for="gs-discord-rpc">{$t("Settings_DiscordRpc")}</label>
-  <div class="form-check">
-    <input id="gs-discord-rpc-share" type="checkbox" checked={$discordRpcShare.value} disabled={$discordRpcShare.loading || $offlineMode || !$discordRpc.value} on:change={() => void discordRpcShare.toggle()} />
-    <label class="form-check-label" for="gs-discord-rpc-share"></label>
-  </div>
-  <label for="gs-discord-rpc-share">{$t("Settings_DiscordRpcShare")}</label>
+  <SharedSettingCheckbox
+    id="gs-discord-rpc"
+    label={$t("Settings_DiscordRpc")}
+    checked={$discordRpc.value}
+    disabled={$discordRpc.loading || $offlineMode}
+    on:change={() => void discordRpc.toggle()}
+  />
+  <SharedSettingCheckbox
+    id="gs-discord-rpc-share"
+    label={$t("Settings_DiscordRpcShare")}
+    checked={$discordRpcShare.value}
+    disabled={$discordRpcShare.loading || $offlineMode || !$discordRpc.value}
+    on:change={() => void discordRpcShare.toggle()}
+  />
 </div>
 
 <style lang="scss">
-  button:not(.fancyLink) {
-    position: relative;
-    height: 38px;
+  /* Rows separate themselves with a hairline (SharedSettingCheckbox); SettingRow brings its
+     own padding, so it is pulled flush to the same left edge here. */
+  .sys {
+    display: flex;
+    flex-direction: column;
+    margin-bottom: var(--space-6);
   }
 
-  .version-row {
-    margin-top: 0.25rem;
-    flex-wrap: wrap;
+  .sys :global(.row) {
+    padding-left: 0;
+    padding-right: 0;
+    border-bottom: 1px solid var(--hairline);
   }
 
-  .hotkey-row {
-    gap: 0.75rem;
+  .sys__quarantines {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
   }
 
-  .security-settings {
-    display: grid;
-    gap: 0.25rem;
-    margin-bottom: 0.35rem;
-  }
-
-  .security-password-row {
-    align-items: center;
-  }
-
-  .security-password-controls,
-  .security-encryption-inline {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.65rem;
-    flex-wrap: wrap;
-    justify-content: flex-end;
-  }
-
-  .security-encryption-inline {
-    gap: 0.4rem;
-  }
-
-  .security-warning {
-    color: var(--whiteSecondary);
-  }
-
-  .security-quarantine-row {
+  .sys__quarantine {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: var(--space-3);
     flex-wrap: wrap;
   }
 
-  .hotkey-button {
-    min-width: 7rem;
+  .sys__quarantine-names {
+    font-size: var(--fs-secondary);
+    color: var(--fg-secondary);
   }
 
-  .hotkey-button.capturing {
-    background: var(--accent);
-    color: var(--text-on-bright-bg);
+  .sys__small {
+    min-height: 26px;
+    padding: 0 10px;
+    font-size: var(--fs-meta);
+  }
+
+  .sys__after-row {
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .sys__hotkey {
+    min-width: 7rem;
+    font-family: var(--font-mono, ui-monospace, monospace);
+  }
+
+  .sys__hotkey--capturing {
+    border-color: var(--accent);
+    color: var(--accent-text-bright, var(--accent));
+  }
+
+  .sys__version {
+    margin: var(--space-4) 0 0;
+    font-size: var(--fs-meta);
+    color: var(--fg-muted);
+    font-variant-numeric: tabular-nums;
   }
 </style>
