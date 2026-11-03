@@ -367,15 +367,15 @@
     <fieldset class="parts">
       <legend>{$t("Dota_Label_Parts")}</legend>
       <label>
-        <input type="checkbox" bind:checked={parts[PART_LOCAL]} disabled={busy} />
+        <input type="checkbox" class="ss-checkbox" bind:checked={parts[PART_LOCAL]} disabled={busy} />
         {$t("Dota_Part_local")} <span class="hint">{$t("Dota_Part_local_Hint")}</span>
       </label>
       <label>
-        <input type="checkbox" bind:checked={parts[PART_REMOTE]} disabled={busy} />
+        <input type="checkbox" class="ss-checkbox" bind:checked={parts[PART_REMOTE]} disabled={busy} />
         {$t("Dota_Part_remote")} <span class="hint">{$t("Dota_Part_remote_Hint")}</span>
       </label>
       <label>
-        <input type="checkbox" bind:checked={parts[PART_GLOBAL]} disabled={busy} />
+        <input type="checkbox" class="ss-checkbox" bind:checked={parts[PART_GLOBAL]} disabled={busy} />
         {$t("Dota_Part_globalcfg")} <span class="hint">{$t("Dota_Part_globalcfg_Hint")}</span>
       </label>
     </fieldset>

@@ -887,7 +887,7 @@
   <h3 class="SettingsHeader preview-toast-live-heading">Live toasts</h3>
   <div class="modalTestPanel">
     <label class="toastPermanentRow">
-      <input type="checkbox" class="toastPermanentCheckbox" bind:checked={toastPermanent} />
+      <input type="checkbox" class="ss-checkbox toastPermanentCheckbox" bind:checked={toastPermanent} />
       <span>Permanent</span>
       <span class="toastPermanentNote">(× to close)</span>
     </label>

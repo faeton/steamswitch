@@ -135,7 +135,7 @@
       <input type="number" min="0" step="1" bind:value={expiresInDays} />
     </label>
     <label class="check">
-      <input type="checkbox" bind:checked={singleUse} />
+      <input type="checkbox" class="ss-checkbox" bind:checked={singleUse} />
       <span>{$t("Handoff_SingleUse")}</span>
     </label>
     <p class="small">{$t("Handoff_AdvisoryOnly")}</p>

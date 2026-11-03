@@ -79,7 +79,7 @@
   </div>
   {#if mode === "issue" && !$offlineMode}
     <label class="modal-feedback-attach-log">
-      <input type="checkbox" bind:checked={sendLog} />
+      <input type="checkbox" class="ss-checkbox" bind:checked={sendLog} />
       <span>{$t("Feedback_AttachLog")}</span>
     </label>
     <p class="modal-feedback-attach-log-hint">{$t("Feedback_AttachLog_Hint")}</p>

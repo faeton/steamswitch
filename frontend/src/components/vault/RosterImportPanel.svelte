@@ -300,7 +300,7 @@
           </div>
         </div>
         <label class="ack">
-          <input type="checkbox" bind:checked={plaintextAcknowledged} />
+          <input type="checkbox" class="ss-checkbox" bind:checked={plaintextAcknowledged} />
           <span>{$t("Roster_Source_Plaintext_Ack")}</span>
         </label>
       {/if}
