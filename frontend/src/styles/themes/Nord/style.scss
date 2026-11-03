@@ -97,7 +97,9 @@ $nordAuora4: #B48EAD;
   --black-alpha-15: rgba(12, 15, 20, 0.18);
 
   --text-muted-gray: #{color.adjust($nordDark4, $lightness: -12%)};
-  --text-subtle-gray: #{$nordDark3};
+  /* Muted text (help lines, timestamps, descriptions). Was nord3 (#4C566A), a background
+     shade in the Nord palette — 1.7:1 on the page. A dimmed nord4 stays in palette and reads. */
+  --text-subtle-gray: #{color.adjust($nordDark4, $lightness: -30%)};
   --text-dim-gray: #{$nordDark2};
   --text-body-muted: #{color.adjust($nordDark4, $lightness: -22%)};
 
