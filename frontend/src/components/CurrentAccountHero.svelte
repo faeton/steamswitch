@@ -39,6 +39,13 @@
   export let sessionState: SessionState = "none";
   /** The login name Steam's own selection carries when it disagrees with the file. */
   export let conflictAccountName = "";
+  /**
+   * Who a running switch is heading to, or "" when none is running.
+   *
+   * Mid-switch the login files are being rewritten, so "Signed in as A" is no longer true and
+   * "B" is not true yet. The hero says that instead of asserting either.
+   */
+  export let switchingTo = "";
 
   const dispatch = createEventDispatcher<{
     detail: string;
@@ -48,7 +55,9 @@
 
   $: state = !loaded
     ? "loading"
-    : sessionState === "mismatch"
+    : switchingTo
+      ? "switching"
+      : sessionState === "mismatch"
       ? "mismatch"
       : sessionState === "unknown"
         ? "unknown"
@@ -71,8 +80,18 @@
         : $t("Hero_Mismatch_Body_Unknown");
 </script>
 
-<section class="hero" data-state={state} aria-label={$t("Hero_Label")}>
-  {#if state === "mismatch" || state === "unknown"}
+<section class="hero" data-state={state} aria-label={$t("Hero_Label")} aria-busy={state === "switching"}>
+  {#if state === "switching"}
+    <div class="hero__empty">
+      <div class="hero__lead">
+        <div class="ss-eyebrow">{$t("Hero_Eyebrow_Switching")}</div>
+        <div class="hero__none-title">{$t("Hero_Switching_Title", { name: switchingTo })}</div>
+        <p class="hero__none-body">
+          {label ? $t("Hero_Switching_Body", { name: label }) : $t("Hero_Switching_Body_NoFrom")}
+        </p>
+      </div>
+    </div>
+  {:else if state === "mismatch" || state === "unknown"}
     <!--
       The whole point of A4. Neither branch shows an avatar or a "Signed in as" eyebrow:
       those are the visual grammar of a confident answer, and reusing them here would be the

@@ -49,3 +49,12 @@ export function asSessionVerdict(raw: unknown): SessionVerdict {
 export function assertsCurrentAccount(state: SessionState): boolean {
   return state === "ok";
 }
+
+/**
+ * Whether two reads of the session disagree — i.e. something rewrote Steam's login between
+ * them. Used after a failed call that mutates the login and then does something else (add-login
+ * signs out, then launches): if the session moved, the first half happened.
+ */
+export function sessionChanged(before: SessionVerdict, after: SessionVerdict): boolean {
+  return before.state !== after.state || before.steamId64 !== after.steamId64;
+}

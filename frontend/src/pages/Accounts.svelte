@@ -57,6 +57,7 @@
   import { platformActionBusy } from "../stores/platformPage";
   import * as SteamService from "../../bindings/steamswitch/internal/steam/steamservice.js";
   import * as SessionKitService from "../../bindings/steamswitch/internal/steam/sessionkitservice.js";
+  import { setSwitcherRoster } from "../stores/switcherRoster";
   import {
     AccountPatch,
     SteamAccountEnrichmentDTO,
@@ -85,11 +86,16 @@
   import {
     asSessionVerdict,
     UNLOADED_SESSION,
+    sessionChanged,
     type SessionVerdict,
   } from "../lib/steam/sessionState";
   import type { TagDefRow } from "../lib/accountTagsContext";
   import * as BasicService from "../../bindings/steamswitch/internal/basic/basicservice.js";
-  import { createLatestRequestGuard } from "../lib/accounts/windowFocusRefresh";
+  import {
+    createLatestRequestGuard,
+    registerWindowFocusAccountRefresh,
+  } from "../lib/accounts/windowFocusRefresh";
+  import { sameRoster } from "../lib/accounts/rosterChange";
   import { buildEpochMap } from "../lib/accounts/epochManager";
   import "../styles/platformAccountsShared.scss";
 
@@ -122,6 +128,8 @@
   const RETRY_SWITCH = "retry-switch";
 
   const listGuard = createLatestRequestGuard();
+  /** Session-only refreshes (window focus, failed switch); a full load invalidates these. */
+  const sessionGuard = createLatestRequestGuard();
 
   $: byId = new Map(accounts.map((a) => [a.steamId64, a] as const));
   $: orderedIds = orderAccountIds(roles, accounts.map((a) => a.steamId64));
@@ -182,7 +190,8 @@
     try {
       steamRunning = await SteamService.IsSteamRunning();
     } catch {
-      steamRunning = false;
+      // Keep the last answer. Defaulting to `false` here told the user "Steam closed" — the
+      // one claim that makes a switch look harmless — precisely when we could not check.
     }
     refreshIdleFacts();
   }
@@ -226,27 +235,62 @@
     }
   }
 
+  /**
+   * Take one read of the switcher list: the rows and the session verdict together.
+   *
+   * The verdict rides with the rows because it is derived from the same read of
+   * loginusers.vdf; taking it from a separate call could describe a different moment.
+   */
+  function applyList(payload: Awaited<ReturnType<typeof SteamService.GetSteamAccountsList>>): string[] {
+    session = asSessionVerdict(payload.session);
+    const list = (payload.accounts ?? []).map(
+      (r: SteamAccountListItemDTO) =>
+        ({
+          steamId64: r.steamId64,
+          personaName: r.personaName,
+          displayName: r.displayName,
+          accountName: r.accountName,
+          currentSession: r.currentSession ?? false,
+        }) as SteamAccountRow,
+    );
+    accounts = mergeById(accounts, list);
+    const ids = list.map((r) => r.steamId64);
+    setSwitcherRoster(ids);
+    loaded = true;
+    refreshIdleFacts();
+    return ids;
+  }
+
+  /**
+   * Re-read who Steam is signed in as, without the enrichment and profile refresh a full load
+   * does — cheap enough to run every time the window regains focus.
+   *
+   * Someone may have signed in through Steam itself while the app sat in the background. The
+   * hero used to keep asserting the old account until a manual Refresh, because focus only
+   * re-checked whether Steam was running. If the set of accounts changed, the new rows have no
+   * avatars or tags yet, so that case escalates to the full load.
+   */
+  async function refreshSession(): Promise<void> {
+    const seq = sessionGuard.begin();
+    const before = accounts.map((a) => a.steamId64);
+    try {
+      const payload = await SteamService.GetSteamAccountsList();
+      if (!sessionGuard.isCurrent(seq)) return;
+      const after = applyList(payload);
+      if (!sameRoster(before, after)) await loadAccounts();
+    } catch {
+      // Keep the last known state; the hero's Refresh is still there.
+    }
+  }
+
   async function loadAccounts(): Promise<void> {
     const seq = listGuard.begin();
+    // A full load supersedes any session-only refresh still in flight.
+    sessionGuard.invalidate();
     try {
       const payload = await SteamService.GetSteamAccountsList();
       if (!listGuard.isCurrent(seq)) return;
-      // The verdict rides with the rows because it is derived from the same read of
-      // loginusers.vdf; taking it from a separate call could describe a different moment.
-      session = asSessionVerdict(payload.session);
-      const list = (payload.accounts ?? []).map(
-        (r: SteamAccountListItemDTO) =>
-          ({
-            steamId64: r.steamId64,
-            personaName: r.personaName,
-            displayName: r.displayName,
-            accountName: r.accountName,
-            currentSession: r.currentSession ?? false,
-          }) as SteamAccountRow,
-      );
-      accounts = mergeById(accounts, list);
-      loaded = true;
-      refreshIdleFacts();
+      applyList(payload);
 
       const enrich = await SteamService.GetSteamAccountsEnrichment();
       if (!listGuard.isCurrent(seq)) return;
@@ -422,6 +466,9 @@
       // only the engine knows which. Re-reading it turns a dead error line into the recovery
       // prompt that can actually clear it.
       void refreshKitStatus();
+      // The engine may have got part-way — closed Steam, rewritten the login — before failing.
+      // Whatever it left, the hero must describe the files as they are now, not as they were.
+      void refreshSession();
       // A permission failure is not something the user can act on from an error line. The
       // offer to restart elevated was reachable from the old account page and went missing
       // with it, leaving "switch failed" as the whole story on an install the app cannot
@@ -470,16 +517,32 @@
     if (!ok) return;
 
     addingAccount = true;
+    const sessionBefore = session;
+    let launchAlreadyFailed = false;
     try {
       await SteamService.SteamAddNew();
     } catch (e) {
+      // `SteamAddNew` signs Steam out and *then*, with AutoStart on, launches it — so a
+      // rejection can mean "nothing happened" or "signed out, but Steam would not start".
+      // Only the files can say which. In the second case the user is signed out whatever the
+      // error says, and needs the result state with its Launch button, not a bare toast over a
+      // hero still naming the old account.
+      await refreshSession();
+      if (!sessionChanged(sessionBefore, session)) {
+        pushToast({
+          type: "error",
+          message: formatToastWithError(get(t)("Toast_SwitchFailed"), e),
+          duration: 8000,
+        });
+        addingAccount = false;
+        return;
+      }
+      launchAlreadyFailed = true;
       pushToast({
         type: "error",
-        message: formatToastWithError(get(t)("Toast_SwitchFailed"), e),
+        message: formatToastWithError(get(t)("Toast_LaunchFailed"), e),
         duration: 8000,
       });
-      addingAccount = false;
-      return;
     }
 
     /*
@@ -493,7 +556,9 @@
       // setting is on. Asking again would open it twice, so this only fills the gap the
       // setting leaves — which is the whole reason the button used to look like a no-op.
       await refreshSteamRunning();
-      if (choice.reopenSteam && !steamRunning) {
+      // Not a second attempt after the backend's own launch just failed: that would repeat
+      // the same error, and the result state below already offers "Launch login".
+      if (choice.reopenSteam && !steamRunning && !launchAlreadyFailed) {
         await SteamService.LaunchSteam();
       }
     } catch (e) {
@@ -674,19 +739,28 @@
     });
 
     window.addEventListener("keydown", onWindowKeydown);
-    // Steam can be started or closed outside the app, and a kit's safety depends on knowing
-    // which; refresh whenever the window comes back to the foreground.
-    window.addEventListener("focus", onWindowFocus);
+    // Steam can be started, closed or signed into outside the app, and both the hero and a
+    // kit's safety depend on knowing which; refresh whenever the window comes back to the
+    // foreground. Coalesced, so a burst of focus events costs one read, not a queue of them.
+    const offFocus = registerWindowFocusAccountRefresh(
+      (handler) => {
+        window.addEventListener("focus", handler);
+        return () => window.removeEventListener("focus", handler);
+      },
+      onWindowFocus,
+    );
     return () => {
       window.removeEventListener("keydown", onWindowKeydown);
-      window.removeEventListener("focus", onWindowFocus);
+      offFocus();
       offStrip();
     };
   });
 
-  function onWindowFocus(): void {
-    void refreshSteamRunning();
-    void refreshKitStatus();
+  async function onWindowFocus(): Promise<void> {
+    // Not while a switch is running: the engine owns the files until it reports back, and
+    // `afterSwitch` does this same reload in the right order.
+    if (inFlightId) return;
+    await Promise.all([refreshSteamRunning(), refreshKitStatus(), refreshSession()]);
   }
 
   onDestroy(() => {
@@ -726,6 +800,7 @@
         busy={blocked || addingAccount}
         sessionState={session.state}
         conflictAccountName={session.conflictAccountName ?? ""}
+        switchingTo={inFlightId ? labelOf(byId.get(inFlightId)) : ""}
         avatarEpoch={avatarEpoch[currentId] ?? 0}
         on:detail={(e) => (detailId = e.detail)}
         on:launch={() => void launchSteam()}

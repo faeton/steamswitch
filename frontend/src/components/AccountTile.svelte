@@ -23,6 +23,7 @@
   import type { AccountRole } from "../lib/steam/accountRoles";
   import { vaultHealth } from "../stores/vault";
   import { healthState } from "../lib/vault/health";
+  import { tileKeyIntent } from "../lib/steam/tileKeys";
 
   export let account: SteamAccountRow;
   export let role: AccountRole = "plain";
@@ -87,13 +88,13 @@
   }
 
   function onKeydown(e: KeyboardEvent): void {
-    if (e.key === "Enter" || e.key === " ") {
+    const intent = tileKeyIntent(e);
+    if (intent === "activate") {
       e.preventDefault();
       activate(e);
       return;
     }
-    // The keyboard equivalent of right-click, for users who never reach for a mouse.
-    if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) {
+    if (intent === "menu") {
       e.preventDefault();
       const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
       openMenu(r.left + 16, r.bottom - 8);
