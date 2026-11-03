@@ -36,19 +36,23 @@
     padding: var(--space-6) var(--space-7) var(--space-5);
   }
 
+  /* When the actions do not fit beside the title they wrap under it. The title never
+     shrinks: at the 860px minimum the Vault's four buttons used to squeeze "Vault" to "V…". */
   .page-header__row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     justify-content: space-between;
-    gap: var(--space-5);
+    gap: var(--space-3) var(--space-5);
     min-width: 0;
   }
 
   .page-header__lead {
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
     gap: var(--space-4);
-    min-width: 0;
+    max-width: 100%;
   }
 
   .page-header__title {
@@ -67,7 +71,8 @@
     display: flex;
     align-items: center;
     gap: var(--space-3);
-    flex: 0 0 auto;
+    flex: 0 1 auto;
+    min-width: 0;
     flex-wrap: wrap;
     justify-content: flex-end;
   }

@@ -5,8 +5,7 @@ import {
   rankedSignals,
   tileDot,
   verdictLabelKey,
-  worstVerdict,
-} from "./health";
+  worstVerdict, banSignal } from "./health";
 import type { HealthReport, Signal } from "../../../bindings/steamswitch/internal/vault/models";
 
 function sig(name: string, status: string, blocker = false): Signal {
@@ -50,6 +49,19 @@ describe("tileDot", () => {
 
   it("does not render an unknown verdict string as a dot", () => {
     expect(tileDot(report("catastrophe"))).toBeNull();
+  });
+});
+
+describe("banSignal", () => {
+  it("finds a failed ban signal among others", () => {
+    const r = report("fail", [sig("token", "warn"), sig("steam_bans", "fail", true)]);
+    expect(banSignal(r)?.name).toBe("steam_bans");
+  });
+
+  it("ignores a ban check that passed or could not run", () => {
+    expect(banSignal(report("ok", [sig("steam_bans", "ok")]))).toBeNull();
+    expect(banSignal(report("unknown", [sig("steam_bans", "unknown")]))).toBeNull();
+    expect(banSignal(null)).toBeNull();
   });
 });
 

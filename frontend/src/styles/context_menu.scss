@@ -83,6 +83,10 @@
             overflow-wrap: break-word;
         }
 
+        button.ctx-menu__btn--danger {
+            color: var(--fg-fail);
+        }
+
         button:disabled,
         button.ctx-menu__btn--disabled {
             color: var(--fg-disabled);

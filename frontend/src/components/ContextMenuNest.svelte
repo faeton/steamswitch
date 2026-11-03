@@ -501,6 +501,7 @@
         class="ctx-menu__btn"
         role="menuitem"
         class:ctx-menu__btn--disabled={item.disabled}
+        class:ctx-menu__btn--danger={item.danger}
         disabled={item.disabled}
         aria-disabled={item.disabled ? "true" : undefined}
         tabindex={item.disabled ? -1 : undefined}

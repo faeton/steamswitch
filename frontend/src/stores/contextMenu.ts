@@ -13,6 +13,8 @@ export type MenuItemDef = {
   children?: MenuItemDef[];
   /** When true, the row is visible but not clickable (no action, menu stays open on click). */
   disabled?: boolean;
+  /** Drawn in the danger colour: the item deletes or forgets something. */
+  danger?: boolean;
   /**
    * On a `type: "search"` row in a submenu: show the filter input even when the sibling list has
    * five or fewer items (default submenu search only appears above that threshold).

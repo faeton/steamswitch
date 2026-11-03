@@ -37,6 +37,17 @@ export function tileDot(report: HealthReport | null | undefined): "warn" | "fail
   return v === "warn" || v === "fail" ? v : null;
 }
 
+/**
+ * The ban signal, when it has failed — a VAC or game ban (internal/vault/health.go).
+ *
+ * Surfaced on its own rather than folded into "Needs attention": a ban makes the account
+ * useless for the games it covers, which is a different kind of fact from an expiring token,
+ * and it is the first thing someone scanning a list of bought accounts is looking for.
+ */
+export function banSignal(report: HealthReport | null | undefined): Signal | null {
+  return report?.signals?.find((s: Signal) => s.name === "steam_bans" && s.status === "fail") ?? null;
+}
+
 /** Signals worth surfacing first: blockers, then failures, then warnings. */
 export function rankedSignals(report: HealthReport | null | undefined): Signal[] {
   if (!report?.signals) {

@@ -14,6 +14,9 @@
   import { createEventDispatcher } from "svelte";
   import { t } from "../../stores/i18n";
   import HealthBadge from "./HealthBadge.svelte";
+  import Icon from "../Icon.svelte";
+  import { banSignal } from "../../lib/vault/health";
+  import { openContextMenuAtRect } from "../../stores/contextMenu";
   import {
     hasActiveFilters,
     isOnThisMachine,
@@ -56,6 +59,24 @@
 
   function clearFilters(): void {
     filters = { query: "", health: "any", hasPassword: false, onSwitcher: false };
+  }
+
+  /**
+   * Check, Export and Delete live behind ⋯. Five bordered buttons on every row made the
+   * actions the loudest thing in the list and pushed each entry to three lines; the two
+   * that stay visible are the ones people come to the vault for.
+   */
+  function openRowMenu(e: MouseEvent, entry: Summary): void {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    openContextMenuAtRect(
+      { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height },
+      [
+        { label: $t("Vault_Action_Check"), action: () => dispatch("check", entry.steamId64) },
+        { label: $t("Vault_Action_Export"), action: () => dispatch("export", entry.steamId64) },
+        { type: "separator" },
+        { label: $t("Vault_Action_Delete"), danger: true, action: () => dispatch("delete", entry) },
+      ],
+    );
   }
 
   $: healthLabelKey = HEALTH_FILTERS.find((f) => f.id === filters.health)?.labelKey ?? HEALTH_FILTERS[0].labelKey;
@@ -102,7 +123,7 @@
       <span role="columnheader">{$t("Vault_Col_Account")}</span>
       <span role="columnheader">{$t("Vault_Col_Health")}</span>
       <span role="columnheader">{$t("Vault_Col_Secrets")}</span>
-      <span role="columnheader">{$t("Vault_Col_Actions")}</span>
+      <span role="columnheader"><span class="sr-only">{$t("Vault_Col_Actions")}</span></span>
     </div>
 
     {#if entries.length === 0}
@@ -137,7 +158,15 @@
               </button>
 
               <div class="row__health">
-                <HealthBadge report={entry.health} showAction />
+                <HealthBadge report={entry.health} />
+                {#if banSignal(entry.health)}
+                  {@const ban = banSignal(entry.health)}
+                  <span
+                    class="flag"
+                    data-tone="fail"
+                    title={$t("Vault_Signal_Banned", ban?.params ?? {})}>{$t("Badge_Banned")}</span
+                  >
+                {/if}
               </div>
 
               <div class="row__secrets" aria-label={$t("Vault_Col_Secrets")}>
@@ -187,18 +216,15 @@
                 >
                   {$t("Vault_Action_Credentials")}
                 </button>
-                <button type="button" class="ss-btn row__btn" on:click={() => dispatch("check", entry.steamId64)}>
-                  {$t("Vault_Action_Check")}
-                </button>
-                <button type="button" class="ss-btn row__btn" on:click={() => dispatch("export", entry.steamId64)}>
-                  {$t("Vault_Action_Export")}
-                </button>
                 <button
                   type="button"
-                  class="ss-btn ss-btn--danger row__btn"
-                  on:click={() => dispatch("delete", entry)}
+                  class="row__menu"
+                  aria-haspopup="menu"
+                  aria-label={$t("Aria_AccountMenu", { name: labelOf(entry) })}
+                  title={$t("Aria_AccountMenu", { name: labelOf(entry) })}
+                  on:click={(e) => openRowMenu(e, entry)}
                 >
-                  {$t("Vault_Action_Delete")}
+                  <Icon name="more" />
                 </button>
               </div>
             </div>
@@ -217,6 +243,10 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-4);
+    /* The layout answers to the table's own width, not the window's: the editor panel can
+       open beside it, and a viewport breakpoint had to guess at that (it guessed 1300px, so
+       the default 1280px window always got the stacked fallback). */
+    container-type: inline-size;
   }
 
   .table__filters {
@@ -234,9 +264,26 @@
   .table__count {
     color: var(--fg-muted);
     margin-left: auto;
+    font-variant-numeric: tabular-nums;
   }
 
+  /*
+    One grid for the whole table. The header, the list and every row are subgrids of it, so a
+    column is as wide as its widest cell in *any* row — the way a real table behaves — while
+    each row stays its own focusable, hoverable element. With a per-row grid, an `auto` column
+    sized itself row by row and the vault-only row (one extra button) knocked every column
+    out of line with its heading.
+
+    The explicit template is repeated on the children before `subgrid`, so an engine without
+    subgrid (WebKitGTK before 2.40) still gets aligned fixed columns rather than one stacked
+    column.
+  */
   .table__scroll {
+    --cols: minmax(160px, 1.6fr) minmax(130px, 1fr) auto auto;
+    display: grid;
+    grid-template-columns: var(--cols);
+    align-content: start;
+    column-gap: var(--space-5);
     flex: 1 1 auto;
     min-height: 0;
     overflow-y: auto;
@@ -248,24 +295,29 @@
   /* One grid template, declared once and shared by the header and every row, so a column can
      never drift out of alignment with its heading. */
   .table__head,
+  .table__rows,
+  .table__rows > li,
   .row {
     display: grid;
-    grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.1fr) minmax(0, 0.9fr) auto;
-    gap: var(--space-4);
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(160px, 1.6fr) minmax(130px, 1fr) 176px 260px;
+    grid-template-columns: subgrid;
     align-items: center;
+  }
+
+  .table__none {
+    grid-column: 1 / -1;
   }
 
   .table__head {
     position: sticky;
     top: 0;
     z-index: 1;
-    padding: 10px var(--space-4);
-    background: var(--surface-chrome, var(--code));
+    padding: 8px var(--space-4);
+    background: var(--surface-panel, var(--mainContentBackground));
     border-bottom: 1px solid var(--hairline, var(--border-bar-bg));
-    font-family: var(--font-mono, monospace);
     font-size: var(--fs-meta);
-    letter-spacing: var(--ls-caps);
-    text-transform: uppercase;
+    font-weight: var(--fw-medium);
     color: var(--fg-muted);
   }
 
@@ -280,10 +332,17 @@
   }
 
   .row {
-    padding: var(--space-4);
+    min-height: 52px;
+    padding: 6px var(--space-3) 6px var(--space-4);
+    box-sizing: border-box;
   }
 
-  .row--selected {
+  .row:hover {
+    background: var(--row-hover);
+  }
+
+  .row--selected,
+  .row--selected:hover {
     background: var(--accent-fill-very-soft, var(--button-bg));
   }
 
@@ -309,14 +368,17 @@
     /* Overrides the inherited `button span { line-height: 2.5em }` — see tokens.scss. */
     line-height: var(--lh-tight);
     font-size: var(--fs-body);
-    font-weight: var(--fw-semibold);
+    font-weight: var(--fw-medium);
     color: var(--fg-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    max-width: 100%;
   }
 
   .row__vault-only {
+    margin-left: var(--space-2);
+    line-height: var(--lh-tight);
     font-size: var(--fs-meta);
     font-weight: var(--fw-normal);
     color: var(--fg-muted);
@@ -328,35 +390,56 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    max-width: 100%;
   }
 
-  .row__health,
-  .row__secrets {
+  .row__health {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
     min-width: 0;
   }
 
   .row__secrets {
+    min-width: 0;
     display: flex;
     gap: var(--space-1);
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
+  }
+
+  /* The same flag as the switcher row's "VAC ban" / "Limited". */
+  .flag {
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 var(--space-2);
+    border: 1px solid var(--border-fail);
+    border-radius: var(--radius-xs);
+    background: var(--bg-fail);
+    color: var(--fg-fail);
+    font-size: var(--fs-meta);
+    font-weight: var(--fw-semibold);
+    white-space: nowrap;
   }
 
   /*
     Present *and* absent are both drawn, rather than only listing what is stored: "this
     account has no TOTP seed" is the answer to a question people actually ask, and an absent
-    chip would be indistinguishable from a column that failed to render.
+    chip would be indistinguishable from a column that failed to render. Absent is dashed, so
+    the difference survives a theme that flattens the accent.
   */
   .chip {
-    padding: 2px 5px;
-    border: 1px solid var(--hairline-strong, var(--button-bg));
+    padding: 1px 5px;
+    border: 1px dashed var(--hairline-strong, var(--button-bg));
     border-radius: var(--radius-xs);
-    font-family: var(--font-mono, monospace);
     font-size: var(--fs-meta);
-    line-height: 1.3;
+    line-height: 1.35;
     color: var(--fg-disabled);
+    white-space: nowrap;
   }
 
   .chip--on {
+    border-style: solid;
     border-color: var(--accent-overlay-border, var(--accent));
     background: var(--accent-fill-very-soft, transparent);
     color: var(--accent-text-bright, var(--accent));
@@ -364,6 +447,7 @@
 
   .row__actions {
     display: flex;
+    align-items: center;
     gap: var(--space-2);
     justify-content: flex-end;
   }
@@ -372,6 +456,30 @@
     min-height: 28px;
     padding: 0 10px;
     font-size: var(--fs-meta);
+  }
+
+  .row__menu {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--fg-muted);
+    cursor: pointer;
+  }
+
+  .row__menu:hover {
+    background: var(--row-hover-strong);
+    color: var(--fg-primary);
+  }
+
+  .row__menu:focus-visible {
+    outline: 2px solid var(--role-focus-ring, var(--accent));
+    outline-offset: 0;
   }
 
   .table__none {
@@ -383,19 +491,47 @@
     text-align: center;
   }
 
-  /* Below the doc's 1000px minimum the four columns stop being scannable; the actions drop
-     under the identity rather than squeezing every column to nothing. */
-  /* +190px nav +420px editor: the table's real width is far less than the viewport's. */
-  @media (max-width: 1300px) {
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  /* With the editor open, or a narrow window: secrets give way first (the editor shows them),
+     then the row stacks with its actions under the identity. */
+  @container (max-width: 760px) {
+    .table__scroll {
+      --cols: minmax(0, 1fr) auto auto;
+      grid-template-columns: var(--cols);
+    }
+    .row__secrets,
+    .table__head > :nth-child(3) {
+      display: none;
+    }
+  }
+
+  @container (max-width: 520px) {
     .table__head {
       display: none;
     }
     .row {
-      grid-template-columns: minmax(0, 1fr);
-      gap: var(--space-2);
+      grid-template-columns: minmax(0, 1fr) auto;
+      row-gap: var(--space-2);
     }
     .row__actions {
+      grid-column: 1 / -1;
       justify-content: flex-start;
+    }
+  }
+
+  @media (forced-colors: active) {
+    .row:hover,
+    .row--selected {
+      outline: 1px solid CanvasText;
+      outline-offset: -1px;
     }
   }
 </style>
