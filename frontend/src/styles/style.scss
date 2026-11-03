@@ -43,19 +43,35 @@
     box-sizing: border-box;
 }
 
+/*
+    Scrollbars. WebView2 on Windows draws classic, always-visible scrollbars, so this is on
+    screen beside every list. It used to be a solid accent-coloured thumb — the loudest
+    colour on the page, on every scroll area. Now drawn like Windows 11's own: a thin neutral
+    thumb inside a 12px gutter (the transparent border insets it) that darkens on hover.
+*/
 ::-webkit-scrollbar {
-    width: 0.75rem;
-    background: var(--scrollbar-track-bg);
+    width: 12px;
+    height: 12px;
+    background: transparent;
 }
 
 ::-webkit-scrollbar-track {
-    background: var(--scrollbar-track-bg);
-    border-radius: 0.5rem;
+    background: var(--scrollbar-track-bg, transparent);
 }
 
 ::-webkit-scrollbar-thumb {
-    background-color: var(--accent);
-    border-radius: 20px;
+    background-color: var(--scrollbar-thumb, var(--fg-disabled));
+    border: 3px solid transparent;
+    border-radius: 6px;
+    background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background-color: var(--fg-muted);
+}
+
+::-webkit-scrollbar-corner {
+    background: transparent;
 }
 
 body {
