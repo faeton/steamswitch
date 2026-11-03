@@ -159,7 +159,10 @@
             </button>
         {/if}
         {#if !isMac}
-            <svg class="header_icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 768 264" fill-rule="evenodd" stroke-linejoin="round" stroke-miterlimit="2">
+            <!-- The mark alone, cropped out of the wordmark: Windows puts a 16px app icon at the
+                 left of the caption, and the full wordmark at that height was an unreadable
+                 smudge. The window title in the middle already says the name. -->
+            <svg class="header_icon" xmlns="http://www.w3.org/2000/svg" viewBox="32 36 166 192" aria-hidden="true">
                 <use href="img/SteamSwitch_Logo.svg#logo"></use>
             </svg>
         {/if}
@@ -371,10 +374,11 @@
         }
     }
     .header_icon {
-        height: 10px;
-        margin: 12px;
+        width: 14px;
+        height: 16px;
+        margin: 0 10px 0 12px;
         display: block;
-        fill: var(--whiteSecondary);
+        fill: var(--fg-secondary, var(--whiteSecondary));
     }
     .window-controls {
         --wails-draggable: no-drag;

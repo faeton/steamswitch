@@ -476,12 +476,15 @@
   .container.busyCursor * {
     cursor: progress !important;
   }
+  /* Parked fully above the window until focused. It used to be offset by exactly its own
+     height plus its `top`, which left its 2px accent border showing as a short line in the
+     top-left corner of every screen. */
   .skip-link {
     position: absolute;
     left: 1rem;
-    top: 1rem;
+    top: 0;
     z-index: 1000000;
-    transform: translateY(calc(-100% - 1rem));
+    transform: translateY(calc(-100% - 4px));
     padding: 0.5rem 0.75rem;
     background: var(--mainContentBackground);
     color: var(--whiteSecondary);
@@ -490,7 +493,7 @@
     text-decoration: none;
   }
   .skip-link:focus-visible {
-    transform: translateY(0);
+    transform: translateY(0.75rem);
   }
   .page {
     position: relative;
