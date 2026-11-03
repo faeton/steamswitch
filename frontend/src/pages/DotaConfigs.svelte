@@ -1,6 +1,11 @@
 <script lang="ts">
   import { onMount } from "svelte";
-  import { route, previousPage, appBarTitle } from "../stores/nav";
+  import { previousPage, appBarTitle } from "../stores/nav";
+  import PageHeader from "../components/PageHeader.svelte";
+  import SettingsCard from "../components/settings/SettingsCard.svelte";
+  import SettingRow from "../components/settings/SettingRow.svelte";
+  import Icon from "../components/Icon.svelte";
+  import { openContextMenuAtRect } from "../stores/contextMenu";
   import { t } from "../stores/i18n";
   import { pushToast } from "../stores/toast";
   import { openConfirm, openPrompt } from "../stores/modal";
@@ -330,211 +335,351 @@
       toastError(e);
     }
   }
+
+  /** Rename, open and delete sit behind ⋯; Apply — the reason the library exists — stays out. */
+  function openSnapMenu(e: MouseEvent, snap: (typeof snapshots)[number]): void {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    openContextMenuAtRect(
+      { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height },
+      [
+        { label: $t("Dota_Button_Rename"), action: () => void renameSnapshot(snap) },
+        { label: $t("Button_OpenBackup"), action: () => void openSnapshot(snap) },
+        { type: "separator" },
+        { label: $t("Dota_Button_Delete"), danger: true, action: () => void deleteSnapshot(snap) },
+      ],
+    );
+  }
 </script>
 
-<div class="settings-page dota-page">
-  <h1>{$t("Dota_Heading")}</h1>
-  <p class="subtle">{$t("Dota_Intro")}</p>
+<div class="dota-page">
+  <PageHeader title={$t("Dota_Heading")} description={$t("Dota_Intro")} />
 
-  {#if loadError}
-    <p class="error">{loadError}</p>
-  {/if}
-
-  <section>
-    <h2>{$t("Dota_Section_Copy")}</h2>
-
-    <div class="row">
-      <label for="dota-source">{$t("Dota_Label_Source")}</label>
-      <select id="dota-source" bind:value={sourceId} disabled={busy}>
-        <option value="">{$t("Dota_Label_PickAccount")}</option>
-        {#each accounts as a (a.steamId64)}
-          <option value={a.steamId64}>
-            {accountLabel(a)}{hasDotaData(a.steamId64) ? "" : ` — ${$t("Dota_Label_NoConfig")}`}
-          </option>
-        {/each}
-      </select>
-    </div>
-
-    <div class="row">
-      <label for="dota-dest">{$t("Dota_Label_Destination")}</label>
-      <select id="dota-dest" bind:value={destId} disabled={busy}>
-        <option value="">{$t("Dota_Label_PickAccount")}</option>
-        {#each accounts.filter((a) => a.steamId64 !== sourceId) as a (a.steamId64)}
-          <option value={a.steamId64}>{accountLabel(a)}</option>
-        {/each}
-      </select>
-    </div>
-
-    <fieldset class="parts">
-      <legend>{$t("Dota_Label_Parts")}</legend>
-      <label>
-        <input type="checkbox" class="ss-checkbox" bind:checked={parts[PART_LOCAL]} disabled={busy} />
-        {$t("Dota_Part_local")} <span class="hint">{$t("Dota_Part_local_Hint")}</span>
-      </label>
-      <label>
-        <input type="checkbox" class="ss-checkbox" bind:checked={parts[PART_REMOTE]} disabled={busy} />
-        {$t("Dota_Part_remote")} <span class="hint">{$t("Dota_Part_remote_Hint")}</span>
-      </label>
-      <label>
-        <input type="checkbox" class="ss-checkbox" bind:checked={parts[PART_GLOBAL]} disabled={busy} />
-        {$t("Dota_Part_globalcfg")} <span class="hint">{$t("Dota_Part_globalcfg_Hint")}</span>
-      </label>
-    </fieldset>
-
-    {#if cloudWarning}
-      <p class="warning">{$t("Dota_Warning_SteamRunning")}</p>
-    {/if}
-    {#if parts[PART_GLOBAL]}
-      <p class="warning">{$t("Dota_Warning_GlobalCopyExcluded")}</p>
+  <div class="dota-page__scroll">
+    {#if loadError}
+      <p class="dota-error" role="alert"><Icon name="warn" size={14} />{loadError}</p>
     {/if}
 
-    <div class="actions">
-      <button class="p-btn p-prim-col" disabled={!canCopy} on:click={doCopy}>
-        {$t("Dota_Button_Copy")}
-      </button>
-      <button class="p-btn" disabled={busy || !sourceId} on:click={doSnapshot}>
-        {$t("Dota_Button_Snapshot")}
-      </button>
-      {#if lastRevertId}
-        <button class="p-btn" disabled={busy} on:click={undoLastWrite}>
-          {$t("Dota_Button_Undo", { dest: lastRevertLabel })}
-        </button>
+    <SettingsCard title={$t("Dota_Section_Copy")} description={$t("Dota_Note_AutoRevert")}>
+      <SettingRow label={$t("Dota_Label_Source")} controlId="dota-source">
+        <select id="dota-source" class="ss-field dota-select" bind:value={sourceId} disabled={busy}>
+          <option value="">{$t("Dota_Label_PickAccount")}</option>
+          {#each accounts as a (a.steamId64)}
+            <option value={a.steamId64}>
+              {accountLabel(a)}{hasDotaData(a.steamId64) ? "" : ` — ${$t("Dota_Label_NoConfig")}`}
+            </option>
+          {/each}
+        </select>
+      </SettingRow>
+
+      <SettingRow label={$t("Dota_Label_Destination")} controlId="dota-dest">
+        <select id="dota-dest" class="ss-field dota-select" bind:value={destId} disabled={busy}>
+          <option value="">{$t("Dota_Label_PickAccount")}</option>
+          {#each accounts.filter((a) => a.steamId64 !== sourceId) as a (a.steamId64)}
+            <option value={a.steamId64}>{accountLabel(a)}</option>
+          {/each}
+        </select>
+      </SettingRow>
+
+      <fieldset class="parts">
+        <legend class="parts__legend">{$t("Dota_Label_Parts")}</legend>
+        <label class="part">
+          <input type="checkbox" class="ss-checkbox" bind:checked={parts[PART_LOCAL]} disabled={busy} />
+          <span class="part__text">
+            <span class="part__name">{$t("Dota_Part_local")}</span>
+            <span class="part__hint">{$t("Dota_Part_local_Hint")}</span>
+          </span>
+        </label>
+        <label class="part">
+          <input type="checkbox" class="ss-checkbox" bind:checked={parts[PART_REMOTE]} disabled={busy} />
+          <span class="part__text">
+            <span class="part__name">{$t("Dota_Part_remote")}</span>
+            <span class="part__hint">{$t("Dota_Part_remote_Hint")}</span>
+          </span>
+        </label>
+        <label class="part">
+          <input type="checkbox" class="ss-checkbox" bind:checked={parts[PART_GLOBAL]} disabled={busy} />
+          <span class="part__text">
+            <span class="part__name">{$t("Dota_Part_globalcfg")}</span>
+            <span class="part__hint">{$t("Dota_Part_globalcfg_Hint")}</span>
+          </span>
+        </label>
+      </fieldset>
+
+      {#if cloudWarning || parts[PART_GLOBAL]}
+        <div class="dota-warnings">
+          {#if cloudWarning}
+            <p class="dota-warning"><Icon name="warn" size={14} />{$t("Dota_Warning_SteamRunning")}</p>
+          {/if}
+          {#if parts[PART_GLOBAL]}
+            <p class="dota-warning"><Icon name="warn" size={14} />{$t("Dota_Warning_GlobalCopyExcluded")}</p>
+          {/if}
+        </div>
       {/if}
-    </div>
-    <p class="subtle small">{$t("Dota_Note_AutoRevert")}</p>
-  </section>
 
-  <section>
-    <h2>{$t("Dota_Section_Library")}</h2>
-    {#if snapshots.length === 0}
-      <p class="subtle">{$t("Dota_Library_Empty")}</p>
-    {:else}
-      <ul class="snapshots">
+      <div class="dota-actions">
+        <button type="button" class="ss-btn ss-btn--primary" disabled={!canCopy} on:click={doCopy}>
+          {$t("Dota_Button_Copy")}
+        </button>
+        <button type="button" class="ss-btn" disabled={busy || !sourceId} on:click={doSnapshot}>
+          {$t("Dota_Button_Snapshot")}
+        </button>
+        {#if lastRevertId}
+          <button type="button" class="ss-btn" disabled={busy} on:click={undoLastWrite}>
+            {$t("Dota_Button_Undo", { dest: lastRevertLabel })}
+          </button>
+        {/if}
+      </div>
+    </SettingsCard>
+
+    <SettingsCard title={$t("Dota_Section_Library")}>
+      {#if snapshots.length === 0}
+        <p class="dota-empty">{$t("Dota_Library_Empty")}</p>
+      {:else}
         {#each snapshots as snap (snap.id)}
-          <li class:auto={snap.auto}>
-            <div class="meta">
-              <strong>{snap.label}</strong>
-              {#if snap.auto}<span class="badge">{$t("Dota_Badge_RevertPoint")}</span>{/if}
-              {#if snap.note}<span class="note">{snap.note}</span>{/if}
-              <span class="subtle small">
+          <div class="snap">
+            <div class="snap__text">
+              <span class="snap__name-line">
+                <span class="snap__name">{snap.label}</span>
+                {#if snap.auto}<span class="snap__badge">{$t("Dota_Badge_RevertPoint")}</span>{/if}
+              </span>
+              {#if snap.note}<span class="snap__note">{snap.note}</span>{/if}
+              <span class="snap__meta">
                 {formatDate(snap.createdAt)} · {partsSummary(snap.parts)} · {formatBytes(snap.sizeBytes)}
                 {#if snap.sourceAccountName} · {snap.sourceAccountName}{/if}
               </span>
             </div>
-            <div class="snap-actions">
-              <button class="p-btn" disabled={busy} on:click={() => applySnapshot(snap)}>
+            <div class="snap__actions">
+              <button type="button" class="ss-btn snap__btn" disabled={busy} on:click={() => applySnapshot(snap)}>
                 {$t("Dota_Button_Apply")}
               </button>
-              <button class="p-btn" disabled={busy} on:click={() => renameSnapshot(snap)}>
-                {$t("Dota_Button_Rename")}
-              </button>
-              <button class="p-btn" disabled={busy} on:click={() => openSnapshot(snap)}>
-                {$t("Button_OpenBackup")}
-              </button>
-              <button class="p-btn danger" disabled={busy} on:click={() => deleteSnapshot(snap)}>
-                {$t("Dota_Button_Delete")}
+              <button
+                type="button"
+                class="snap__menu"
+                aria-haspopup="menu"
+                aria-label={$t("Aria_AccountMenu", { name: snap.label })}
+                title={$t("Aria_AccountMenu", { name: snap.label })}
+                disabled={busy}
+                on:click={(e) => openSnapMenu(e, snap)}
+              >
+                <Icon name="more" />
               </button>
             </div>
-          </li>
+          </div>
         {/each}
-      </ul>
-    {/if}
-  </section>
-
-  <button class="p-btn back" on:click={() => route.set({ page: "tools" })}>
-    {$t("Button_Back")}
-  </button>
+      {/if}
+    </SettingsCard>
+  </div>
 </div>
 
 <style lang="scss">
   .dota-page {
-    padding: 1rem 1.25rem 2rem;
-  }
-  .row {
     display: flex;
-    align-items: center;
-    gap: 0.75rem;
-    margin: 0.5rem 0;
-    label {
-      min-width: 9rem;
-    }
-    select {
-      flex: 1 1 auto;
-      max-width: 28rem;
-    }
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
   }
+
+  .dota-page__scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-7);
+    padding: 0 var(--space-7) var(--space-6);
+    max-width: 880px;
+  }
+
+  .dota-select {
+    width: 280px;
+    max-width: 100%;
+  }
+
   .parts {
-    margin: 1rem 0;
-    border: 1px solid rgba(128, 128, 128, 0.35);
-    border-radius: 6px;
-    padding: 0.75rem 1rem;
-    label {
-      display: block;
-      margin: 0.35rem 0;
-    }
-  }
-  .hint {
-    opacity: 0.7;
-    font-size: var(--fs-secondary);
-  }
-  .subtle {
-    opacity: 0.75;
-  }
-  .small {
-    font-size: var(--fs-secondary);
-  }
-  .warning {
-    color: #e0a030;
-  }
-  .error {
-    color: #e05252;
-  }
-  .actions {
     display: flex;
-    gap: 0.6rem;
-    margin: 0.75rem 0 0.25rem;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: var(--space-3);
+    margin: 0;
+    padding: var(--space-4) var(--space-5);
+    /* A fieldset draws its own box; keep only the card's row divider above it. */
+    border: 0;
+    border-top: 1px solid var(--hairline, var(--border-bar-bg));
   }
-  .snapshots {
-    list-style: none;
+
+  .parts__legend {
+    float: left;
+    width: 100%;
+    margin-bottom: var(--space-2);
+    padding: 0;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    color: var(--fg-primary);
+  }
+
+  .part {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-3);
     margin: 0;
     padding: 0;
-    li {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 1rem;
-      flex-wrap: wrap;
-      padding: 0.6rem 0;
-      border-bottom: 1px solid rgba(128, 128, 128, 0.25);
-      &.auto {
-        opacity: 0.85;
-      }
-    }
-    .meta {
-      display: flex;
-      flex-direction: column;
-      gap: 0.15rem;
-      min-width: 16rem;
-    }
-    .note {
-      font-style: italic;
-      opacity: 0.8;
-    }
+    cursor: pointer;
   }
-  .badge {
-    display: inline-block;
-    font-size: var(--fs-meta);
-    padding: 0.05rem 0.4rem;
-    border-radius: 999px;
-    background: rgba(128, 128, 128, 0.25);
+
+  .part :global(.ss-checkbox) {
+    margin-top: 1px;
   }
-  .snap-actions {
+
+  .part__text {
     display: flex;
-    gap: 0.4rem;
-    flex-wrap: wrap;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
   }
-  .back {
-    margin-top: 1.5rem;
+
+  .part__name {
+    font-size: var(--fs-body);
+    color: var(--fg-primary);
+  }
+
+  .part__hint {
+    font-size: var(--fs-secondary);
+    line-height: var(--lh-prose);
+    color: var(--fg-muted);
+    overflow-wrap: anywhere;
+  }
+
+  .dota-warnings {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3) var(--space-5);
+  }
+
+  .dota-warning,
+  .dota-error {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    margin: 0;
+    font-size: var(--fs-secondary);
+    line-height: var(--lh-prose);
+    color: var(--fg-warn);
+  }
+
+  .dota-warning :global(svg),
+  .dota-error :global(svg) {
+    margin-top: 3px;
+  }
+
+  .dota-error {
+    color: var(--fg-fail);
+  }
+
+  .dota-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
+    padding: var(--space-4) var(--space-5);
+  }
+
+  .dota-empty {
+    margin: 0;
+    padding: var(--space-5);
+    font-size: var(--fs-secondary);
+    color: var(--fg-muted);
+  }
+
+  .snap {
+    display: flex;
+    align-items: center;
+    gap: var(--space-4);
+    min-height: 56px;
+    padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5);
+  }
+
+  .snap:hover {
+    background: var(--row-hover);
+  }
+
+  .snap__text {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .snap__name-line {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .snap__name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-medium);
+    color: var(--fg-primary);
+  }
+
+  .snap__badge {
+    flex: 0 0 auto;
+    padding: 0 var(--space-2);
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--radius-xs);
+    font-size: var(--fs-meta);
+    color: var(--fg-secondary);
+  }
+
+  .snap__note {
+    font-size: var(--fs-secondary);
+    font-style: italic;
+    color: var(--fg-secondary);
+  }
+
+  .snap__meta {
+    font-size: var(--fs-meta);
+    color: var(--fg-muted);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .snap__actions {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .snap__btn {
+    min-height: 28px;
+    padding: 0 10px;
+    font-size: var(--fs-meta);
+  }
+
+  .snap__menu {
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background: none;
+    color: var(--fg-muted);
+    cursor: pointer;
+  }
+
+  .snap__menu:hover:not(:disabled) {
+    background: var(--row-hover-strong);
+    color: var(--fg-primary);
+  }
+
+  .snap__menu:focus-visible {
+    outline: 2px solid var(--role-focus-ring, var(--accent));
+    outline-offset: 0;
   }
 </style>

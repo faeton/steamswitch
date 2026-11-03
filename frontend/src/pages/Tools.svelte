@@ -24,6 +24,8 @@
   import type { Route } from "../stores/routeCodec";
   import { prefetchPage } from "../lib/pageLoaders";
   import { controllerSpatialNavigation } from "../lib/actions/controllerSpatialNavigation";
+  import PageHeader from "../components/PageHeader.svelte";
+  import Icon from "../components/Icon.svelte";
   import HelpAboutModalBody from "../components/modals/HelpAboutModalBody.svelte";
   import * as SteamService from "../../bindings/steamswitch/internal/steam/steamservice.js";
   import * as PlatformService from "../../bindings/steamswitch/internal/platform/platformservice.js";
@@ -249,93 +251,136 @@
   }
 </script>
 
-<div class="main-content main-spacing" use:controllerSpatialNavigation>
-  <h1 class="SettingsHeader">{$t("Nav_Tools")}</h1>
+<div class="tools-page" use:controllerSpatialNavigation>
+  <PageHeader title={$t("Nav_Tools")} />
 
-  {#each groups as group (group.labelKey)}
-    <h2 class="tools__group">{$t(group.labelKey)}</h2>
-    <ul class="tools">
-      {#each group.entries as entry (entry.titleKey)}
-        <li>
-          <button
-            type="button"
-            class="tools__entry"
-            disabled={running !== ""}
-            on:mouseenter={() => entry.target && prefetchPage(entry.target)}
-            on:focus={() => entry.target && prefetchPage(entry.target)}
-            on:click={() => activate(entry)}
-          >
-            <span class="tools__title">{$t(entry.titleKey)}</span>
-            <span class="tools__desc">{$t(entry.descKey)}</span>
-            <!-- Routes get a chevron, one-shot actions do not: the affordance should say
-                 whether clicking navigates or just does something. -->
-            {#if entry.target}<span class="tools__chevron" aria-hidden="true">›</span>{/if}
-          </button>
-        </li>
-      {/each}
-    </ul>
-  {/each}
+  <div class="tools-page__scroll">
+    {#each groups as group (group.labelKey)}
+      <section class="tools-group">
+        <h2 class="ss-section-label">{$t(group.labelKey)}</h2>
+        <!-- One panel per group, rows divided by hairlines (the Settings card), instead of an
+             88px bordered card per tool: ten tools now fit on one screen. -->
+        <ul class="tools">
+          {#each group.entries as entry (entry.titleKey)}
+            <li>
+              <button
+                type="button"
+                class="ss-row-button tools__entry"
+                disabled={running !== ""}
+                on:mouseenter={() => entry.target && prefetchPage(entry.target)}
+                on:focus={() => entry.target && prefetchPage(entry.target)}
+                on:click={() => activate(entry)}
+              >
+                <span class="tools__text">
+                  <span class="tools__title">{$t(entry.titleKey)}</span>
+                  <span class="tools__desc">{$t(entry.descKey)}</span>
+                </span>
+                <!-- Routes get a chevron, one-shot actions do not: the affordance should say
+                     whether clicking navigates or just does something. -->
+                {#if entry.target}<span class="tools__chevron"><Icon name="chevron" /></span>{/if}
+              </button>
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/each}
+  </div>
 </div>
 <svelte:window on:keydown={onWindowKeyDown} />
 
 <style>
-  .tools__group {
-    margin: 14px 0 6px;
-    font-size: var(--fs-secondary);
-    font-weight: 600;
-    color: var(--role-text-muted, var(--text-subtle-gray));
+  .tools-page {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
   }
-  .tools__group:first-of-type {
-    margin-top: 4px;
+
+  .tools-page__scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-6);
+    padding: 0 var(--space-7) var(--space-6);
+    max-width: 880px;
   }
+
+  .tools-group {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
   .tools {
     list-style: none;
     margin: 0;
     padding: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+    border: 1px solid var(--hairline, var(--border-bar-bg));
+    border-radius: var(--radius-lg);
+    background: var(--surface-panel, var(--mainContentBackground));
+    overflow: hidden;
   }
+
+  .tools > li + li {
+    border-top: 1px solid var(--hairline, var(--border-bar-bg));
+  }
+
   .tools__entry {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    grid-template-rows: auto auto;
-    align-items: center;
-    gap: 2px 8px;
-    width: 100%;
-    text-align: left;
-    padding: 10px 12px;
-    border: 1px solid var(--hairline, var(--button-bg));
-    border-radius: 10px;
-    background: var(--role-panel-bg, var(--mainContentBackground));
+    display: flex;
+    gap: var(--space-4);
+    min-height: 56px;
+    padding: var(--space-3) var(--space-4) var(--space-3) var(--space-5);
+    border: 0;
+    border-radius: 0;
+    background: none;
     color: inherit;
     font: inherit;
     cursor: pointer;
   }
+
   .tools__entry:hover:not(:disabled) {
-    background: var(--button-bg-hover);
+    background: var(--row-hover);
   }
+
   .tools__entry:disabled {
-    opacity: 0.55;
+    opacity: var(--role-disabled-opacity, 0.55);
     cursor: progress;
   }
+
   .tools__entry:focus-visible {
     outline: 2px solid var(--role-focus-ring, var(--accent));
-    outline-offset: 2px;
+    outline-offset: -2px;
   }
+
+  .tools__text {
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  /* `UI.scss` gives every span inside a button `line-height: 2.5em`. */
+  .tools__entry :global(span) {
+    line-height: var(--lh-tight);
+  }
+
   .tools__title {
-    grid-column: 1;
-    font-size: 13px;
+    font-size: var(--fs-body);
+    color: var(--fg-primary);
   }
-  .tools__desc {
-    grid-column: 1;
+
+  .tools__entry .tools__desc {
     font-size: var(--fs-secondary);
-    color: var(--role-text-muted, var(--text-subtle-gray));
+    line-height: var(--lh-body);
+    color: var(--fg-muted);
   }
+
   .tools__chevron {
-    grid-column: 2;
-    grid-row: 1 / span 2;
-    font-size: 16px;
-    color: var(--role-text-muted, var(--text-subtle-gray));
+    flex: 0 0 auto;
+    display: flex;
+    color: var(--fg-muted);
   }
 </style>
