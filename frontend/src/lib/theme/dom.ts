@@ -170,7 +170,9 @@ export function applyResolvedAccent(themeId: string, accentKey: string, customCo
     return;
   }
 
-  if (validAccentKey && validAccentKey !== theme.defaultAccentKey) {
+  // On the base theme every preset can be an explicit choice, including its nominal default:
+  // that key is only the default in one of the two schemes.
+  if (validAccentKey && (theme.isBase || validAccentKey !== theme.defaultAccentKey)) {
     const preset = theme.accents.find((option) => option.id === validAccentKey);
     if (preset) {
       currentThemeAccentKey.set(validAccentKey);

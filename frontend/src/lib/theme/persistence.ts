@@ -295,7 +295,14 @@ export async function setUserThemeAccentPreset(accentKey: string): Promise<void>
     await refreshWindowsThemeAccentColor();
   }
 
-  if (!validAccentKey || validAccentKey === theme.defaultAccentKey) {
+  // "The default" means what this scheme would paint with nothing chosen, not the theme's fixed
+  // default key: the base theme's default differs by scheme, so comparing keys made Instrument
+  // Blue impossible to pick in light mode — the click cleared the choice back to Ledger Green.
+  const preset = theme.accents.find((option) => option.id === validAccentKey);
+  const isSchemeDefault = theme.isBase
+    ? preset?.color === defaultAccentColorFor(theme)
+    : validAccentKey === theme.defaultAccentKey;
+  if (!validAccentKey || isSchemeDefault) {
     await persistAccentState("", customColor);
     applyResolvedAccent(theme.id, "", customColor);
     return;

@@ -52,6 +52,11 @@
     return entry.label?.trim() || entry.accountName?.trim() || entry.steamId64;
   }
 
+  /** Ban counts for the "Banned" flag's tooltip; the Go side always sets all three. */
+  function banParams(entry: Summary): Record<string, string> {
+    return (banSignal(entry.health)?.params ?? {}) as Record<string, string>;
+  }
+
   function cycleHealth(): void {
     const i = HEALTH_FILTERS.findIndex((f) => f.id === filters.health);
     filters = { ...filters, health: HEALTH_FILTERS[(i + 1) % HEALTH_FILTERS.length].id };
@@ -160,11 +165,10 @@
               <div class="row__health">
                 <HealthBadge report={entry.health} />
                 {#if banSignal(entry.health)}
-                  {@const ban = banSignal(entry.health)}
                   <span
                     class="flag"
                     data-tone="fail"
-                    title={$t("Vault_Signal_Banned", ban?.params ?? {})}>{$t("Badge_Banned")}</span
+                    title={$t("Vault_Signal_Banned", banParams(entry))}>{$t("Badge_Banned")}</span
                   >
                 {/if}
               </div>

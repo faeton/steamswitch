@@ -177,9 +177,7 @@
                 <button
                   type="button"
                   class="dropdown-item accent-dropdown-item"
-                  class:active={$currentThemeAccentKey
-                    ? $currentThemeAccentKey === accent.id
-                    : accent.id === currentTheme.defaultAccentKey}
+                  class:active={!currentAccent.isCustom && currentAccent.id === accent.id}
                   on:click={() => void pickPresetAccent(accent.id)}
                 >
                   <span

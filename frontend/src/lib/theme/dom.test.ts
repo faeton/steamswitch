@@ -250,6 +250,37 @@ describe("base theme default accent follows the scheme", () => {
     expect(resolveThemeAccent(BASE_THEME_ID).color).toBe(BASE_ACCENT_LEDGER);
   });
 
+  it("lets every preset be picked in light mode, including the dark default", async () => {
+    const stored = new Map<string, string>();
+    vi.stubGlobal("localStorage", {
+      getItem: (k: string) => stored.get(k) ?? null,
+      setItem: (k: string, v: string) => void stored.set(k, v),
+      removeItem: (k: string) => void stored.delete(k),
+    });
+    const { dom, persistence, stores, types } = await loadThemeModules();
+    const appearance = await import("./appearance");
+    const { currentThemeAccentKey, currentThemeCustomAccentColor, currentThemeId } = stores;
+
+    currentThemeId.set(types.BASE_THEME_ID);
+    currentThemeAccentKey.set("");
+    currentThemeCustomAccentColor.set("");
+    appearance.appearanceMode.set("light");
+    dom.applyResolvedAccent(types.BASE_THEME_ID, "", "");
+
+    // Nothing chosen: what is painted, and what the list marks current, is Ledger Green.
+    const ledger = persistence.resolveThemeAccent(types.BASE_THEME_ID, "");
+    expect(ledger.id).not.toBe("instrument");
+
+    await persistence.setUserThemeAccentPreset("instrument");
+    expect(get(currentThemeAccentKey)).toBe("instrument");
+    expect(persistence.resolveThemeAccent(types.BASE_THEME_ID, "instrument").id).toBe("instrument");
+
+    // Picking the scheme's own default clears the choice, so it follows the scheme again.
+    await persistence.setUserThemeAccentPreset(ledger.id);
+    expect(get(currentThemeAccentKey)).toBe("");
+    vi.unstubAllGlobals();
+  });
+
   it("keeps an explicitly chosen accent across a scheme flip", async () => {
     const { dom, persistence, stores, types } = await loadThemeModules();
     const appearance = await import("./appearance");
