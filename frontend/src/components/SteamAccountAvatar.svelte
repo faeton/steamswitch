@@ -80,7 +80,10 @@
       on:error={() => (broken = true)}
     ></video>
   {:else}
+    <!-- Lazy: a long switcher list should not fetch every avatar before the first rows paint. -->
     <img
+      loading="lazy"
+      decoding="async"
       class="avatar__media"
       class:avatar__media--vac={account.showVac && account.vac}
       class:avatar__media--limited={account.showLimited && account.ltd}
@@ -93,6 +96,8 @@
 
   {#if account.showAvatarFrame && (account.avatarFrameUrl ?? "").trim() !== "" && !$offlineMode}
     <img
+      loading="lazy"
+      decoding="async"
       class="avatar__frame"
       src={offlineSafeImageSrc($offlineMode, account.avatarFrameUrl ?? "", fallback)}
       alt=""
