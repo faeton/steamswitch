@@ -7,6 +7,9 @@
   import { sanitizeHtml } from "../lib/sanitizeHtml";
   import { pushToast } from "../stores/toast";
   import { activeModal } from "../stores/modal";
+  import PageHeader from "../components/PageHeader.svelte";
+  import SettingsCard from "../components/settings/SettingsCard.svelte";
+  import Icon from "../components/Icon.svelte";
   import { RunAdvancedClearingAction, RunRefreshPreset } from "../../bindings/steamswitch/internal/steam/steamservice.js";
   import "../styles/Settings.scss";
 
@@ -157,205 +160,263 @@
   }
 </script>
 
-<div class="main-content main-spacing steam-adv-root">
-  <h1 class="SettingsHeader">{$t("Title_Steam_Cleaning")}</h1>
+<div class="adv">
+  <PageHeader title={$t("Tools_AdvancedClearing_Title")} />
 
-  <h2 class="SettingsHeader">{$t("Cleaning_ImportantInfoHeader")}</h2>
-  <div class="steam-adv-info">
-    <!-- eslint-disable-next-line svelte/no-at-html-tags -->
-    {@html sanitizeHtml($t("Cleaning_ImportantInfo"), "inline")}
-  </div>
+  <div class="adv__scroll">
+    <div class="adv__main">
+      <!-- The risk statement and the acknowledgement that unlocks every button below. -->
+      <section class="adv__warning" aria-labelledby="adv-warning-title">
+        <h2 id="adv-warning-title" class="adv__warning-title">
+          <Icon name="warn" size={16} />{$t("Cleaning_ImportantInfoHeader")}
+        </h2>
+        <div class="adv__warning-body">
+          <!-- eslint-disable-next-line svelte/no-at-html-tags -->
+          {@html sanitizeHtml($t("Cleaning_ImportantInfo"), "inline")}
+        </div>
+        <label class="adv__ack">
+          <input id="steam-adv-understand" type="checkbox" class="ss-checkbox" bind:checked={acceptedRisk} />
+          <span>{$t("Cleaning_Understand")}</span>
+        </label>
+        <div>
+          <button class="ss-btn" type="button" disabled={!acceptedRisk || busy} on:click={() => void runAction("close_steam")}>
+            {$t("Cleaning_Button_KillProcess", { platform: "Steam" })}
+          </button>
+        </div>
+      </section>
 
-  <div class="rowSetting steam-adv-ack">
-    <div class="form-check">
-      <input id="steam-adv-understand" type="checkbox" bind:checked={acceptedRisk} />
-      <label class="form-check-label" for="steam-adv-understand"></label>
-    </div>
-    <span class="steam-adv-ack-text">{$t("Cleaning_Understand")}</span>
-  </div>
+      <SettingsCard title={$t("Steam_Refresh_Heading")} description={$t("Steam_Refresh_Intro")}>
+        {#each refreshPresets as preset}
+          <div class="adv__row">
+            <span class="adv__row-text">
+              <span class="adv__row-label">{$t(`Steam_Refresh_Preset_${preset}`)}</span>
+              <span class="adv__row-desc">{$t(`Steam_Refresh_Preset_${preset}_Hint`)}</span>
+            </span>
+            <button class="ss-btn adv__btn" type="button" disabled={!acceptedRisk || busy} on:click={() => void runPreset(preset)}>
+              {$t("Cleaning_Button_Run")}
+            </button>
+          </div>
+        {/each}
+      </SettingsCard>
 
-  <button type="button" disabled={!acceptedRisk || busy} on:click={() => void runAction("close_steam")}>
-    {$t("Cleaning_Button_KillProcess", { platform: "Steam" })}
-  </button>
-
-  <h2 class="SettingsHeader">{$t("Steam_Refresh_Heading")}</h2>
-  <p class="steam-adv-info">{$t("Steam_Refresh_Intro")}</p>
-  <div class="buttoncol steam-refresh-presets">
-    {#each refreshPresets as preset}
-      <button
-        type="button"
-        disabled={!acceptedRisk || busy}
-        title={$t(`Steam_Refresh_Preset_${preset}_Hint`)}
-        on:click={() => void runPreset(preset)}
-      >
-        {$t(`Steam_Refresh_Preset_${preset}`)}
-      </button>
-    {/each}
-  </div>
-
-  <div class="steam-adv-layout">
-    <div class="steam-adv-actions">
-      <h2 class="SettingsHeader">{$t("Cleaning_Header_General")}</h2>
-      {#each generalRows as row}
-        <div class="buttoncol">
+      <!-- One row per target, the path itself as the label: these are Steam's own files and
+           registry values, and the path is the precise answer to "what will this delete". -->
+      <SettingsCard title={$t("Cleaning_Header_General")}>
+        {#each generalRows as row}
           {#each row.actions as id}
             {#if showAction(id)}
-              <button
-                type="button"
-                disabled={!acceptedRisk || busy || (isRegistryAction(id) && !registrySupported)}
-                on:click={() => void runAction(id)}
-              >
-                {labelText[id]}
-              </button>
+              <div class="adv__row">
+                <span class="adv__path">{labelText[id]}</span>
+                <button
+                  class="ss-btn adv__btn"
+                  type="button"
+                  disabled={!acceptedRisk || busy || (isRegistryAction(id) && !registrySupported)}
+                  on:click={() => void runAction(id)}
+                >
+                  {$t("Cleaning_Button_Delete")}
+                </button>
+              </div>
             {/if}
           {/each}
-        </div>
-      {/each}
+        {/each}
+      </SettingsCard>
 
-      <h2 class="SettingsHeader">{$t("Cleaning_Header_LoginHistory")}</h2>
-      {#each loginRows as row}
-        <div class="buttoncol">
+      <SettingsCard title={$t("Cleaning_Header_LoginHistory")}>
+        {#each loginRows as row}
           {#each row.actions as id}
             {#if showAction(id)}
-              <button
-                type="button"
-                disabled={!acceptedRisk || busy || (isRegistryAction(id) && !registrySupported)}
-                on:click={() => void runAction(id)}
-              >
-                {labelText[id]}
-              </button>
+              <div class="adv__row">
+                <span class="adv__path">{labelText[id]}</span>
+                <button
+                  class="ss-btn adv__btn"
+                  type="button"
+                  disabled={!acceptedRisk || busy || (isRegistryAction(id) && !registrySupported)}
+                  on:click={() => void runAction(id)}
+                >
+                  {$t("Cleaning_Button_Delete")}
+                </button>
+              </div>
             {/if}
           {/each}
-        </div>
-      {/each}
+        {/each}
+      </SettingsCard>
     </div>
 
-    <div class="steam-adv-log-wrap">
-      <div class="steam-adv-log" bind:this={logEl} role="log" aria-live="polite">
+    <aside class="adv__log-wrap">
+      <div class="adv__log-head">
+        <h2 class="ss-section-label">{$t("SteamAdvanced_LogHeading")}</h2>
+        <button type="button" class="ss-btn ss-btn--quiet adv__btn" on:click={clearLog}>{$t("Button_ClearLog")}</button>
+      </div>
+      <div class="adv__log" bind:this={logEl} role="log" aria-live="polite">
         {#if logLines.length === 0}
-          <p class="steam-adv-log-empty">{$t("SteamAdvanced_LogPlaceholder")}</p>
+          <p class="adv__log-empty">{$t("SteamAdvanced_LogPlaceholder")}</p>
         {:else}
           {#each logLines as line, i (i)}
-            <div class="steam-adv-log-line">{line || "\u00a0"}</div>
+            <div class="adv__log-line">{line || "\u00a0"}</div>
           {/each}
         {/if}
       </div>
-      <div class="steam-adv-log-actions">
-        <button type="button" class="steam-adv-clear-log" on:click={clearLog}>{$t("Button_ClearLog")}</button>
-      </div>
-    </div>
-  </div>
-
-  <div class="buttoncol col_close steam-adv-footer">
-    <button type="button" class="btn_close" on:click={onClose}><span>{$t("Button_Close")}</span></button>
+    </aside>
   </div>
 </div>
 
 <svelte:window on:keydown={onWindowKeyDown} />
 
 <style lang="scss">
-  .steam-adv-root {
-    overflow-y: auto;
+  .adv {
+    display: flex;
+    flex-direction: column;
     flex: 1;
     min-height: 0;
-    padding-bottom: 1rem;
+    /* The two-column layout answers to this page's width, not the window's. */
+    container-type: inline-size;
   }
 
-  .steam-adv-info {
-    color: var(--text-white-90);
-    font-size: var(--fs-secondary);
-    line-height: 1.45;
-    margin-bottom: 0.75rem;
-  }
-
-  .steam-adv-ack {
-    margin: 0.5rem 0 1rem;
-    align-items: flex-start;
-  }
-
-  .steam-adv-ack-text {
-    padding: 0 0.5em;
-    line-height: 1.35;
-  }
-
-  .steam-adv-layout {
-    display: flex;
-    flex-direction: column;
-    gap: 1rem;
-    align-items: stretch;
-  }
-
-  @media (min-width: 720px) {
-    .steam-adv-layout {
-      flex-direction: row;
-      align-items: flex-start;
-      gap: 1.25rem;
-    }
-
-    .steam-adv-actions {
-      flex: 1 1 52%;
-      min-width: 0;
-    }
-
-    .steam-adv-log-wrap {
-      flex: 1 1 42%;
-      position: sticky;
-      top: 0;
-      align-self: flex-start;
-      max-height: min(70vh, 32rem);
-    }
-  }
-
-  .steam-adv-log-wrap {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5rem;
-    width: 100%;
-    min-height: 12rem;
-  }
-
-  .steam-adv-log {
-    flex: 1;
-    min-height: 12rem;
-    max-height: min(50vh, 28rem);
+  .adv__scroll {
+    flex: 1 1 auto;
+    min-height: 0;
     overflow-y: auto;
-    padding: 0.6rem 0.75rem;
-    background: var(--backdrop-dark-35);
-    border: 1px solid var(--accent);
-    border-radius: 4px;
-    font-family: ui-monospace, monospace;
-    font-size: var(--fs-meta);
-    line-height: 1.35;
-    color: var(--text-white-92);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(260px, 0.75fr);
+    align-items: start;
+    gap: var(--space-6);
+    padding: 0 var(--space-7) var(--space-6);
   }
 
-  .steam-adv-log-empty {
+  .adv__main {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-7);
+    min-width: 0;
+  }
+
+  .adv__warning {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    padding: var(--space-5);
+    border: 1px solid var(--border-warn);
+    border-radius: var(--radius-lg);
+    background: var(--bg-warn, var(--surface-panel));
+  }
+
+  .adv__warning-title {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
     margin: 0;
-    opacity: 0.65;
-    font-style: italic;
+    font-size: var(--fs-section);
+    font-weight: var(--fw-semibold);
+    color: var(--fg-warn);
   }
 
-  .steam-adv-log-line {
+  .adv__warning-body {
+    font-size: var(--fs-secondary);
+    line-height: var(--lh-prose);
+    color: var(--fg-secondary);
+  }
+
+  .adv__ack {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    margin: 0;
+    padding: 0;
+    font-size: var(--fs-body);
+    color: var(--fg-primary);
+    cursor: pointer;
+  }
+
+  .adv__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-4);
+    min-height: 48px;
+    padding: var(--space-2) var(--space-3) var(--space-2) var(--space-5);
+  }
+
+  .adv__row-text {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  .adv__row-label {
+    font-size: var(--fs-body);
+    color: var(--fg-primary);
+  }
+
+  .adv__row-desc {
+    font-size: var(--fs-secondary);
+    line-height: var(--lh-prose);
+    color: var(--fg-muted);
+  }
+
+  .adv__path {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: var(--fs-secondary);
+    color: var(--fg-primary);
+  }
+
+  .adv__btn {
+    flex: 0 0 auto;
+    min-height: 28px;
+    padding: 0 10px;
+    font-size: var(--fs-meta);
+  }
+
+  /* Stays in view while the actions scroll, so a click's result is always visible. */
+  .adv__log-wrap {
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+    min-width: 0;
+  }
+
+  .adv__log-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
+  }
+
+  .adv__log {
+    min-height: 12rem;
+    max-height: min(60vh, 32rem);
+    overflow-y: auto;
+    padding: var(--space-3) var(--space-4);
+    border: 1px solid var(--hairline-strong);
+    border-radius: var(--radius-lg);
+    background: var(--surface-field, var(--role-field-bg));
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-size: var(--fs-meta);
+    line-height: var(--lh-body);
+    color: var(--fg-secondary);
+  }
+
+  .adv__log-empty {
+    margin: 0;
+    color: var(--fg-muted);
+    font-family: inherit;
+  }
+
+  .adv__log-line {
     white-space: pre-wrap;
     word-break: break-word;
   }
 
-  .steam-adv-log-actions {
-    display: flex;
-    justify-content: flex-end;
-  }
-
-  .steam-adv-clear-log {
-    position: relative;
-    width: auto;
-  }
-
-
-
-  .steam-adv-footer {
-    margin-top: 1.5rem;
-    flex-wrap: wrap;
-    justify-content: space-between;
-    align-items: center;
+  @container (max-width: 760px) {
+    .adv__scroll {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .adv__log-wrap {
+      position: static;
+    }
   }
 </style>

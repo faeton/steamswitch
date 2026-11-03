@@ -85,8 +85,8 @@
           placeholder={$t("Vault_ManualCode_Placeholder")}
         />
         <div class="gc-actions">
-          <button type="button" disabled={busy} on:click={hide}>{$t("Vault_Action_Cancel")}</button>
-          <button type="submit" disabled={busy || !code.trim()}>{$t("Vault_Action_Submit")}</button>
+          <button class="ss-btn" type="button" disabled={busy} on:click={hide}>{$t("Vault_Action_Cancel")}</button>
+          <button class="ss-btn" type="submit" disabled={busy || !code.trim()}>{$t("Vault_Action_Submit")}</button>
         </div>
       </form>
     </div>

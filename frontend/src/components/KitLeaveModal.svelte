@@ -84,7 +84,7 @@
     <button type="button" class="is-primary" disabled={busy} on:click={() => choose("restore-theirs")}>
       {busy ? $t("Kit_Leave_Working") : $t("Kit_Restore_Theirs")}
     </button>
-    <button type="button" disabled={busy} on:click={() => choose("keep-mine")}>
+    <button class="ss-btn" type="button" disabled={busy} on:click={() => choose("keep-mine")}>
       {$t("Kit_Keep_Mine")}
     </button>
   </svelte:fragment>

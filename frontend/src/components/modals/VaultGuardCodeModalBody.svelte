@@ -85,8 +85,8 @@
   {/if}
 
   <div class="actions">
-    <button type="button" disabled={loading || !code} on:click={copy}>{$t("Vault_Action_Copy")}</button>
-    <button type="button" disabled={loading} on:click={fetchCode}>{$t("Vault_Code_Again")}</button>
+    <button class="ss-btn" type="button" disabled={loading || !code} on:click={copy}>{$t("Vault_Action_Copy")}</button>
+    <button class="ss-btn" type="button" disabled={loading} on:click={fetchCode}>{$t("Vault_Code_Again")}</button>
   </div>
 </div>
 

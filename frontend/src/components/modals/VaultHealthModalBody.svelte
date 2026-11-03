@@ -111,8 +111,8 @@
   {/if}
 
   <div class="actions">
-    <button type="button" disabled={busy} on:click={() => run("quick")}>{$t("Vault_Action_QuickCheck")}</button>
-    <button
+    <button class="ss-btn" type="button" disabled={busy} on:click={() => run("quick")}>{$t("Vault_Action_QuickCheck")}</button>
+    <button class="ss-btn"
       type="button"
       disabled={busy || $vaultStatus.rateLimited || !entry?.hasRefreshToken}
       title={$t("Vault_Action_SessionCheckTooltip")}

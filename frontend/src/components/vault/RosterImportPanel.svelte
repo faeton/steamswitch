@@ -267,7 +267,7 @@
         </div>
         <label class="field">
           <span class="field__label">{$t("Roster_Field_Passphrase")}</span>
-          <input type="password" bind:value={passphrase} autocomplete="off" />
+          <input class="ss-field" type="password" bind:value={passphrase} autocomplete="off" />
         </label>
         <!-- The CLI path lives here rather than in a tab of its own: it produces exactly the
              file this tab consumes, so what it needs from the UI is the payload shape. -->
@@ -384,7 +384,7 @@
                 </td>
                 <td>
                   {#if row.action !== "invalid"}
-                    <select
+                    <select class="ss-field"
                       value={modes[row.index] ?? "default"}
                       disabled={busy}
                       on:change={(e) => onModeChange(row.index, e)}

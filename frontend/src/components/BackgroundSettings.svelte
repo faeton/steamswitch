@@ -144,7 +144,7 @@
   $: clearLabel = target === "app" ? $t("Settings_ClearBackground") : $t("Settings_ClearPlatformBackground");
 </script>
 
-<button type="button" class="btnicontext" on:click={() => void handleClear()}>
+<button type="button" class="ss-btn" on:click={() => void handleClear()}>
   {clearLabel}
 </button>
 <div class="bg-option-group">

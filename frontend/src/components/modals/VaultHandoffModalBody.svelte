@@ -89,8 +89,8 @@
     <p class="small">{$t("Handoff_Written")}</p>
     <p class="path">{writtenPath}</p>
     <p class="small">{$t("Handoff_SendSeparately")}</p>
-    <button type="button" on:click={openFolder}>{$t("Handoff_OpenFolder")}</button>
-    <button type="button" on:click={() => (writtenPath = "")}>{$t("Handoff_ExportAnother")}</button>
+    <button class="ss-btn" type="button" on:click={openFolder}>{$t("Handoff_OpenFolder")}</button>
+    <button class="ss-btn" type="button" on:click={() => (writtenPath = "")}>{$t("Handoff_ExportAnother")}</button>
   {:else}
     <fieldset>
       <legend>{$t("Handoff_Mode")}</legend>
@@ -112,16 +112,16 @@
 
     <label class="row">
       <span>{$t("Handoff_Label")}</span>
-      <input type="text" bind:value={label} placeholder={$t("Handoff_LabelPlaceholder")} maxlength="60" />
+      <input class="ss-field" type="text" bind:value={label} placeholder={$t("Handoff_LabelPlaceholder")} maxlength="60" />
     </label>
 
     <label class="row">
       <span>{$t("Handoff_Passphrase")}</span>
-      <input type="password" bind:value={passphrase} autocomplete="new-password" spellcheck="false" />
+      <input class="ss-field" type="password" bind:value={passphrase} autocomplete="new-password" spellcheck="false" />
     </label>
     <label class="row">
       <span>{$t("Handoff_PassphraseAgain")}</span>
-      <input type="password" bind:value={passphraseAgain} autocomplete="new-password" spellcheck="false" />
+      <input class="ss-field" type="password" bind:value={passphraseAgain} autocomplete="new-password" spellcheck="false" />
     </label>
     {#if passphrase.length > 0 && passphraseTooShort}
       <p class="small err">{$t("Handoff_PassphraseTooShort", { min: String(MIN_PASSPHRASE) })}</p>
@@ -132,7 +132,7 @@
 
     <label class="row">
       <span>{$t("Handoff_ExpiresInDays")}</span>
-      <input type="number" min="0" step="1" bind:value={expiresInDays} />
+      <input class="ss-field" type="number" min="0" step="1" bind:value={expiresInDays} />
     </label>
     <label class="check">
       <input type="checkbox" class="ss-checkbox" bind:checked={singleUse} />
@@ -144,11 +144,11 @@
       <p class="warn">{$t("Handoff_TransferWarning")}</p>
       <label class="row">
         <span>{$t("Handoff_ConfirmPrompt", { account: accountName })}</span>
-        <input type="text" bind:value={confirm} autocomplete="off" spellcheck="false" />
+        <input class="ss-field" type="text" bind:value={confirm} autocomplete="off" spellcheck="false" />
       </label>
     {/if}
 
-    <button type="button" disabled={!canExport} on:click={doExport}>
+    <button class="ss-btn" type="button" disabled={!canExport} on:click={doExport}>
       {mode === "transfer" ? $t("Handoff_ExportTransfer") : $t("Handoff_ExportGrant")}
     </button>
   {/if}

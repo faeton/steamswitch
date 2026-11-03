@@ -77,11 +77,11 @@
     {#if folder}
       <p class="path">{folder}</p>
     {/if}
-    <button type="button" on:click={refresh}>{$t("Handoff_Import_Rescan")}</button>
+    <button class="ss-btn" type="button" on:click={refresh}>{$t("Handoff_Import_Rescan")}</button>
   {:else}
     <label class="row">
       <span>{$t("Handoff_Import_Pick")}</span>
-      <select bind:value={selected} on:change={() => ((info = null), (accepted = false))}>
+      <select class="ss-field" bind:value={selected} on:change={() => ((info = null), (accepted = false))}>
         {#each bundles as b (b.path)}
           <option value={b.name}>{b.name}</option>
         {/each}
@@ -90,11 +90,11 @@
 
     <label class="row">
       <span>{$t("Handoff_Import_Passphrase")}</span>
-      <input type="password" bind:value={passphrase} autocomplete="off" spellcheck="false" />
+      <input class="ss-field" type="password" bind:value={passphrase} autocomplete="off" spellcheck="false" />
     </label>
     <p class="small">{$t("Handoff_Import_PassphraseHint")}</p>
 
-    <button type="button" disabled={$vaultBusy || !selected || !passphrase} on:click={doInspect}>
+    <button class="ss-btn" type="button" disabled={$vaultBusy || !selected || !passphrase} on:click={doInspect}>
       {$t("Handoff_Import_Inspect")}
     </button>
 
@@ -146,7 +146,7 @@
         {#if accepted}
           <p class="small">{$t("Handoff_Import_Done")}</p>
         {:else}
-          <button type="button" disabled={$vaultBusy || blocked} on:click={doAccept}>
+          <button class="ss-btn" type="button" disabled={$vaultBusy || blocked} on:click={doAccept}>
             {$t("Handoff_Import_Accept")}
           </button>
         {/if}

@@ -113,7 +113,7 @@
         {$t("Kit_Action_KeepCurrent")}
       </button>
       {#if canRestore}
-        <button type="button" disabled={busy} on:click={() => choose("restore-theirs")}>
+        <button class="ss-btn" type="button" disabled={busy} on:click={() => choose("restore-theirs")}>
           {$t("Kit_Recovery_RestoreAnyway")}
         </button>
       {/if}
@@ -122,7 +122,7 @@
         <button type="button" class="is-primary" disabled={busy} on:click={() => choose("restore-theirs")}>
           {busy ? $t("Kit_Leave_Working") : $t("Kit_Action_Restore")}
         </button>
-        <button type="button" disabled={busy} on:click={() => choose("keep-current")}>
+        <button class="ss-btn" type="button" disabled={busy} on:click={() => choose("keep-current")}>
           {$t("Kit_Action_KeepCurrent")}
         </button>
       {:else}

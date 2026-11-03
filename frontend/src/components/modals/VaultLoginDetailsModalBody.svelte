@@ -94,9 +94,9 @@
     <div class="actions">
       {#if rawToken}
         <code>{rawToken}</code>
-        <button type="button" on:click={clearToken}>{$t("Vault_Action_Hide")}</button>
+        <button class="ss-btn" type="button" on:click={clearToken}>{$t("Vault_Action_Hide")}</button>
       {:else}
-        <button type="button" on:click={revealToken}>{$t("Vault_Login_RevealToken")}</button>
+        <button class="ss-btn" type="button" on:click={revealToken}>{$t("Vault_Login_RevealToken")}</button>
       {/if}
     </div>
   {/if}

@@ -52,11 +52,11 @@
   <ThemePickerControls section="theme">
     <div slot="after-controls" class="classic__actions">
       {#if usingClassicTheme}
-        <button type="button" class="btnicontext" on:click={() => void clearUserTheme()}>
+        <button type="button" class="ss-btn" on:click={() => void clearUserTheme()}>
           {$t("Appearance_ClassicThemes_None")}
         </button>
       {/if}
-      <button type="button" class="btnicontext" on:click={() => route.set({ page: "preview-css" })}>
+      <button type="button" class="ss-btn" on:click={() => route.set({ page: "preview-css" })}>
         {$t("PreviewCss")}
       </button>
     </div>
@@ -65,7 +65,7 @@
   {#if $appBgInfo.hasImage || showResetToThemeBg}
     <div class="bg-settings-row">
       {#if showResetToThemeBg}
-        <button type="button" class="btnicontext" on:click={() => void resetToThemeBg()}>
+        <button type="button" class="ss-btn" on:click={() => void resetToThemeBg()}>
           {$t("Settings_ResetToThemeBackground")}
         </button>
       {/if}
