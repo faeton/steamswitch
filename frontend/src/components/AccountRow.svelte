@@ -37,7 +37,6 @@
   /** 1-based quick-switch digit in the *visible* order. 0 = none. */
   export let index = 0;
   export let avatarEpoch = 0;
-  export let boundary: HTMLElement | null = null;
   /** True while this account is the target of a running switch. */
   export let switching = false;
   /** Only show vault-derived health when the vault is actually in use. */
@@ -123,7 +122,7 @@
       {/if}
     </span>
 
-    <SteamAccountAvatar {account} epoch={avatarEpoch} fallback={PROFILE_PLACEHOLDER} {boundary} />
+    <SteamAccountAvatar {account} epoch={avatarEpoch} fallback={PROFILE_PLACEHOLDER} />
 
     <span class="row__text">
       <span class="row__name-line">

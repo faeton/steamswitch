@@ -416,31 +416,3 @@ label h6 svg {
   display: inline-block;
   width: 15px;
 }
-
-.steam-miniprofile-popover {
-  max-width: min(360px, calc(100vw - 24px));
-  max-height: min(480px, calc(100vh - 24px));
-  overflow: auto;
-  border-radius: 4px;
-  box-shadow: 0 8px 28px var(--shadow-color-45);
-  background: var(--surface-steam-popover);
-  color: var(--whiteSecondary);
-  font-size: 12px;
-  line-height: 1.35;
-}
-
-.steam-miniprofile-popover__inner {
-  padding: 0;
-}
-
-.steam-miniprofile-popover__inner .miniprofile_container {
-  transform-origin: top left;
-  max-width: 100%;
-}
-
-.steam-miniprofile-popover__inner img,
-.steam-miniprofile-popover__inner video {
-  max-width: 100%;
-  height: auto;
-  vertical-align: middle;
-}

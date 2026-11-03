@@ -115,10 +115,5 @@ export function buildAccentOverlayCss(color: string): string {
   --accent-text-on-selection: rgba(var(--accentInt), 0.95);
   --accent-text-heading: rgba(var(--accentInt), 0.98);
   --home-ico-gradient-end: rgba(var(--accentInt), 1);
-  --miniprofile-radial-glow: rgba(var(--accentInt), 0.45);
-  --miniprofile-radial-fade: rgba(var(--accentInt), 0.08);
-  --miniprofile-linear-top: rgba(var(--accentInt), 0.55);
-  --miniprofile-linear-mid: rgba(var(--accentInt), 0.14);
-  --miniprofile-linear-low: rgba(var(--accentInt), 0.1);
 }`;
 }

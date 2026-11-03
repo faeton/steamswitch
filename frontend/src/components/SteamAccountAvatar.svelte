@@ -15,22 +15,11 @@
    */
   import { offlineMode, offlineSafeImageSrc, withAssetCacheBust } from "../stores/offlineMode";
   import { isProfileVideoUrl } from "../lib/profileImageDrop";
-  import { miniProfileHover } from "../lib/actions/miniProfileHover";
   import type { SteamAccountRow } from "../lib/steam/types";
 
   export let account: SteamAccountRow;
   export let epoch = 0;
   export let fallback = "";
-  export let boundary: HTMLElement | null = null;
-  /**
-   * Whether hovering pops the Steam miniprofile.
-   *
-   * Off by default now. The brief retires the hover card on the dense list (Part B #4, A14):
-   * it injected a ~328px chunk of Steam's own markup with an 80px avatar into a list whose
-   * rows are 42px, and account preview moved to click→detail. The detail panel opts back in.
-   */
-  export let allowMiniProfile = false;
-
   /** True once the browser has failed to load `avatarSrc`. */
   let broken = false;
 
@@ -56,8 +45,6 @@
   // chance rather than staying stuck on the initials for the rest of the session.
   $: if (avatarSrc) broken = false;
   $: avatarIsVideo = !$offlineMode && isProfileVideoUrl(avatarSrc);
-  $: hoverEnabled =
-    allowMiniProfile && !!(account.showMiniProfile && (account.miniProfileHtml ?? "").trim() !== "");
 
   /**
    * Two letters from the display name, for when there is no picture to show.
@@ -91,12 +78,6 @@
       aria-hidden="true"
       draggable="false"
       on:error={() => (broken = true)}
-      use:miniProfileHover={{
-        html: account.miniProfileHtml ?? "",
-        boundary,
-        offline: $offlineMode,
-        enabled: hoverEnabled,
-      }}
     ></video>
   {:else}
     <img
@@ -107,12 +88,6 @@
       alt=""
       draggable="false"
       on:error={() => (broken = true)}
-      use:miniProfileHover={{
-        html: account.miniProfileHtml ?? "",
-        boundary,
-        offline: $offlineMode,
-        enabled: hoverEnabled,
-      }}
     />
   {/if}
 

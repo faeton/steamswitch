@@ -99,7 +99,6 @@
   } from "../lib/accounts/windowFocusRefresh";
   import { sameRoster } from "../lib/accounts/rosterChange";
   import { buildEpochMap } from "../lib/accounts/epochManager";
-  import "../styles/platformAccountsShared.scss";
 
   let accounts: SteamAccountRow[] = [];
   let roles: AccountRoleMap = EMPTY_ROLES;
@@ -108,7 +107,6 @@
   let steamRunning = false;
   /** The backend's A4 verdict on who Steam is signed in as. */
   let session: SessionVerdict = UNLOADED_SESSION;
-  let rootEl: HTMLDivElement | null = null;
   let offPatch: (() => void) | undefined;
   let addingAccount = false;
   let tagDefs: TagDefRow[] = [];
@@ -780,7 +778,7 @@
 </script>
 
 
-<div class="switcher" bind:this={rootEl}>
+<div class="switcher">
   <PageHeader title={$t("Nav_Switcher")}>
     <svelte:fragment slot="actions">
       <button type="button" class="ss-btn switcher__head-btn" on:click={() => (shortcutsOpen = true)}>
@@ -943,7 +941,6 @@
                   showHealth={vaultInUse}
                   index={keycaps[acc.steamId64] ?? 0}
                   avatarEpoch={avatarEpoch[acc.steamId64] ?? 0}
-                  boundary={rootEl}
                   on:switch={(e) => void switchTo(e.detail)}
                   on:detail={(e) => (detailId = e.detail)}
                   on:menu={onTileMenu}
