@@ -16,6 +16,7 @@
   import SteamAccountAvatar from "./SteamAccountAvatar.svelte";
   import AccountTagBubbles from "./AccountTagBubbles.svelte";
   import HealthBadge from "./vault/HealthBadge.svelte";
+  import Icon from "./Icon.svelte";
   import { formatLastLoginForLocale } from "../lib/formatLastLogin";
   import { sanitizeHtml } from "../lib/sanitizeHtml";
   import { offlineMode } from "../stores/offlineMode";
@@ -66,7 +67,7 @@
         {/if}
       </div>
     </div>
-    <button type="button" class="ss-btn ss-btn--quiet detail__close" aria-label={$t("Button_Close")} on:click={() => dispatch("close")}>✕</button>
+    <button type="button" class="ss-btn ss-btn--quiet detail__close" aria-label={$t("Button_Close")} title={$t("Button_Close")} on:click={() => dispatch("close")}><Icon name="close" /></button>
   </header>
 
   <div class="detail__scroll">
@@ -92,21 +93,21 @@
 
     {#if showHealth && hasVaultEntry}
       <section class="block">
-        <h3 class="ss-eyebrow">{$t("Vault_Col_Health")}</h3>
+        <h3 class="ss-section-label">{$t("Vault_Col_Health")}</h3>
         <HealthBadge report={$vaultHealth[id]} showAction />
       </section>
     {/if}
 
     {#if account.tags?.length}
       <section class="block">
-        <h3 class="ss-eyebrow">{$t("Detail_Field_Tags")}</h3>
+        <h3 class="ss-section-label">{$t("Detail_Field_Tags")}</h3>
         <AccountTagBubbles tags={account.tags} maxVisible={12} />
       </section>
     {/if}
 
     {#if miniProfile}
       <section class="block">
-        <h3 class="ss-eyebrow">{$t("Detail_Field_Profile")}</h3>
+        <h3 class="ss-section-label">{$t("Detail_Field_Profile")}</h3>
         <!-- Steam's own markup, at the size it was drawn for. Sanitised above; the scale
              wrapper keeps a 328px card inside a narrower panel without clipping it. -->
         <div class="miniprofile">
@@ -117,14 +118,18 @@
   </div>
 
   <footer class="detail__foot">
-    <button
-      type="button"
-      class="ss-btn ss-btn--primary"
-      disabled={current || switchDisabled}
-      on:click={() => dispatch("switch", id)}
-    >
-      {current ? $t("Detail_State_Current") : $t("Detail_Action_SwitchTo", { name: label })}
-    </button>
+    <!-- Not drawn for the signed-in account: a disabled accent button reading "Currently
+         signed in" looked like the main action and did nothing. The facts above say it. -->
+    {#if !current}
+      <button
+        type="button"
+        class="ss-btn ss-btn--primary"
+        disabled={switchDisabled}
+        on:click={() => dispatch("switch", id)}
+      >
+        {$t("Detail_Action_SwitchTo", { name: label })}
+      </button>
+    {/if}
     {#if hasVaultEntry}
       <button type="button" class="ss-btn" on:click={() => dispatch("editVault", id)}>
         {$t("Detail_Action_EditVault")}
@@ -192,8 +197,10 @@
 
   .detail__close {
     flex: 0 0 auto;
-    min-height: 26px;
-    padding: 0 var(--space-2);
+    width: 28px;
+    min-height: 28px;
+    padding: 0;
+    color: var(--fg-muted);
   }
 
   .detail__scroll {
