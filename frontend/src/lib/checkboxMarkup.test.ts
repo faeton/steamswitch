@@ -3,14 +3,13 @@ import { join, relative } from "node:path";
 import { describe, expect, it } from "vitest";
 
 /**
- * `styles/Settings.scss` hides every checkbox that is not `.ss-toggle` / `.ss-checkbox`
- * (`opacity: 0`) and paints a fake box on the `<label>` that must follow it — the inherited
- * `input + label.form-check-label` pattern. The rule is global, and Settings is prefetched at
- * startup, so a checkbox written any other way (`<label><input><span>…`) renders as nothing at
- * all. That is how the plaintext-import acknowledgement and the handoff "single use" box
- * shipped invisible.
+ * Every checkbox is one of the two drawn controls in tokens.scss — `.ss-toggle` (a setting
+ * that is on or off) or `.ss-checkbox` (a tick in a form).
  *
- * Every checkbox must therefore either opt out with a class or use the legacy pair.
+ * This used to guard against a global legacy rule that set `opacity: 0` on any other
+ * checkbox; seven shipped invisible before it existed. That rule is gone, but a bare
+ * checkbox would now render as the browser's native box — a different size, colour and
+ * focus ring on each of WebView2, WebKitGTK and WKWebView — so the requirement stands.
  */
 const SRC = join(__dirname, "..");
 
@@ -50,8 +49,6 @@ function invisibleCheckboxes(): string[] {
       const tag = src.slice(start, end);
       if (!/type="checkbox"/.test(tag)) continue;
       if (/class="[^"]*\bss-(toggle|checkbox)\b/.test(tag)) continue;
-      const after = src.slice(end).trimStart();
-      if (/^<label\b[^>]*class="[^"]*\bform-check-label\b/.test(after)) continue;
       const line = src.slice(0, start).split("\n").length;
       offenders.push(`${relative(SRC, file)}:${line}`);
     }
@@ -60,7 +57,7 @@ function invisibleCheckboxes(): string[] {
 }
 
 describe("checkbox markup", () => {
-  it("never leaves a checkbox for the global legacy rule to hide", () => {
+  it("draws every checkbox as .ss-toggle or .ss-checkbox", () => {
     expect(invisibleCheckboxes()).toEqual([]);
   });
 });

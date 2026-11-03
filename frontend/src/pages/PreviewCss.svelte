@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SharedSettingCheckbox from "../components/settings/SharedSettingCheckbox.svelte";
   import { onMount, tick } from "svelte";
   import { get } from "svelte/store";
   import { route, previousPage, appBarTitle } from "../stores/nav";
@@ -928,13 +929,7 @@
             <span>{$t("Settings_ImageExpiry")}</span>
             <input type="number" id="pvImageExpiry" min="0" max="365" value="30" readonly tabindex="-1" />
           </div>
-          <div class="rowSetting">
-            <div class="form-check">
-              <input id="pvStreamer" class="form-check-input" type="checkbox" checked disabled />
-              <label class="form-check-label" for="pvStreamer"></label>
-            </div>
-            <label for="pvStreamer">{$t("Settings_StreamerMode")}</label>
-          </div>
+          <SharedSettingCheckbox id="pvStreamer" label={$t("Settings_StreamerMode")} checked={true} disabled />
           <div class="rowSetting">
             <span>Example text</span>
             <input type="text" id="pvText" value="Read-only sample" readonly tabindex="-1" />
@@ -973,13 +968,7 @@
               {/if}
             </div>
           </div>
-          <div class="rowSetting">
-            <div class="form-check">
-              <input id="pvTray" class="form-check-input" type="checkbox" disabled />
-              <label class="form-check-label" for="pvTray"></label>
-            </div>
-            <label for="pvTray">{$t("Settings_ExitToTray")}</label>
-          </div>
+          <SharedSettingCheckbox id="pvTray" label={$t("Settings_ExitToTray")} checked={false} disabled />
         </div>
       </div>
     </div>

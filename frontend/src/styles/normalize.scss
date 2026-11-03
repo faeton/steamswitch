@@ -874,17 +874,6 @@ html.input-modality-controller[data-controller-scheme="generic"] {
     color: CanvasText !important;
   }
 
-  input[type="checkbox"] + label {
-    background: Canvas !important;
-    border: 2px solid ButtonText !important;
-  }
-
-  input[type="checkbox"]:checked + label {
-    background: Highlight !important;
-    border-color: Highlight !important;
-    color: HighlightText !important;
-  }
-
   button:focus-visible,
   a:focus-visible,
   input:not([type="hidden"]):focus-visible,
@@ -896,7 +885,6 @@ html.input-modality-controller[data-controller-scheme="generic"] {
     outline-offset: 3px;
   }
 
-  input[type="checkbox"]:focus-visible + label,
   input.acc:focus-visible + label.acc,
   .acc_list_item:focus-visible label.acc,
   .platform_list_item:focus-visible {
@@ -978,9 +966,7 @@ html.input-modality-controller[data-controller-scheme="generic"] {
   }
 
   label.acc.acc--broken,
-  .steam-acclist .steam_meta_badge.dim,
-  .form-check .form-check-input:disabled ~ label,
-  .form-check .form-check-input[disabled] ~ label {
+  .steam-acclist .steam_meta_badge.dim {
     color: GrayText !important;
     opacity: 1 !important;
   }

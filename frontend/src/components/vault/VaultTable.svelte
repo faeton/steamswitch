@@ -365,7 +365,6 @@
   }
 
   .row__name {
-    /* Overrides the inherited `button span { line-height: 2.5em }` — see tokens.scss. */
     line-height: var(--lh-tight);
     font-size: var(--fs-body);
     font-weight: var(--fw-medium);

@@ -55,9 +55,17 @@ button.fancyLink {
   }
 }
 
-/* Buttons */
-button,
-.button {
+/*
+    Buttons: the inherited default for any button that brings no class of its own.
+
+    Zero specificity (`:where`), so every component class and the shared .ss-btn vocabulary
+    win without !important or a per-component reset. The rule used to be plain `button`,
+    and it also gave every span inside every button `line-height: 2.5em` (upstream centred an
+    icon beside a label that way) — which doubled the height of every redesigned row that
+    put text in a span, and was undone in five places. That part is gone; buttons are flex
+    and centre their content themselves.
+*/
+:where(button, .button) {
   text-align: center;
   background: var(--button-bg);
   border-color: var(--button-bg);
@@ -89,11 +97,6 @@ button,
     background: var(--button-bg-hover);
     border-color: var(--button-bg);
   }
-  /* Button children */
-  & span {
-    line-height: 2.5em;
-  }
-
   & svg {
     width: 1.5em;
 
@@ -343,13 +346,9 @@ button .caret, .button .caret {
   text-decoration: none;
   white-space: nowrap;
   cursor: pointer;
-  /* The inherited global `button` rule centres content and gives spans a 2.5em line. */
+  /* The inherited global `button` rule centres content. */
   justify-content: flex-start;
   line-height: var(--lh-tight);
-
-  > * {
-    line-height: inherit;
-  }
 
   &:hover,
   &:focus-visible {

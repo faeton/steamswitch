@@ -209,7 +209,6 @@
   }
 
   .sidebar__label {
-    /* Overrides the inherited `button span { line-height: 2.5em }` — see tokens.scss. */
     line-height: inherit;
     min-width: 0;
     overflow: hidden;

@@ -121,24 +121,6 @@
 */
 
 /*
-    Opt out of one inherited rule.
-
-    `UI.scss` carries `button span { line-height: 2.5em }` from upstream, where it centred a
-    text label beside a 1.5em SVG inside an icon-button. Those buttons are already
-    `display: flex; align-items: center`, so flex does the centring and the line-height is
-    vestigial — but it still applies to *every* span inside *every* button, which silently
-    made the redesigned nav rows and table cells roughly twice their intended height.
-
-    Scoped to the new vocabulary rather than deleted: the inherited surfaces still render
-    through that rule, and quietly changing their metrics is not this change's job. Bespoke
-    buttons that are not `.ss-btn` set `line-height` on their own children for the same reason.
-*/
-.ss-btn > *,
-.ss-chip > * {
-    line-height: inherit;
-}
-
-/*
     The same inherited block also sets `justify-content: center` and `align-items: center` on
     every `button`. For a centred pill that is right; for a *row* — a nav item, a table cell —
     it centres the icon-and-label pair as a group, so each row starts at a different x
@@ -152,10 +134,6 @@
     text-align: left;
     width: 100%;
     margin: 0;
-}
-
-.ss-row-button > * {
-    line-height: inherit;
 }
 
 /* Column-stacked row buttons (an identity cell: name over login name). */
@@ -398,6 +376,38 @@
 .ss-checkbox:disabled {
     opacity: var(--role-disabled-opacity, 0.55);
     cursor: not-allowed;
+}
+
+/*
+    Windows high contrast. Both controls are drawn with `appearance: none`, and forced colours
+    replace every background with Canvas — so a switch that is on and one that is off would
+    look identical. State moves to the system colours the mode guarantees.
+*/
+@media (forced-colors: active) {
+    .ss-toggle,
+    .ss-checkbox {
+        border-color: ButtonText;
+        background: Canvas;
+        forced-color-adjust: none;
+    }
+    .ss-toggle::after {
+        background: ButtonText;
+    }
+    .ss-toggle:checked,
+    .ss-checkbox:checked {
+        border-color: Highlight;
+        background: Highlight;
+    }
+    .ss-toggle:checked::after {
+        background: HighlightText;
+    }
+    .ss-checkbox:checked::after {
+        border-color: HighlightText;
+    }
+    .ss-toggle:disabled,
+    .ss-checkbox:disabled {
+        border-color: GrayText;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {

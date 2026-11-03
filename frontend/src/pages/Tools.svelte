@@ -362,11 +362,6 @@
     min-width: 0;
   }
 
-  /* `UI.scss` gives every span inside a button `line-height: 2.5em`. */
-  .tools__entry :global(span) {
-    line-height: var(--lh-tight);
-  }
-
   .tools__title {
     font-size: var(--fs-body);
     color: var(--fg-primary);

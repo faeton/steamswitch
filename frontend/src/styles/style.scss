@@ -23,7 +23,9 @@
     font-family: -apple-system, "Segoe UI Variable Text", "Segoe UI", BlinkMacSystemFont,
         Cantarell, system-ui, sans-serif;
     font-size: 12px;
-    line-height: 24px;
+    /* Relative, not the old fixed 24px: a fixed line height is inherited unchanged by text of
+       every size, so 19px titles and 12px help text all got the same 24px line. */
+    line-height: var(--lh-body, 1.5);
     font-weight: 400;
     color-scheme: light dark;
     color: var(--white);

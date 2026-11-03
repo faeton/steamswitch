@@ -221,12 +221,6 @@
     cursor: pointer;
   }
 
-  /* `UI.scss` gives every span inside every button `line-height: 2.5em`; inside this button
-     that pulled the name and meta lines apart and ballooned the tag bubbles. */
-  .row__main :global(span) {
-    line-height: var(--lh-tight);
-  }
-
   .row__main:disabled {
     cursor: default;
   }
