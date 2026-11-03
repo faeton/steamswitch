@@ -222,8 +222,6 @@
 
   .module__state {
     font-size: var(--fs-secondary);
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
   }
 
   .module__state.is-active {

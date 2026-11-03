@@ -306,7 +306,7 @@
 
   <div class="editor__scroll">
     <section class="editor__section">
-      <h3 class="ss-eyebrow">{$t("Vault_Section_Identity")}</h3>
+      <h3 class="ss-section-label">{$t("Vault_Section_Identity")}</h3>
 
       <label class="field">
         <span class="field__label">{$t("Vault_Field_SteamId")}</span>
@@ -360,7 +360,7 @@
     </section>
 
     <section class="editor__section">
-      <h3 class="ss-eyebrow">{$t("Vault_Section_Credentials")}</h3>
+      <h3 class="ss-section-label">{$t("Vault_Section_Credentials")}</h3>
 
       <label class="field">
         <span class="field__head">

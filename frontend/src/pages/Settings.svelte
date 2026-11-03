@@ -79,7 +79,6 @@
 
   <div class="settings__body">
     <nav class="rail" aria-label={$t("Settings_Categories")}>
-      <div class="ss-eyebrow rail__eyebrow">{$t("Settings_Categories")}</div>
       <ul class="rail__list">
         {#each SETTINGS_CATEGORIES as cat (cat)}
           {@const active = cat === category}
@@ -138,10 +137,6 @@
     overflow-y: auto;
   }
 
-  .rail__eyebrow {
-    padding: 0 11px var(--space-2);
-  }
-
   .rail__list {
     list-style: none;
     margin: 0;
@@ -173,10 +168,12 @@
     outline-offset: -2px;
   }
 
+  /* The selected category is carried by fill and weight, in the primary text colour. Accent
+     text on an accent wash measured about 2:1 in the light theme. Same treatment as the
+     app's left nav. */
   .rail__item--active {
-    border-color: var(--accent-overlay-border, var(--hairline-strong));
-    background: var(--accent-fill-very-soft, var(--button-bg));
-    color: var(--accent-text-bright, var(--fg-primary));
+    background: var(--row-hover-strong);
+    color: var(--fg-primary);
     font-weight: var(--fw-semibold);
   }
 
@@ -203,9 +200,6 @@
     }
     .rail {
       width: auto;
-    }
-    .rail__eyebrow {
-      display: none;
     }
     .rail__list {
       flex-direction: row;

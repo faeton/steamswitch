@@ -84,7 +84,7 @@
       <div class="sheet__body">
         {#each GROUPS as group (group.titleKey)}
           <section class="group">
-            <h3 class="ss-eyebrow">{$t(group.titleKey)}</h3>
+            <h3 class="ss-section-label">{$t(group.titleKey)}</h3>
             <dl class="rows">
               {#each group.rows as row (row.descKey)}
                 <dt class="row__keys">

@@ -35,10 +35,6 @@
     --fw-medium: 500;
     --fw-semibold: 600;
 
-    /* Uppercase mono eyebrow: "SIGNED IN AS", "IDENTITY · REQUIRED". */
-    --fs-eyebrow: 12px;
-    --ls-eyebrow: 0.13em;
-    --ls-caps: 0.08em;
 
     /* ---------------------------------------------------------------- shape */
     --radius-xs: 3px;
@@ -410,13 +406,20 @@
     }
 }
 
-/* Mono uppercase eyebrow above a group of fields or a hero value. */
-.ss-eyebrow {
-    font-family: var(--font-mono, ui-monospace, monospace);
-    font-size: var(--fs-eyebrow);
-    letter-spacing: var(--ls-eyebrow);
-    text-transform: uppercase;
-    color: var(--fg-muted);
+/*
+    The label over a group of fields ("Identity", "Health", "Tags").
+
+    This was a letter-spaced mono uppercase eyebrow. Mono caps read as a costume for
+    "technical" rather than as a heading, and at 12px with 0.13em tracking they were the
+    hardest text on the screen to read. Sentence case at the secondary size, carried by
+    weight, is the platform's own section-label idiom on Windows and macOS alike.
+*/
+.ss-section-label {
+    margin: 0;
+    font-size: var(--fs-secondary);
+    font-weight: var(--fw-semibold);
+    line-height: var(--lh-tight);
+    color: var(--fg-secondary);
 }
 
 /* Help text under a control. The old `.hint` rendered at ~8.4px; this is the floor. */

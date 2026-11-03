@@ -200,7 +200,7 @@
 
   .blocker {
     font-size: var(--fs-meta);
-    text-transform: uppercase;
+    font-weight: var(--fw-semibold);
     opacity: 0.85;
   }
 

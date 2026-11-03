@@ -141,7 +141,6 @@
 
   .flag {
     font-size: var(--fs-meta);
-    text-transform: uppercase;
   }
 
   .small {

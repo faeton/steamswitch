@@ -283,8 +283,6 @@
     margin: 14px 0 6px;
     font-size: var(--fs-secondary);
     font-weight: 600;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
     color: var(--role-text-muted, var(--text-subtle-gray));
   }
   .tools__group:first-of-type {
