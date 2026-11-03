@@ -76,10 +76,9 @@
 </details>
 
 <style lang="scss">
+  /* The row above already ends in a hairline; a second rule here drew a double line. */
   .classic {
-    margin-top: 0.75rem;
-    border-top: 1px solid var(--hairline, var(--border-bar-bg));
-    padding-top: 0.5rem;
+    margin-top: var(--space-4);
 
     summary {
       cursor: pointer;

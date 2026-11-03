@@ -132,6 +132,15 @@
 /* ------------------------------------------------- light · "Ledger" (variant 1b) */
 
 :root[data-base-theme][data-appearance="light"] {
+    /*
+        Accent used as *text* (selected nav row, pressed chips, stored-secret tags, the
+        switching line). The shared definition lifts the accent by 32% lightness, which is
+        right on a dark surface and pale-on-pale here — the selected nav row measured about
+        2:1. On light surfaces the accent text is darkened instead, capped at 30% lightness so
+        a bright accent pick (Mint, Amber) still reads.
+    */
+    --accent-text-bright: hsl(var(--accentHS), min(calc(var(--accentL) - 6%), 30%));
+
     --code: #f0f0ec;
     --code-background: #f8f8f6;
     --slightly-darker-code-background: #f0f0ec;

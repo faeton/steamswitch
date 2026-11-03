@@ -227,13 +227,29 @@ button .caret, .button .caret {
   text-align: center;
 }
 
+/*
+    The inherited "label + dropdown" row, used by the appearance, language and process-method
+    settings. Drawn as the same row as SettingRow / SharedSettingCheckbox — text on the left,
+    control on the right, a hairline between rows — so a settings page no longer switches
+    between two layouts halfway down.
+*/
 .rowDropdown {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 5px 0 2px 0;
-  margin-right: 1em;
-  width: fit-content;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+  min-height: 52px;
+  padding: var(--space-3) 0;
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--hairline);
+
+  > span:first-child {
+    font-size: var(--fs-body);
+    color: var(--fg-primary);
+  }
 }
 
 .dropdown {
@@ -248,60 +264,103 @@ button .caret, .button .caret {
   }
 }
 
+/* The closed dropdown: the same box as .ss-field, with the caret drawn in CSS. */
 .dropdown-toggle {
   position: relative;
   z-index: 9;
-  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 168px;
+  height: auto;
+  min-height: var(--control-height);
   margin: 0;
+  padding: 0 10px 0 11px;
+  border: 1px solid var(--hairline-strong, var(--button-bg));
+  border-radius: var(--radius-md);
+  background: var(--surface-field, var(--role-field-bg));
+  color: var(--fg-primary);
+  font: inherit;
+  font-size: var(--fs-control);
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--fg-disabled);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--role-focus-ring, var(--accent));
+    outline-offset: 1px;
+  }
+
   &::after {
     display: inline-block;
-    margin-left: .255em;
-    vertical-align: .255em;
+    flex: 0 0 auto;
     content: "";
-    border-top: .3em solid;
-    border-right: .3em solid transparent;
-    border-bottom: 0;
-    border-left: .3em solid transparent;
+    width: 6px;
+    height: 6px;
+    margin: -3px 2px 0 0;
+    border-right: 1.5px solid var(--fg-muted);
+    border-bottom: 1.5px solid var(--fg-muted);
+    transform: rotate(45deg);
+  }
+
+  /* Some toggles also render their own `.caret` span; the ::after above is the one caret. */
+  .caret {
+    display: none;
   }
 }
 
+/* The open list: the same panel as the context menu. */
 .dropdown-menu {
-  padding: 0.5rem 0;
-  border-style: solid;
-  background: var(--button-bg);
-  border-color: var(--button-bg);
-  border-width: 0.1em;
-  -webkit-box-shadow: 0 0 15px 3px var(--shadow-color-heavy);
-  -moz-box-shadow: 0 0 15px 3px var(--shadow-color-heavy);
-  box-shadow: 0 0 15px 3px var(--shadow-color-heavy);
+  margin-top: 4px;
+  padding: 4px;
+  border: 1px solid var(--context-menu-border, var(--hairline-strong));
+  border-radius: var(--radius-lg);
+  background: var(--surface-context-submenu, var(--button-bg));
+  box-shadow: var(--shadow-panel, 0 10px 26px rgba(0, 0, 0, 0.5));
+  min-width: 100%;
+  box-sizing: border-box;
+  list-style: none;
 }
 
 .dropdown-item {
-  padding: 0.5rem 1rem;
-  margin: 0;
-  color: var(--whiteSecondary);
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
   width: 100%;
-  clear: both;
-  font-weight: 400;
-  text-align: inherit;
+  min-height: 28px;
+  padding: 6px 10px;
+  margin: 0;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background-color: transparent;
+  color: var(--fg-primary);
+  font: inherit;
+  font-size: var(--fs-control);
+  font-weight: var(--fw-normal);
+  text-align: start;
   text-decoration: none;
   white-space: nowrap;
-  background-color: transparent;
-  border: 0;
+  cursor: pointer;
+  /* The inherited global `button` rule centres content and gives spans a 2.5em line. */
+  justify-content: flex-start;
+  line-height: var(--lh-tight);
 
-  &.active,
-  &:active,
-  &:focus,
-  &:target {
-    color: var(--whiteSecondary);
-    background: var(--button-bg-hover) !important;
+  > * {
+    line-height: inherit;
   }
 
-  &:hover {
-    cursor: pointer;
-    color: var(--whiteSecondary);
-    background: var(--button-bg-hover);
+  &:hover,
+  &:focus-visible {
+    background: var(--surface-context-row, var(--button-bg-hover));
+    outline: none;
+  }
+
+  &.active {
+    background: var(--row-hover-strong);
+    font-weight: var(--fw-semibold);
   }
 }
 
@@ -315,18 +374,15 @@ button .caret, .button .caret {
 }
 
 .custom-dropdown-menu {
-  position:absolute;
-  top:100%;
-  left:0;
-  z-index:5;
-  margin:0;
-  padding: 0;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 5;
   max-height: 60vh;
   overflow-y: auto;
 }
 
 .show > .dropdown-toggle {
-  background: var(--button-bg-hover);
   border-color: var(--accent);
 }
 
