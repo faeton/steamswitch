@@ -14,7 +14,13 @@
   import { createEventDispatcher } from "svelte";
   import { t } from "../../stores/i18n";
   import HealthBadge from "./HealthBadge.svelte";
-  import { hasActiveFilters, type HealthFilter, type VaultFilters } from "../../lib/vault/filter";
+  import {
+    hasActiveFilters,
+    isOnThisMachine,
+    type HealthFilter,
+    type VaultFilters,
+  } from "../../lib/vault/filter";
+  import { switcherRoster } from "../../stores/switcherRoster";
   import type { Summary } from "../../../bindings/steamswitch/internal/vault/models";
 
   export let entries: Summary[];
@@ -121,7 +127,7 @@
               >
                 <span class="row__name">
                   {labelOf(entry)}
-                  {#if entry.standalone}
+                  {#if !isOnThisMachine(entry, $switcherRoster)}
                     <!-- Says out loud that this account has no home tile, so "why isn't it on
                          the switcher" never becomes a mystery. -->
                     <span class="row__vault-only">{$t("Vault_Badge_VaultOnly")}</span>
@@ -150,7 +156,7 @@
               </div>
 
               <div class="row__actions">
-                {#if entry.standalone}
+                {#if !isOnThisMachine(entry, $switcherRoster)}
                   <!--
                     The only route from a vault-only entry onto the switcher.
 

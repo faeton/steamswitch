@@ -27,6 +27,8 @@
   import { clipboardClearEnabled, revealMs, vaultSecurityPrefs } from "../../stores/autoLock";
   import { CLIPBOARD_CLEAR_SECONDS, copySecret } from "../../lib/clipboardSecret";
   import { isValidSteamId64 } from "../../lib/steam/steamId";
+  import { isOnThisMachine } from "../../lib/vault/filter";
+  import { switcherRoster } from "../../stores/switcherRoster";
   import {
     VAULT_FIELDS,
     discoverIMAP,
@@ -50,8 +52,6 @@
   let idInput = steamId64;
   let label = existing?.label ?? "";
   let name = existing?.accountName ?? accountName;
-  /** The plain-language inverse of the stored `standalone` flag. */
-  let showOnSwitcher = existing ? !existing.standalone : true;
   let source = existing?.source ?? "";
   let acquiredAt = existing?.acquiredAt ?? "";
   let secretNote = existing?.secretNote ?? "";
@@ -188,9 +188,9 @@
     };
     put("accountName", name);
     put("label", label);
-    // Stored inverted: the field is "standalone" (vault-only), the control is "show on
-    // switcher". Inverting at the boundary keeps the negation in one place.
-    if (touched.has("showOnSwitcher")) d.standalone = !showOnSwitcher;
+    // Not a choice the user makes: Steam's own sign-ins decide the switcher. A new entry
+    // records where the account actually stands now; an existing one is left alone.
+    if (isNew) d.standalone = onThisPC === false;
     put("password", password);
     put("sharedSecret", sharedSecret);
     put("identitySecret", identitySecret);
@@ -210,13 +210,18 @@
   }
 
   /*
-    A brand-new entry has to carry `standalone` explicitly rather than relying on the default,
-    because the user's answer to "show this on the switcher" is a real decision — the brief
-    defaults it on for a manual add. Marking it touched at construction is how it gets sent.
+    Whether this account has a tile on this PC's switcher — read, never set.
+
+    This used to be a "Show on switcher" toggle, defaulted on for a new entry. It could not do
+    what it said: the switcher is the accounts Steam itself has signed into here, so flipping
+    it on created no tile. `null` while there is no valid SteamID64 to ask about.
   */
-  if (isNew) {
-    touched.add("showOnSwitcher");
-  }
+  $: entryId = (existing?.steamId64 ?? idInput).trim();
+  $: onThisPC = isValidSteamId64(entryId)
+    ? existing
+      ? isOnThisMachine(existing, $switcherRoster)
+      : ($switcherRoster?.has(entryId) ?? null)
+    : null;
 
   $: idError = isNew && idInput.trim() !== "" && !isValidSteamId64(idInput);
   $: canSave = !busy && (!isNew || (idInput.trim() !== "" && !idError));
@@ -344,19 +349,14 @@
         </label>
       </div>
 
-      <div class="toggle-row">
-        <span class="toggle-row__text">
-          <span class="field__label">{$t("Vault_Field_ShowOnSwitcher")}</span>
-          <span class="ss-help">{$t("Vault_Field_ShowOnSwitcher_Hint")}</span>
-        </span>
-        <input
-          type="checkbox"
-          class="ss-toggle"
-          bind:checked={showOnSwitcher}
-          on:change={() => touch("showOnSwitcher")}
-          aria-label={$t("Vault_Field_ShowOnSwitcher")}
-        />
-      </div>
+      {#if onThisPC !== null}
+        <div class="toggle-row">
+          <span class="toggle-row__text">
+            <span class="field__label">{$t("Vault_Field_OnThisPC")}</span>
+            <span class="ss-help">{onThisPC ? $t("Vault_OnThisPC_Yes") : $t("Vault_OnThisPC_No")}</span>
+          </span>
+        </div>
+      {/if}
     </section>
 
     <section class="editor__section">

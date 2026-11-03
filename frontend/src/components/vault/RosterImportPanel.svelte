@@ -117,14 +117,20 @@
    */
   async function setMode(index: number, mode: RowMode): Promise<void> {
     if (!plan || busy) return;
-    modes = { ...modes, [index]: mode };
+    // The new choice only becomes `modes` once the backend has re-planned with it. `commit`
+    // sends `modes`, so adopting it first meant a failed re-plan left the table showing the
+    // old plan while Import would have written the new one.
+    const next = { ...modes, [index]: mode };
     busy = true;
     try {
       plan = (await VaultService.RepriceRosterImport(
         plan.sessionId,
-        decisionsFrom(modes),
+        decisionsFrom(next),
       )) as unknown as ImportPlan;
+      modes = next;
     } catch (e) {
+      // Re-render so the row's select snaps back to the decision the plan was built from.
+      modes = { ...modes };
       reportFailure("Toast_Roster_ParseFailed", e);
     } finally {
       busy = false;

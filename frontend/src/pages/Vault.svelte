@@ -36,6 +36,7 @@
   import { securityStatus, unlockVault } from "../stores/security";
   import * as SteamService from "../../bindings/steamswitch/internal/steam/steamservice.js";
   import { filterVaultEntries, type VaultFilters } from "../lib/vault/filter";
+  import { loadSwitcherRoster, switcherRoster } from "../stores/switcherRoster";
   import PageHeader from "../components/PageHeader.svelte";
   import VaultGate from "../components/vault/VaultGate.svelte";
   import VaultTable from "../components/vault/VaultTable.svelte";
@@ -92,10 +93,12 @@
   ) satisfies PageState as PageState;
   $: gateState = state as Exclude<PageState, "list">;
 
-  $: visible = filterVaultEntries($vaultEntries, filters);
+  $: visible = filterVaultEntries($vaultEntries, filters, $switcherRoster);
 
   onMount(() => {
     previousPage.set({ page: "home" });
+    // Re-read every visit: the user may have signed into an account in Steam since.
+    void loadSwitcherRoster();
     void (async () => {
       await refreshVault().catch(() => {
         // A locked or absent vault is a normal state the gate already explains; the store

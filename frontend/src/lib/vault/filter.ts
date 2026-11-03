@@ -15,7 +15,7 @@ export type VaultFilters = {
   health: HealthFilter;
   /** Only entries with a stored password. */
   hasPassword: boolean;
-  /** Only entries that also have a home tile (the inverse of `standalone`). */
+  /** Only entries whose account is on this PC's switcher (see `isOnThisMachine`). */
   onSwitcher: boolean;
 };
 
@@ -61,12 +61,28 @@ function matchesHealth(entry: Summary, filter: HealthFilter): boolean {
   }
 }
 
-export function filterVaultEntries(entries: Summary[], f: VaultFilters): Summary[] {
+/**
+ * Whether this entry's account has a tile on this PC's switcher.
+ *
+ * The switcher is exactly the accounts Steam itself has signed into here (`loginusers.vdf`);
+ * nothing this app stores can add or remove a row. So the real roster is the answer, and the
+ * stored `standalone` flag — a guess made when the entry was written, stale the moment the
+ * user signs in or out — is consulted only when the roster could not be read (`null`).
+ */
+export function isOnThisMachine(entry: Summary, roster: ReadonlySet<string> | null): boolean {
+  return roster ? roster.has(entry.steamId64) : !entry.standalone;
+}
+
+export function filterVaultEntries(
+  entries: Summary[],
+  f: VaultFilters,
+  roster: ReadonlySet<string> | null = null,
+): Summary[] {
   return entries.filter(
     (entry) =>
       matchesQuery(entry, f.query) &&
       matchesHealth(entry, f.health) &&
       (!f.hasPassword || entry.hasPassword) &&
-      (!f.onSwitcher || !entry.standalone),
+      (!f.onSwitcher || isOnThisMachine(entry, roster)),
   );
 }

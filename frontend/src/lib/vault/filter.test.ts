@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { EMPTY_FILTERS, filterVaultEntries, hasActiveFilters } from "./filter";
+import { EMPTY_FILTERS, filterVaultEntries, hasActiveFilters, isOnThisMachine } from "./filter";
 import type { HealthReport, Summary } from "../../../bindings/steamswitch/internal/vault/models";
 
 function ok(): HealthReport {
@@ -81,9 +81,9 @@ describe("filterVaultEntries", () => {
     );
   });
 
-  // `standalone` is the stored flag; "on switcher" is its inverse, and getting the negation
-  // backwards would show exactly the rows the user asked to hide.
-  it("treats 'on switcher' as the inverse of standalone", () => {
+  // Without a roster (it failed to load) the stored flag is the only hint left; "on switcher" is
+  // its inverse, and getting the negation backwards would show exactly the rows to hide.
+  it("falls back to the inverse of standalone when the roster is unknown", () => {
     expect(ids(filterVaultEntries(ROSTER, { ...EMPTY_FILTERS, onSwitcher: true }))).not.toContain("Nova");
     expect(filterVaultEntries(ROSTER, { ...EMPTY_FILTERS, onSwitcher: true })).toHaveLength(3);
   });
@@ -91,6 +91,29 @@ describe("filterVaultEntries", () => {
   it("combines filters with AND, not OR", () => {
     const rows = filterVaultEntries(ROSTER, { ...EMPTY_FILTERS, health: "ok", onSwitcher: true });
     expect(ids(rows)).toEqual(["Marlow"]);
+  });
+});
+
+describe("on this machine", () => {
+  // The switcher is Steam's own loginusers.vdf. The stored `standalone` flag is a guess made
+  // when the entry was written, and goes stale both ways: a manual entry defaulted to "on
+  // switcher" for an account never signed in here, and an imported (standalone) account that
+  // has since been signed in. When the real roster is known, it wins.
+  const roster = new Set(["76561198000000001", "76561198000000004"]);
+
+  it("answers from the real roster, not the stored flag", () => {
+    expect(isOnThisMachine(entry({ steamId64: "76561198000000004", standalone: true }), roster)).toBe(true);
+    expect(isOnThisMachine(entry({ steamId64: "76561198000000002", standalone: false }), roster)).toBe(false);
+  });
+
+  it("falls back to the stored flag only when the roster is unknown", () => {
+    expect(isOnThisMachine(entry({ standalone: false }), null)).toBe(true);
+    expect(isOnThisMachine(entry({ standalone: true }), null)).toBe(false);
+  });
+
+  it("filters 'on switcher' by the real roster", () => {
+    const rows = filterVaultEntries(ROSTER, { ...EMPTY_FILTERS, onSwitcher: true }, roster);
+    expect(ids(rows)).toEqual(["Marlow", "Nova"]);
   });
 });
 
