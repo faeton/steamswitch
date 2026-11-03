@@ -199,6 +199,8 @@
     if (result.type === "close") {
       dispatch("close");
       e.preventDefault();
+      // Otherwise it reaches the page's window listener, which goes back on Escape.
+      e.stopPropagation();
       return;
     }
     if (result.type === "move") {

@@ -29,6 +29,15 @@
   import PageHeader from "../components/PageHeader.svelte";
   import { t } from "../stores/i18n";
   import { route } from "../stores/nav";
+  import SearchOverlay, { type SearchResultRow } from "../components/SearchOverlay.svelte";
+  import { closeSearchOverlay, searchOverlayCtrl } from "../stores/searchOverlay";
+  import {
+    commandRows,
+    isCommandQuery,
+    runCommand,
+    type CommandPaletteCommand,
+  } from "../lib/commandPalette";
+  import { fuzzyWordsMatch } from "../lib/searchFuzzy";
   import { openConfirm } from "../stores/modal";
   import { pushToast } from "../stores/toast";
   import { formatToastWithError } from "../lib/formatWailsError";
@@ -691,11 +700,54 @@
     }
   }
 
+  /*
+    Search and the command palette: typing a letter on this page, or the Ctrl+K hotkey (App.svelte
+    opens the store, seeded with the key). The overlay was left unrendered when the old account
+    page was deleted, so both were advertised in the shortcuts list and did nothing.
+  */
+  let searchQuery = "";
+  $: paletteCommands = [
+    { id: "vault", title: $t("Nav_Vault"), run: () => route.set({ page: "vault" }) },
+    { id: "tools", title: $t("Nav_Tools"), run: () => route.set({ page: "tools" }) },
+    { id: "settings", title: $t("Nav_Settings"), run: () => route.set({ page: "settings", category: "appearance" }) },
+    { id: "about", title: $t("Nav_About"), run: () => route.set({ page: "about" }) },
+    { id: "add-login", title: $t("AddLogin_Title"), run: () => void addAccount() },
+    { id: "launch", title: $t("Button_LaunchSteam"), run: () => void launchSteam() },
+    { id: "shortcuts", title: $t("Shortcuts_Title"), run: () => { shortcutsOpen = true; } },
+  ] satisfies CommandPaletteCommand[];
+  $: searchRows = isCommandQuery(searchQuery)
+    ? commandRows(searchQuery, paletteCommands, "")
+    : accountRows(searchQuery, ordered);
+
+  function accountLabel(a: SteamAccountRow): string {
+    return a.displayName?.trim() || a.personaName?.trim() || a.steamId64;
+  }
+
+  function accountRows(query: string, accounts: SteamAccountRow[]): SearchResultRow[] {
+    const needle = query.trim();
+    return accounts
+      .filter((a) => !needle || fuzzyWordsMatch(needle, `${accountLabel(a)} ${a.accountName ?? ""}`))
+      .slice(0, 7)
+      .map((a) => ({ key: a.steamId64, title: accountLabel(a), badge: a.accountName ?? "" }));
+  }
+
+  function onSearchPick(row: SearchResultRow): void {
+    closeSearchOverlay();
+    if (row.key.startsWith("cmd:")) {
+      runCommand(paletteCommands, row.key);
+    } else if (row.key === currentId) {
+      // Already signed in: nothing to switch to, so show the account instead.
+      detailId = row.key;
+    } else if (!blocked) {
+      void switchTo(row.key);
+    }
+  }
+
   function onWindowKeydown(e: KeyboardEvent): void {
     if (e.ctrlKey || e.metaKey || e.altKey || blocked) return;
     // A digit typed while a dialog or context menu is open belongs to that surface, not to
     // the tile list behind it.
-    if ($leavePrompt || showRecovery || shortcutsOpen) return;
+    if ($leavePrompt || showRecovery || shortcutsOpen || $searchOverlayCtrl.open) return;
     const target = e.target as HTMLElement | null;
     if (target?.closest("input, textarea, select, [contenteditable]")) return;
     if (target?.closest("[role='dialog'], [role='alertdialog'], [role='menu']")) return;
@@ -773,6 +825,8 @@
   }
 
   onDestroy(() => {
+    // Only this page renders the overlay; leaving must not strand its "open" flag.
+    closeSearchOverlay();
     offPatch?.();
   });
 </script>
@@ -970,6 +1024,17 @@
 </div>
 
 <ShortcutsOverlay open={shortcutsOpen} on:close={() => (shortcutsOpen = false)} />
+
+<SearchOverlay
+  open={$searchOverlayCtrl.open}
+  syncNonce={$searchOverlayCtrl.nonce}
+  initialQuery={$searchOverlayCtrl.initialQuery}
+  bind:query={searchQuery}
+  placeholder={$t("Switcher_SearchPlaceholder")}
+  primaryRows={searchRows}
+  on:pick={(e) => onSearchPick(e.detail)}
+  on:close={closeSearchOverlay}
+/>
 
 {#if showRecovery}
   <!-- Rendered above the leave prompt: an unresolved transaction outranks a new decision,

@@ -4,16 +4,16 @@
     left: 0;
     right: 0;
     bottom: 0;
-    background-color: var(--backdrop-scrim-65);
-    backdrop-filter: blur(6.2px);
-    -webkit-backdrop-filter: blur(6.2px);
+    background-color: var(--modal-scrim, var(--backdrop-scrim-55));
     display: flex;
-    align-items: center;
+    /* Anchored near the top, not centred: a centred panel jumps on every keystroke as the
+       results filter down. */
+    align-items: flex-start;
     justify-content: center;
-    padding: 1rem;
+    padding: 12vh var(--space-5) var(--space-5);
     box-sizing: border-box;
     z-index: 20050;
-    animation: searchOverlay_fadeIn 0.15s ease-out;
+    animation: searchOverlay_fadeIn var(--dur-fast) ease-out;
   }
 
   .searchOverlay_srOnly {
@@ -37,99 +37,79 @@
     }
   }
   .searchOverlay_content {
-    width: 90%;
-    max-width: 600px;
-    max-height: calc(100dvh - 2rem);
+    width: 100%;
+    max-width: 560px;
+    max-height: 100%;
     display: flex;
     flex-direction: column;
-    gap: 1em;
     min-height: 0;
+    overflow: hidden;
+    border: 1px solid var(--modal-border, var(--hairline-strong));
+    border-radius: var(--radius-xl);
+    background: var(--modal-bg, var(--mainContentBackground, var(--program-bg)));
+    box-shadow: var(--shadow-panel, 0 10px 26px rgba(0, 0, 0, 0.5));
   }
-  
+
   .searchOverlay_searchInput {
-    background: transparent;
+    width: 100%;
+    min-height: 48px;
+    padding: 0 var(--space-5);
+    box-sizing: border-box;
     border: none;
-    border-bottom: 2px solid var(--text-white-60);
-    color: var(--whiteSecondary);
-    font-size: 32px;
-    padding: 10px 0;
-    outline: none;
+    border-bottom: 1px solid var(--hairline);
+    background: transparent;
+    color: var(--fg-primary);
     font-family: inherit;
-    transition: border-color 0.2s;
-    background: var(--black);
+    font-size: var(--fs-section);
+    outline: none;
   }
   .searchOverlay_searchInput::placeholder {
-    color: var(--text-white-40);
+    color: var(--fg-muted);
+    opacity: 1;
   }
-  .searchOverlay_searchInput:focus {
-    border-bottom-color: var(--text-white-90);
-  }
-  
+
   .searchOverlay_results {
-    --result-item-height: 3em;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
     flex: 1 1 auto;
     min-height: 0;
     max-height: 100%;
+    padding: var(--space-1);
     overflow-y: auto;
     overscroll-behavior: contain;
-    scrollbar-gutter: stable;
   }
-  
+
   button.searchOverlay_resultItem {
     width: 100%;
+    margin: 0;
     border: none;
     font: inherit;
     text-align: left;
-    padding: 0em 1em;
+    padding: 0 var(--space-4);
   }
-  
+
   .searchOverlay_resultItem {
-    background: var(--surface-search-result);
-    padding: 16px 20px;
-    min-height: var(--result-item-height);
+    background: transparent;
+    min-height: 36px;
+    border-radius: var(--radius-sm);
     cursor: pointer;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    transition: background 0.15s;
+    gap: var(--space-4);
   }
-  .searchOverlay_resultItem:hover, .searchOverlay_resultItem.searchOverlay_selected {
-    background: var(--accent-highlight-row);
-  }
-  .searchOverlay_resultItem:hover *, .searchOverlay_resultItem.searchOverlay_selected * {
-    color: var(--text-on-bright-bg) !important;
-  }
+  /* A neutral wash and weight, like the context menu; the accent fill read as a primary button. */
+  .searchOverlay_resultItem:hover,
   .searchOverlay_resultItem.searchOverlay_selected {
-    font-weight: 600;
+    background: var(--row-hover-strong);
   }
-  .searchOverlay_resultItem.searchOverlay_selected * {
-    color: var(--text-on-bright-bg) !important;
+  .searchOverlay_resultItem.searchOverlay_selected .searchOverlay_resultTitle {
+    color: var(--fg-primary);
+    font-size: var(--fs-body);
+    line-height: var(--lh-tight);
   }
-  
-  .searchOverlay_categoryResultItem {
-    background: var(--surface-search-result);
-  }
-  
-  .searchOverlay_categoryChecked {
-    background: var(--green);
-  }
-  .searchOverlay_categoryChecked,
-  .searchOverlay_categoryChecked * {
-    color: var(--text-on-bright-bg) !important;
-  }
-  .searchOverlay_categoryChecked:hover, .searchOverlay_categoryChecked.searchOverlay_selected {
-    background: var(--green);
-  }
-  
-  .searchOverlay_resultTitle {
-    color: var(--whiteSecondary);
-    font-size: 18px;
-    line-height: 1em;
-  }
-  
+
   .searchOverlay_resultTitleWithIcon {
     display: inline-flex;
     align-items: center;
@@ -151,11 +131,12 @@
   }
   
   .searchOverlay_resultCategory {
-    color: var(--text-white-50);
-    font-size: 14px;
-    line-height: 1em;
+    color: var(--fg-muted);
+    font-size: var(--fs-meta);
+    line-height: var(--lh-tight);
+    white-space: nowrap;
   }
-  
+
   .searchOverlay_categorySection {
     display: flex;
     flex-direction: column;
