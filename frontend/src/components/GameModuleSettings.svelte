@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SettingsCard from "./settings/SettingsCard.svelte";
   /**
    * Settings → Game modules (REDESIGN.md §5).
    *
@@ -107,17 +108,14 @@
   });
 </script>
 
-<h2 class="SettingsHeader">{$t("Settings_Header_GameModules")}</h2>
-<p class="hint">{$t("Settings_GameModules_Hint")}</p>
-
+<SettingsCard title={$t("Settings_Header_GameModules")} description={$t("Settings_GameModules_Hint")}>
 {#if loading}
   <p class="hint">{$t("Kit_Module_Loading")}</p>
 {:else if modules.length === 0}
   <p class="hint">{$t("Kit_Module_None")}</p>
 {:else}
-  <ul class="modules">
     {#each modules as m (m.id)}
-      <li class="module">
+      <div class="module">
         <div class="module__head">
           <span class="module__name">{m.displayName}</span>
           <span class="module__state {stateClass(m)}">{stateLabel(m)}</span>
@@ -149,7 +147,7 @@
           {#if m.installed}
             <button
               type="button"
-              class="btnicontext"
+              class="ss-btn module__btn"
               disabled={busyID === m.id}
               on:click={() => void togglePaused(m)}
             >
@@ -157,7 +155,7 @@
             </button>
             <button
               type="button"
-              class="btnicontext"
+              class="ss-btn module__btn"
               disabled={busyID === m.id}
               use:tooltip={$t("Kit_Module_SelfTest_Tooltip")}
               on:click={() => void selfTest(m)}
@@ -183,41 +181,35 @@
             {/if}
           </dl>
         {/if}
-      </li>
+      </div>
     {/each}
-  </ul>
 {/if}
+</SettingsCard>
 
 <style lang="scss">
   .hint {
-    margin: 0 0 8px;
-    color: var(--role-text-muted, var(--text-subtle-gray));
-    font-size: 12px;
+    margin: 0;
+    padding: var(--space-4) var(--space-5);
+    color: var(--fg-muted);
+    font-size: var(--fs-secondary);
   }
 
-  .modules {
-    list-style: none;
-    margin: 0 0 12px;
-    padding: 0;
-    display: grid;
-    gap: 8px;
-  }
-
+  /* One row per module inside the card, like every other settings row. */
   .module {
-    border: 1px solid var(--role-border, rgb(255 255 255 / 12%));
-    border-radius: 6px;
-    padding: 8px 10px;
+    padding: var(--space-4) var(--space-5);
   }
 
   .module__head {
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    gap: 8px;
+    gap: var(--space-3);
   }
 
   .module__name {
-    font-weight: 600;
+    font-size: var(--fs-body);
+    font-weight: var(--fw-semibold);
+    color: var(--fg-primary);
   }
 
   .module__state {
@@ -225,58 +217,70 @@
   }
 
   .module__state.is-active {
-    color: var(--status-ok-fg, #4caf50);
+    color: var(--fg-ok);
   }
 
   .module__state.is-inactive {
-    color: var(--status-warn-fg, #d0a020);
+    color: var(--fg-warn);
   }
 
   .module__state.is-absent {
-    color: var(--role-text-muted, var(--text-subtle-gray));
+    color: var(--fg-muted);
   }
 
   .module__parts,
   .module__reason,
   .module__ok {
-    margin: 4px 0 0;
-    font-size: 12px;
+    margin: var(--space-1) 0 0;
+    font-size: var(--fs-secondary);
+    line-height: var(--lh-prose);
   }
 
   .module__parts {
-    color: var(--role-text-muted, var(--text-subtle-gray));
+    color: var(--fg-muted);
   }
 
   .module__reason {
-    color: var(--status-warn-fg, #d0a020);
+    color: var(--fg-warn);
   }
 
   .module__ok {
-    color: var(--status-ok-fg, #4caf50);
+    color: var(--fg-ok);
   }
 
   .module__actions {
-    margin-top: 6px;
+    margin-top: var(--space-3);
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: var(--space-2);
+  }
+
+  .module__actions:empty {
+    display: none;
+  }
+
+  .module__btn {
+    min-height: 28px;
+    padding: 0 10px;
+    font-size: var(--fs-meta);
   }
 
   .module__detail {
-    margin: 6px 0 0;
+    margin: var(--space-3) 0 0;
     display: grid;
     grid-template-columns: auto 1fr;
-    gap: 2px 8px;
-    font-family: var(--mono-font, ui-monospace, "Cascadia Mono", Consolas, monospace);
-    font-size: var(--fs-secondary);
-    word-break: break-all;
+    gap: 2px var(--space-3);
+    font-size: var(--fs-meta);
+    color: var(--fg-secondary);
   }
 
   .module__detail dt {
-    color: var(--role-text-muted, var(--text-subtle-gray));
+    color: var(--fg-muted);
   }
 
   .module__detail dd {
     margin: 0;
+    font-family: var(--font-mono, ui-monospace, monospace);
+    word-break: break-all;
   }
 </style>

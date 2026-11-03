@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SettingsCard from "./settings/SettingsCard.svelte";
   /**
    * The Appearance section (REDESIGN.md §6).
    *
@@ -39,10 +40,10 @@
   }
 </script>
 
-<h2 class="SettingsHeader">{$t("Appearance_Section")}</h2>
-
-<AppearanceModeControl />
-<ThemePickerControls section="accent" />
+<SettingsCard title={$t("Appearance_Section")}>
+  <AppearanceModeControl />
+  <ThemePickerControls section="accent" />
+</SettingsCard>
 
 <details class="classic" open={usingClassicTheme}>
   <summary>{$t("Appearance_ClassicThemes")}</summary>

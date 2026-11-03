@@ -45,8 +45,8 @@
        to the minimum height and spilled over the next row. */
     flex-shrink: 0;
     min-height: 52px;
-    padding: var(--space-3) 0;
-    border-bottom: 1px solid var(--hairline);
+    /* Lives inside a SettingsCard, which draws the dividers between rows. */
+    padding: var(--space-3) var(--space-5);
     box-sizing: border-box;
   }
 

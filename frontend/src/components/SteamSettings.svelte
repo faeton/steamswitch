@@ -28,6 +28,7 @@
   import SharedSettingCheckbox from "./settings/SharedSettingCheckbox.svelte";
   import ProcessMethodDropdown from "./settings/ProcessMethodDropdown.svelte";
   import SettingRow from "./settings/SettingRow.svelte";
+  import SettingsCard from "./settings/SettingsCard.svelte";
   import {
     ARG_SILENT,
     closingValues,
@@ -194,13 +195,11 @@
   });
 </script>
 
-<h2 class="SettingsHeader">{$t("Settings_Header_Steam")}</h2>
-
 {#if !settings}
   <p class="subtext">{$t("Kit_Module_Loading")}</p>
 {:else}
 <div class="steam-page">
-  <div class="steam-rows">
+  <SettingsCard title={$t("Settings_Header_Steam")}>
     <SettingRow
       label={$t("Settings_SteamFolder_Label")}
       description={resolvedRoot?.path || settings.FolderPath || "—"}
@@ -226,7 +225,6 @@
         {$t("Settings_PickFolder", { platform: "Steam" })}
       </button>
     </SettingRow>
-  </div>
 
   <SharedSettingCheckbox
     id="steam-remember-password"
@@ -263,7 +261,6 @@
       void save();
     }}
   />
-  <div class="steam-rows">
     <SettingRow
       label={$t("Settings_LaunchArgumentsForPlatform", { platform: "Steam" })}
       description={$t("Settings_LaunchArguments_Hint")}
@@ -296,9 +293,10 @@
         {/each}
       </select>
     </SettingRow>
-  </div>
 
-  <h2 class="SettingsHeader">{$t("Settings_Header_AccountDisplay")}</h2>
+  </SettingsCard>
+
+  <SettingsCard title={$t("Settings_Header_AccountDisplay")}>
   <SharedSettingCheckbox
     id="steam-show-user"
     checked={settings.Steam_ShowAccUsername}
@@ -350,7 +348,9 @@
     on:change={() => toggle("Steam_ShowAvatarFrame")}
   />
 
-  <h2 class="SettingsHeader">{$t("Settings_Steam_RefreshHeading")}</h2>
+  </SettingsCard>
+
+  <SettingsCard title={$t("Settings_Steam_RefreshHeading")}>
   <SharedSettingCheckbox
     id="steam-collect-info"
     checked={settings.CollectInfo}
@@ -364,7 +364,6 @@
     label={$t("Settings_Steam_AutoRefreshOnLaunch")}
     on:change={() => toggle("Steam_AutoRefreshOnLaunch")}
   />
-  <div class="steam-rows">
     <SettingRow
       label={$t("Settings_Steam_AutoRefreshInterval")}
       description={$t("Settings_Steam_AutoRefreshIntervalHint", { min: AUTO_REFRESH_MIN_MINUTES })}
@@ -392,16 +391,16 @@
         on:change={() => void save()}
       />
     </SettingRow>
-  </div>
 
-  <h2 class="SettingsHeader">{$t("Settings_Header_TraySettings")}</h2>
+  </SettingsCard>
+
+  <SettingsCard title={$t("Settings_Header_TraySettings")}>
   <SharedSettingCheckbox
     id="steam-tray-name"
     checked={settings.Steam_TrayAccountName}
     label={$t("Steam_Tray_AccountName")}
     on:change={() => toggle("Steam_TrayAccountName")}
   />
-  <div class="steam-rows">
     <SettingRow label={$t("Settings_TrayMax")} controlId="steam-tray-max">
       <input
         id="steam-tray-max"
@@ -413,8 +412,9 @@
         on:change={() => void save()}
       />
     </SettingRow>
-  </div>
-  <h2 class="SettingsHeader">{$t("Settings_Header_ProcessManagement")}</h2>
+  </SettingsCard>
+
+  <SettingsCard title={$t("Settings_Header_ProcessManagement")}>
   {#if !settings.ClosingMethodForced}
     <ProcessMethodDropdown
       values={closingValues}
@@ -449,6 +449,7 @@
     label={$t("Settings_ShowSteamSwitcher")}
     on:change={() => toggle("ShowSteamSwitcher")}
   />
+  </SettingsCard>
 </div>
 {/if}
 
@@ -459,29 +460,11 @@
     font-size: 12px;
   }
 
-  /* One child of the settings pane, so the pane's 20px gap between *groups* does not open
-     up between every row of this one long group. */
+  /* One child of the settings pane; the cards inside space themselves. */
   .steam-page {
     display: flex;
     flex-direction: column;
-  }
-
-  .steam-page :global(.SettingsHeader) {
-    margin-top: var(--space-7);
-  }
-
-  /* SettingRow brings its own padding; pulled flush to the toggle rows' left edge, with the
-     same hairline between rows. */
-  .steam-rows {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .steam-rows :global(.row) {
-    flex-shrink: 0;
-    padding-left: 0;
-    padding-right: 0;
-    border-bottom: 1px solid var(--hairline);
+    gap: var(--space-7);
   }
 
   .steam-root__tags {

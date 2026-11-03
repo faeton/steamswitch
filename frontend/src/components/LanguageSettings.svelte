@@ -1,4 +1,5 @@
 <script lang="ts">
+  import SettingsCard from "./settings/SettingsCard.svelte";
   import { viewportDropdown } from "../lib/actions/viewportDropdown";
   import { t, availableLocales, locale, setUserLanguage } from "../stores/i18n";
 
@@ -17,7 +18,7 @@
   }
 </script>
 
-<h2 class="SettingsHeader">{$t("Settings_Header_Language")}</h2>
+<SettingsCard title={$t("Settings_Header_Language")}>
 <div class="rowDropdown">
   <span>{$t("Header_ChooseLanguage")}</span>
   <div class="dropdown" class:show={open}>
@@ -38,10 +39,4 @@
     {/if}
   </div>
 </div>
-
-<style lang="scss">
-  .dropdown-toggle {
-    position: relative;
-    height: 38px;
-  }
-</style>
+</SettingsCard>

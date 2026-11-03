@@ -63,7 +63,19 @@
     border: 1px solid var(--hairline, var(--border-bar-bg));
     border-radius: var(--radius-lg);
     background: var(--surface-panel, var(--mainContentBackground));
-    overflow: hidden;
+    /* Not `overflow: hidden`: the inherited dropdowns open an absolutely positioned list
+       below their row, and clipping the card cut it off. The first and last rows take the
+       card's corners instead, so a hover fill still stays inside them. */
+  }
+
+  .card__body > :global(:first-child) {
+    border-top-left-radius: inherit;
+    border-top-right-radius: inherit;
+  }
+
+  .card__body > :global(:last-child) {
+    border-bottom-left-radius: inherit;
+    border-bottom-right-radius: inherit;
   }
 
   .card__body > :global(* + *) {

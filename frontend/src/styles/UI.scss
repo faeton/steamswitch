@@ -240,11 +240,10 @@ button .caret, .button .caret {
   flex-wrap: wrap;
   gap: var(--space-3) var(--space-6);
   min-height: 52px;
-  padding: var(--space-3) 0;
+  padding: var(--space-3) var(--space-5);
   margin: 0;
   width: 100%;
   box-sizing: border-box;
-  border-bottom: 1px solid var(--hairline);
 
   > span:first-child {
     font-size: var(--fs-body);

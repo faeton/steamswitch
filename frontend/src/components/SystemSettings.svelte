@@ -6,6 +6,7 @@
   import { formatToastWithError } from "../lib/formatWailsError";
   import SharedSettingCheckbox from "./settings/SharedSettingCheckbox.svelte";
   import SettingRow from "./settings/SettingRow.svelte";
+  import SettingsCard from "./settings/SettingsCard.svelte";
   import * as PlatformService from "../../bindings/steamswitch/internal/platform/platformservice.js";
   import { offlineMode, setUserOfflineMode } from "../stores/offlineMode";
   import { openConfirm, openPasswordSetupModal, openPrompt } from "../stores/modal";
@@ -479,9 +480,8 @@
   });
 </script>
 
-<h2 class="SettingsHeader">{$t("Settings_Header_System")}</h2>
-
 <div class="sys">
+  <SettingsCard title={$t("Settings_Header_System")}>
   <SettingRow label={$t("Settings_Header_DataLocation_Short")} description={userDataPath || "…"}>
     <button
       type="button"
@@ -635,12 +635,9 @@
     </button>
   </SettingRow>
 
-  <p class="sys__version">{formatAppVersion(currentVersion || "0.0.0")}</p>
-</div>
+  </SettingsCard>
 
-<h2 class="SettingsHeader">{$t("Settings_Header_LocalStats")}</h2>
-
-<div class="sys">
+  <SettingsCard title={$t("Settings_Header_LocalStats")}>
   <SharedSettingCheckbox
     id="gs-stats-enabled"
     label={$t("Settings_CollectStats")}
@@ -667,6 +664,9 @@
     disabled={$discordRpcShare.loading || $offlineMode || !$discordRpc.value}
     on:change={() => void discordRpcShare.toggle()}
   />
+  </SettingsCard>
+
+  <p class="sys__version">{formatAppVersion(currentVersion || "0.0.0")}</p>
 </div>
 
 <style lang="scss">
@@ -675,13 +675,7 @@
   .sys {
     display: flex;
     flex-direction: column;
-    margin-bottom: var(--space-6);
-  }
-
-  .sys :global(.row) {
-    padding-left: 0;
-    padding-right: 0;
-    border-bottom: 1px solid var(--hairline);
+    gap: var(--space-7);
   }
 
   .sys__quarantines {
@@ -710,8 +704,7 @@
   }
 
   .sys__after-row {
-    padding: var(--space-3) 0;
-    border-bottom: 1px solid var(--hairline);
+    padding: var(--space-3) var(--space-5);
   }
 
   .sys__hotkey {
@@ -725,7 +718,7 @@
   }
 
   .sys__version {
-    margin: var(--space-4) 0 0;
+    margin: 0;
     font-size: var(--fs-meta);
     color: var(--fg-muted);
     font-variant-numeric: tabular-nums;
