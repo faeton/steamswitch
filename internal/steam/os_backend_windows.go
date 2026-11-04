@@ -3,16 +3,21 @@
 package steam
 
 import (
+	"context"
 	"fmt"
+	"log/slog"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
+	"time"
 
 	"steamswitch/internal/winutil"
 )
 
-// The Windows backend. Every method is a thin adapter onto `internal/winutil`; the behaviour
-// is exactly what this package did before the seam existed.
+// The Windows backend. Most methods are thin adapters onto `internal/winutil`; Close adds the
+// polite request in front of them.
 
 func newOSBackend() osBackend { return windowsBackend{} }
 
@@ -40,8 +45,106 @@ func (windowsBackend) CanClose(names []string, closingMethod string) error {
 	return winutil.ErrIfCannotKill(names, winutil.ClosingMethod(closingMethod))
 }
 
-func (windowsBackend) Close(names []string, closingMethod string) error {
-	return winutil.KillByName(names, winutil.ClosingMethod(closingMethod), nil)
+// Close asks Steam to quit, then falls back to KillByName.
+//
+// Steam ignored the WM_CLOSE and plain taskkill that KillByName tries first (measured under
+// CrossOver, not yet on real Windows), so it was force-killed every time: no logoff, no
+// "Shutdown" in bootstrap_log, and ActiveUser and pid left set in the registry. `steam.exe
+// -shutdown` exited cleanly in about 4 s against about 8 s for the kill.
+func (b windowsBackend) Close(names []string, closingMethod string) error {
+	method := winutil.ClosingMethod(closingMethod)
+	root := b.DefaultRoot()
+	client, args, canAsk := windowsExitRequest(root, fileExists)
+	if !canAsk || !closingMethodAsksFirst(method) {
+		return winutil.KillByName(names, method, nil)
+	}
+
+	processes, services := splitServices(names)
+	started := time.Now()
+	outcome, err := closeSequence{
+		clientRunning: func() bool { return len(processes) > 0 && winutil.IsExeRunning(processes[0]) },
+		anyRunning:    func() bool { return anyExeRunning(processes) },
+		askToExit: func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), windowsAskTimeout)
+			defer cancel()
+			cmd := exec.CommandContext(ctx, client, args...)
+			cmd.Dir = root
+			cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
+			return cmd.Run()
+		},
+		// KillByName already goes from polite to forceful, so there is no separate middle step.
+		terminate:   func() {},
+		kill:        func() { _ = winutil.KillByName(names, method, nil) },
+		exitGrace:   windowsExitGrace,
+		askSettle:   windowsAskTimeout,
+		helperGrace: windowsHelperGrace,
+		poll:        windowsClosePoll,
+	}.run()
+	steamLog.Info("steam close", slog.String("via", string(outcome)), slog.Duration("took", time.Since(started)))
+
+	// A client that quit by itself may leave its service behind. The kill path has already
+	// handled it, because `names` includes the service.
+	if outcome != closeByForce && len(services) > 0 {
+		if serr := winutil.KillByName(services, method, nil); serr != nil && err == nil {
+			err = serr
+		}
+	}
+	return err
+}
+
+// How long a running Steam gets to act on `-shutdown`. The ask is bounded below the grace, so a
+// stuck request is dead before a kill could leave it to start Steam again.
+const (
+	windowsExitGrace   = 10 * time.Second
+	windowsHelperGrace = 3 * time.Second
+	windowsAskTimeout  = 5 * time.Second
+	windowsClosePoll   = 250 * time.Millisecond
+)
+
+// windowsExitRequest is the command that asks a running client to quit. It is only for a client
+// known to be running: on macOS, with none, `-shutdown` starts Steam (measured), and closeSequence
+// checks first. ok is false when there is no client to run.
+func windowsExitRequest(root string, exists func(string) bool) (name string, args []string, ok bool) {
+	if strings.TrimSpace(root) == "" {
+		return "", nil, false
+	}
+	client := filepath.Join(root, "steam.exe")
+	if !exists(client) {
+		return "", nil, false
+	}
+	return client, []string{"-shutdown"}, true
+}
+
+// closingMethodAsksFirst is false for TaskKill, the setting for an immediate kill.
+func closingMethodAsksFirst(method winutil.ClosingMethod) bool {
+	return method != winutil.ClosingTaskKill
+}
+
+// splitServices separates services from processes. A SERVICE: entry cannot be looked up as a
+// process, so left in the list it would simply read as never running.
+func splitServices(names []string) (processes, services []string) {
+	for _, name := range names {
+		if strings.HasPrefix(name, "SERVICE:") {
+			services = append(services, name)
+		} else {
+			processes = append(processes, name)
+		}
+	}
+	return processes, services
+}
+
+func anyExeRunning(names []string) bool {
+	for _, name := range names {
+		if winutil.IsExeRunning(name) {
+			return true
+		}
+	}
+	return false
+}
+
+func fileExists(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && !st.IsDir()
 }
 
 // SetAutoLogin writes both values the client consults. Writing only AutoLoginUser would leave

@@ -19,7 +19,8 @@ const (
 )
 
 // closeSequence is the order of a polite close, kept free of OS calls so it can be tested
-// anywhere. Only macOS uses it today; Windows has its own path through winutil.KillByName.
+// anywhere. Windows has no separate terminate step, so there closeBySignal means Steam left
+// during the wait after the request, and closeByForce means winutil.KillByName ran.
 type closeSequence struct {
 	clientRunning func() bool
 	anyRunning    func() bool
