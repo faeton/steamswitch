@@ -63,6 +63,20 @@ export function formatWailsError(err: unknown, options?: FormatWailsErrorOptions
 
 
 /** Prefix + blank line + formatted error body (same options as [formatWailsError]). */
+/**
+ * The translated sentence for an error the backend names by i18n key, such as
+ * `Toast_Kit_ProcessesRunning: [dota2.exe]`. Null when the error is not one of those, or the key
+ * has no translation, so the caller can fall back to showing the error itself.
+ */
+export function keyedErrorMessage(err: unknown, t: (key: string) => string): string | null {
+  const message = extractErrorObject(err)?.message;
+  if (typeof message !== "string") return null;
+  const key = /^\s*(Toast_[A-Za-z0-9_]+)\b/.exec(message)?.[1];
+  if (!key) return null;
+  const translated = t(key);
+  return translated === key ? null : translated;
+}
+
 export function formatToastWithError(
   prefix: string,
   err: unknown,

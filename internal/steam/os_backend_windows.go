@@ -75,7 +75,7 @@ func (b windowsBackend) Close(names []string, closingMethod string) error {
 		// KillByName already goes from polite to forceful, so there is no separate middle step.
 		terminate:   func() {},
 		kill:        func() { _ = winutil.KillByName(names, method, nil) },
-		exitGrace:   windowsExitGrace,
+		exitGrace:   closeExitGrace(windowsExitGrace, root),
 		askSettle:   windowsAskTimeout,
 		helperGrace: windowsHelperGrace,
 		poll:        windowsClosePoll,
@@ -272,6 +272,14 @@ func (windowsBackend) AppMarkedRunning(_, appID string) bool {
 		return strings.TrimSpace(fmt.Sprint(v)) == appID
 	}
 	return false
+}
+
+func (windowsBackend) RunningAppID(string) string {
+	v, _, err := winutil.RegistryRead(steamRegKey + `:RunningAppID`)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(fmt.Sprint(v))
 }
 
 // ProcessRunningFrom catches a game that outlived Steam, where the Running flag says nothing.

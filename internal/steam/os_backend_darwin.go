@@ -177,7 +177,7 @@ func (b darwinBackend) Close(names []string, _ string) error {
 		},
 		terminate:   func() { signalAll(names, syscall.SIGTERM) },
 		kill:        func() { signalAll(names, syscall.SIGKILL) },
-		exitGrace:   darwinExitGrace,
+		exitGrace:   closeExitGrace(darwinExitGrace, b.DefaultRoot()),
 		askSettle:   darwinAskTimeout,
 		helperGrace: darwinHelperGrace,
 		termGrace:   darwinTermGrace,
@@ -363,6 +363,14 @@ func (darwinBackend) AppMarkedRunning(steamRoot, appID string) bool {
 		return true
 	}
 	return strings.TrimSpace(reg.Get("RunningAppID")) == appID
+}
+
+func (darwinBackend) RunningAppID(steamRoot string) string {
+	reg, err := readRegistryVDF(steamRoot)
+	if err != nil {
+		return ""
+	}
+	return strings.TrimSpace(reg.Get("RunningAppID"))
 }
 
 // ProcessRunningFrom matches the whole command line, which starts with the executable's path.

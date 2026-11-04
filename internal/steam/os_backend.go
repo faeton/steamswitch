@@ -105,6 +105,10 @@ type osBackend interface {
 	// meaningful while the client is up: a client that was killed leaves the flag set.
 	AppMarkedRunning(steamRoot, appID string) bool
 
+	// RunningAppID is the app Steam's own record says is running. Empty or "0" means none. The
+	// record can outlive a killed client, so it is only meaningful while the client is up.
+	RunningAppID(steamRoot string) string
+
 	// ProcessRunningFrom reports whether a process was started from under dir. Lets a guard
 	// recognise a game whose executable name nobody has listed. False when unsupported.
 	ProcessRunningFrom(dir string) bool
@@ -167,6 +171,7 @@ func (unsupportedBackend) Launch(string, []string, LaunchOpts) error { return Er
 func (unsupportedBackend) ActiveUserID32(string) string              { return "" }
 func (unsupportedBackend) LocalVDFPath(string) string                { return "" }
 func (unsupportedBackend) AppMarkedRunning(string, string) bool      { return false }
+func (unsupportedBackend) RunningAppID(string) string                { return "" }
 func (unsupportedBackend) ProcessRunningFrom(string) bool            { return false }
 
 // runningProcessNames is the shared implementation behind sessionkit.Lifecycle.RunningProcesses.

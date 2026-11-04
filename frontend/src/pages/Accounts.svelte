@@ -39,8 +39,9 @@
   } from "../lib/commandPalette";
   import { fuzzyWordsMatch } from "../lib/searchFuzzy";
   import { openConfirm } from "../stores/modal";
+  import { gameRunningConfirm } from "../lib/steam/gameWarning";
   import { pushToast } from "../stores/toast";
-  import { formatToastWithError } from "../lib/formatWailsError";
+  import { formatToastWithError, keyedErrorMessage } from "../lib/formatWailsError";
   import { offerRestartIfNeedsAdmin } from "../lib/adminFlow";
   import { openContextMenu } from "../stores/contextMenu";
   import {
@@ -473,8 +474,32 @@
     void refreshSteamRunning();
   }
 
+  /**
+   * Closing Steam closes any game it is running, so that has to be the user's decision. A check
+   * that fails lets the switch go on: the engine makes its own checks and refuses if it must.
+   */
+  let confirmingGame = false;
+  async function confirmClosingGame(): Promise<boolean> {
+    let game = "";
+    try {
+      game = await SteamService.RunningGameName();
+    } catch {
+      return true;
+    }
+    if (!game) return true;
+    // A second click or key press while the question is open must not stack another dialog.
+    if (confirmingGame) return false;
+    confirmingGame = true;
+    try {
+      return await openConfirm(gameRunningConfirm(game, get(t)));
+    } finally {
+      confirmingGame = false;
+    }
+  }
+
   /** The actual engine call, shared by a plain switch and by "retry". */
   async function runSwitch(steamId64: string, label: string, personaState = -1): Promise<void> {
+    if (!(await confirmClosingGame())) return;
     // The account being left is captured before the engine touches anything: `afterSwitch`
     // reloads the list, and by the time the dock renders "Saving X's login" the old current
     // account is already gone from `currentAccount`.
@@ -502,8 +527,9 @@
     } catch (e) {
       // No success toast on the happy path any more: the strip is the narration channel.
       retryTarget.set(steamId64);
+      const keyed = keyedErrorMessage(e, get(t));
       setError(
-        formatToastWithError(get(t)("Toast_SwitchFailed"), e),
+        keyed ? `${get(t)("Toast_SwitchFailed")} ${keyed}` : formatToastWithError(get(t)("Toast_SwitchFailed"), e),
         { id: RETRY_SWITCH, labelKey: "Kit_Action_Retry" },
         "switch",
       );
@@ -555,7 +581,7 @@
       title: get(t)("AddLogin_Title"),
       positiveLabel: get(t)("AddLogin_Confirm"),
       negativeLabel: get(t)("Button_Cancel"),
-      style: "okcancel",
+      style: "yesno",
       bodyComponent: body.default,
       bodyProps: { choice, currentLabel: labelOf(currentAccount) },
     });
