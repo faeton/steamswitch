@@ -28,11 +28,18 @@ export type DockTone = "waiting" | "ok" | "attention" | "neutral";
 export type DockResult = { titleKey: string; subKey: string; tone: DockTone; reason: string };
 
 /** What the dock may say once the engine is done. */
-export function dockResult(state: SignInState, reason: string, launched: boolean): DockResult {
+export function dockResult(
+  state: SignInState,
+  reason: string,
+  launched: boolean,
+  /** Whether the account left has a stored login. Null when no account was being left. */
+  fromHasLogin: boolean | null = true,
+): DockResult {
   const r = (titleKey: string, subKey: string, tone: DockTone): DockResult => ({ titleKey, subKey, tone, reason });
   switch (state) {
     case "confirmed":
-      return r("Switch_Done_Title", "Switch_Done_Sub", "ok");
+      // "Ready to switch back to" is only true of an account Steam holds a login for.
+      return r("Switch_Done_Title", fromHasLogin === null ? "Switch_Done_SubNoFrom" : fromHasLogin ? "Switch_Done_Sub" : "Switch_Done_SubNoSavedLogin", "ok");
     case "waiting":
       return r("Switch_SignIn_Waiting_Title", "Switch_SignIn_Waiting_Sub", "waiting");
     case "needsSignIn":
@@ -50,7 +57,11 @@ export function dockResult(state: SignInState, reason: string, launched: boolean
     default:
       return launched
         ? r("Switch_SignIn_Unconfirmed_Title", "Switch_SignIn_Unconfirmed_Sub", "attention")
-        : r("Switch_Done_TitleNoLaunch", "Switch_Done_SubNoLaunch", "neutral");
+        : r(
+            "Switch_Done_TitleNoLaunch",
+            fromHasLogin === null ? "Switch_Done_SubNoLaunchNoFrom" : fromHasLogin ? "Switch_Done_SubNoLaunch" : "Switch_Done_SubNoLaunchNoSavedLogin",
+            "neutral",
+          );
   }
 }
 
@@ -63,13 +74,15 @@ export function signInMark(state: SignInState, finished: boolean): SignInMark {
 }
 
 /** The login line under the current account's name. */
-export function heroLoginCopy(status: SignInStatus, accountId: string): { key: string; warn: boolean } {
+export function heroLoginCopy(status: SignInStatus, accountId: string, steamRunning = true): { key: string; warn: boolean } {
   if (status.steamId64 && status.steamId64 === accountId) {
     switch (status.state) {
       case "waiting":
         return { key: "Hero_SigningInAs", warn: false };
       case "needsSignIn":
-        return { key: "Hero_NeedsPassword", warn: true };
+        // The watch waits out a possible restart before reporting an exit, and a closed Steam is
+        // not asking anybody for anything in the meantime.
+        return steamRunning ? { key: "Hero_NeedsPassword", warn: true } : { key: "Hero_SignInUnconfirmed", warn: true };
       case "unconfirmed":
       case "steamExited":
         return { key: "Hero_SignInUnconfirmed", warn: true };

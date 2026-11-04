@@ -110,6 +110,15 @@ func partCloudSynced(appID, part string) bool {
 	return false
 }
 
+func anyPartCloudSynced(appID string, parts []string) bool {
+	for _, p := range parts {
+		if partCloudSynced(appID, p) {
+			return true
+		}
+	}
+	return false
+}
+
 // normalizeGameParts: an empty selection means the two per-account parts, deliberately not the
 // machine-wide folder, so a caller that forgot to choose can never overwrite it.
 func normalizeGameParts(appID string, parts []string) ([]string, error) {
@@ -159,11 +168,7 @@ func containsPart(parts []string, want string) bool {
 // parameter rather than a setting because the answer belongs to one copy, not to the app. The
 // default is refusal, so a caller that forgets this argument gets the safe behaviour.
 func gameCloudGuard(appID string, parts []string, allowCloudRisk bool) error {
-	cloud := false
-	for _, p := range parts {
-		cloud = cloud || partCloudSynced(appID, p)
-	}
-	if !cloud {
+	if !anyPartCloudSynced(appID, parts) {
 		return nil
 	}
 	if allowCloudRisk {
@@ -181,6 +186,45 @@ func gameCloudGuard(appID string, parts []string, allowCloudRisk bool) error {
 		return ErrDotaSteamRunning
 	}
 	return nil
+}
+
+// destCloudGuard is gameCloudGuard for a write to one account. Steam Cloud only syncs the account
+// signed in to the running client, so a write to any other account carries no more risk with
+// Steam open than with it closed. Not being able to tell who is signed in counts as "this one".
+func destCloudGuard(steamRoot, appID, destSteamID64 string, parts []string, allowCloudRisk bool) error {
+	if accountIsIdle(steamRoot, destSteamID64) {
+		return nil
+	}
+	return gameCloudGuard(appID, parts, allowCloudRisk)
+}
+
+// accountIsIdle reports whether another account is known to be the signed-in one. The login files
+// Steam's own selection and the running client's report can disagree (see ResolveSession), so this
+// account must be named by none of them.
+func accountIsIdle(steamRoot, steamID64 string) bool {
+	users, err := ParseLoginUsers(LoginUsersPath(steamRoot))
+	if err != nil {
+		return false
+	}
+	active, err := FormatsFromID64(strings.TrimSpace(ActiveSessionSteamID64(users)))
+	if err != nil {
+		return false
+	}
+	dest, err := FormatsFromID64(strings.TrimSpace(steamID64))
+	if err != nil || active.ID32 == dest.ID32 || backend.ActiveUserID32(steamRoot) == dest.ID32 {
+		return false
+	}
+	selected, err := backend.AutoLoginUser(steamRoot)
+	if err != nil {
+		return false
+	}
+	for _, u := range users {
+		f, err := FormatsFromID64(strings.TrimSpace(u.SteamID64))
+		if err == nil && f.ID32 == dest.ID32 && strings.EqualFold(strings.TrimSpace(u.AccountName), strings.TrimSpace(selected)) {
+			return false
+		}
+	}
+	return true
 }
 
 // gameIsRunning asks every way there is of knowing. A game with no listed process name is caught
@@ -378,6 +422,29 @@ func pruneAutoSnapshots(appID string) {
 	}
 }
 
+// remoteCacheFile is Steam's local inventory of an account's cloud payload for one game.
+const remoteCacheFile = "remotecache.vdf"
+
+func remoteCachePath(steamRoot, id32, appID string) string {
+	return filepath.Join(steamRoot, "userdata", id32, appID, remoteCacheFile)
+}
+
+// restoringRemoteCache runs a write that puts an account back from a revert point, then returns
+// the inventory the revert point kept. Read first: the write can prune this very revert point.
+func (s *SteamService) restoringRemoteCache(appID, dir, steamID64 string, write func() (DotaCopyResult, error)) (DotaCopyResult, error) {
+	saved, readErr := os.ReadFile(filepath.Join(dir, remoteCacheFile))
+	res, err := write()
+	if err != nil || readErr != nil {
+		return res, err
+	}
+	root, rootErr := s.configSteamRoot()
+	id32, idErr := s.dotaAccountID32(steamID64)
+	if rootErr == nil && idErr == nil {
+		_ = fsutil.WriteFileAtomic(remoteCachePath(root, id32, appID), saved, 0o644)
+	}
+	return res, nil
+}
+
 // captureGameSnapshot copies the requested parts of an account's live config into a new snapshot.
 //
 // A curated snapshot of nothing is refused. An automatic revert point of nothing is kept: "this
@@ -409,6 +476,16 @@ func (s *SteamService) captureGameSnapshot(appID, steamRoot, id32, steamID64, ac
 	if len(captured) == 0 && !auto {
 		_ = os.RemoveAll(dir)
 		return DotaSnapshot{}, errDotaNothingCopied
+	}
+
+	if auto && anyPartCloudSynced(appID, parts) {
+		// A cloud write deletes this inventory, so "back as it was" has to be able to restore it.
+		// Only then: a write that leaves the cloud files alone also leaves the inventory alone, and
+		// restoring an old one over what Steam has synced since would make it wrong. Steam can
+		// rebuild it, so failing to keep it is no reason to refuse the copy.
+		if data, err := os.ReadFile(remoteCachePath(steamRoot, id32, appID)); err == nil {
+			_ = fsutil.WriteFileAtomic(filepath.Join(dir, remoteCacheFile), data, 0o644)
+		}
 	}
 
 	snap := DotaSnapshot{
@@ -685,7 +762,7 @@ func (s *SteamService) applyGameParts(
 		// Leaving the pre-copy version in place invites Steam to treat the new files as stale and
 		// re-download the old ones. Only once every write has worked: a rollback puts the old
 		// files back, and they still need the old inventory.
-		_ = os.Remove(filepath.Join(steamRoot, "userdata", destID32, appID, "remotecache.vdf"))
+		_ = os.Remove(remoteCachePath(steamRoot, destID32, appID))
 		res.CloudFollowUp = true
 	}
 	// Last, because the snapshot being applied can itself be the oldest revert point.
@@ -778,7 +855,7 @@ func (s *SteamService) CopyGameConfigBetween(appID, sourceSteamID64, destSteamID
 	if err := gameWriteGuard(root, appID); err != nil {
 		return res, err
 	}
-	if err := gameCloudGuard(appID, copyParts, allowCloudRisk); err != nil {
+	if err := destCloudGuard(root, appID, destSteamID64, copyParts, allowCloudRisk); err != nil {
 		return res, err
 	}
 	res, err = s.applyGameParts(appID, root, destSteamID64, copyParts, nil, func(part string) (string, bool) {
@@ -828,7 +905,14 @@ func (s *SteamService) ApplyGameConfigSnapshot(appID, snapshotID, destSteamID64 
 			removes = append(removes, p)
 		}
 	}
-	return s.writeSnapshot(appID, dir, destSteamID64, usable, removes, allowCloudRisk)
+	write := func() (DotaCopyResult, error) {
+		return s.writeSnapshot(appID, dir, destSteamID64, usable, removes, allowCloudRisk)
+	}
+	// Only the whole of a revert point on its own account is "back as it was".
+	if removable && len(usable) == len(snap.Parts) && len(removes) == len(snap.EmptyParts) {
+		return s.restoringRemoteCache(appID, dir, destSteamID64, write)
+	}
+	return write()
 }
 
 // UndoGameConfigCopy puts an account back from the revert point a copy left, including removing
@@ -855,7 +939,9 @@ func (s *SteamService) UndoGameConfigCopy(appID, revertSnapshotID string, allowC
 	if err != nil || !snap.Auto {
 		return res, errNotARevertPoint
 	}
-	return s.writeSnapshot(appID, dir, snap.SourceSteamID64, snap.Parts, snap.EmptyParts, allowCloudRisk)
+	return s.restoringRemoteCache(appID, dir, snap.SourceSteamID64, func() (DotaCopyResult, error) {
+		return s.writeSnapshot(appID, dir, snap.SourceSteamID64, snap.Parts, snap.EmptyParts, allowCloudRisk)
+	})
 }
 
 // sameAccount compares by account number: the parser accepts more than one spelling of an ID.
@@ -883,7 +969,7 @@ func (s *SteamService) writeSnapshot(appID, dir, destSteamID64 string, usable, r
 	if err := gameWriteGuard(root, appID); err != nil {
 		return res, err
 	}
-	if err := gameCloudGuard(appID, append(append([]string(nil), usable...), removes...), allowCloudRisk); err != nil {
+	if err := destCloudGuard(root, appID, destSteamID64, append(append([]string(nil), usable...), removes...), allowCloudRisk); err != nil {
 		return res, err
 	}
 	return s.applyGameParts(appID, root, destSteamID64, usable, removes, func(part string) (string, bool) {

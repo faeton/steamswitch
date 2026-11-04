@@ -83,7 +83,7 @@
     roleOf,
     type AccountRoleMap,
   } from "../lib/steam/accountRoles";
-  import { buildAccountMenu } from "../lib/steam/accountMenu";
+  import { buildAccountMenu, openGameConfigCopy } from "../lib/steam/accountMenu";
   import { pendingVaultEntry, refreshVault, vaultEntries, vaultStatus } from "../stores/vault";
   import {
     EMPTY_SWITCHER_FILTERS,
@@ -478,7 +478,11 @@
     // The account being left is captured before the engine touches anything: `afterSwitch`
     // reloads the list, and by the time the dock renders "Saving X's login" the old current
     // account is already gone from `currentAccount`.
-    if (!beginSwitch(label, labelOf(currentAccount), "", steamId64)) return;
+    const switchOpts = {
+      toLogin: byId.get(steamId64)?.accountName ?? "",
+      fromHasLogin: !currentAccount?.noStoredLogin,
+    };
+    if (!beginSwitch(label, labelOf(currentAccount), "", steamId64, switchOpts)) return;
     inFlightId = steamId64;
     // Opening the detail panel and switching from it should not leave the panel sitting over
     // an account that is no longer current.
@@ -892,6 +896,7 @@
         signIn={$signInStatus}
         avatarEpoch={avatarEpoch[currentId] ?? 0}
         on:detail={(e) => (detailId = e.detail)}
+        on:copyconfig={(e) => void openGameConfigCopy(get(t), e.detail)}
         on:launch={() => void launchSteam()}
         on:refresh={() => void reloadEverything()}
       />

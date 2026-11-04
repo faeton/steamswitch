@@ -19,7 +19,6 @@
   import { motionEnabled } from "../lib/animation";
   import {
     SWITCH_STEP_LABEL_KEYS,
-    stepIndex,
     stepMarks,
     stepPercent,
     visibleSteps,
@@ -43,13 +42,13 @@
     The kit step only appears once the engine has reported kit work — most switches move no
     game settings, and a chip that stays pending forever describes work that never happens.
   */
-  $: sawKit = s.kind === "switching" && s.step !== null && stepIndex(s.step) >= stepIndex("kit");
+  $: sawKit = s.kind === "switching" && s.sawKit;
   // Observed after the switch, not derived from the step: the engine reports "starting Steam"
   // even when the AutoStart setting makes the launch a no-op.
   $: launched = s.kind === "switching" && s.launched;
   $: steps = visibleSteps(sawKit);
   $: marks = s.kind === "switching" ? stepMarks(s.step, s.finished, launched) : null;
-  $: result = s.kind === "switching" && s.finished ? dockResult(s.signIn, s.signInReason, launched) : null;
+  $: result = s.kind === "switching" && s.finished ? dockResult(s.signIn, s.signInReason, launched, s.fromLabel ? s.fromHasLogin : null) : null;
   // Not full while Steam has not answered: a bar at 100% says it is over.
   $: percent = result?.tone === "waiting" ? 90 : s.kind === "switching" ? stepPercent(s.step, s.finished) : 0;
   // No chip when Steam was left closed, since no sign-in is going to happen.
@@ -102,6 +101,7 @@
             {$t(result.subKey, {
               from: s.fromLabel || $t("Status_NoAccount"),
               name: s.toLabel,
+              login: s.toLogin || s.toLabel,
               reason: result.reason,
             })}
           {:else}

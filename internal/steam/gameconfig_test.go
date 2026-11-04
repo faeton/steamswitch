@@ -22,13 +22,17 @@ const (
 type cfgBackend struct {
 	unsupportedBackend
 	steamRunning bool
+	selected     string
+	activeUser   string
 	running      map[string]bool
 	marked       bool
 	fromDir      string
 }
 
-func (b *cfgBackend) ProcessInspectionSupported() bool { return true }
-func (b *cfgBackend) ProcessNames() []string           { return []string{"steam-client"} }
+func (b *cfgBackend) AutoLoginUser(string) (string, error) { return b.selected, nil }
+func (b *cfgBackend) ActiveUserID32(string) string         { return b.activeUser }
+func (b *cfgBackend) ProcessInspectionSupported() bool     { return true }
+func (b *cfgBackend) ProcessNames() []string               { return []string{"steam-client"} }
 func (b *cfgBackend) IsRunning(name string) bool {
 	if name == "steam-client" {
 		return b.steamRunning
@@ -156,6 +160,59 @@ func TestGameCopy_RefusesCloudWritesWhileSteamRunsUnlessAccepted(t *testing.T) {
 	res, err := s.CopyGameConfigBetween(DotaAppID, cfgID64A, cfgID64B, []string{"remote"}, true)
 	if err != nil || !res.CloudFollowUp {
 		t.Fatalf("accepted: %+v %v", res, err)
+	}
+}
+
+// Steam Cloud only syncs the signed-in account (B in the fixture), so A can be written, and put
+// back, with Steam open and nothing to accept.
+func TestGameCopy_ToAnAccountNotSignedInWorksWhileSteamRuns(t *testing.T) {
+	s, root, b := cfgFixture(t)
+	b.steamRunning = true
+	writeFile(t, gamePath(root, cfgID32B, DotaAppID, "remote", "r"), "B")
+	res, err := s.CopyGameConfigBetween(DotaAppID, cfgID64B, cfgID64A, []string{"remote"}, false)
+	if err != nil {
+		t.Fatalf("copy: %v", err)
+	}
+	if got := readFile(t, gamePath(root, cfgID32A, DotaAppID, "remote", "r")); got != "B" {
+		t.Fatalf("destination has %q", got)
+	}
+	if _, err := s.UndoGameConfigCopy(DotaAppID, res.RevertSnapshotID, false); err != nil {
+		t.Fatalf("undo: %v", err)
+	}
+	if _, err := os.Stat(gamePath(root, cfgID32A, DotaAppID, "remote")); !os.IsNotExist(err) {
+		t.Fatal("undo left what the copy created")
+	}
+}
+
+// The login files name B, but Steam's selection names A: A may be the one signed in.
+func TestGameCopy_RefusesWhenSteamsSelectionNamesTheDestination(t *testing.T) {
+	s, root, b := cfgFixture(t)
+	b.steamRunning = true
+	b.selected = "A"
+	writeFile(t, gamePath(root, cfgID32B, DotaAppID, "remote", "r"), "B")
+	if _, err := s.CopyGameConfigBetween(DotaAppID, cfgID64B, cfgID64A, []string{"remote"}, false); !errors.Is(err, ErrDotaSteamRunning) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+// The login files and the selection name B, but the running client still reports A.
+func TestGameCopy_RefusesWhenTheClientReportsTheDestination(t *testing.T) {
+	s, root, b := cfgFixture(t)
+	b.steamRunning = true
+	b.activeUser = cfgID32A
+	writeFile(t, gamePath(root, cfgID32B, DotaAppID, "remote", "r"), "B")
+	if _, err := s.CopyGameConfigBetween(DotaAppID, cfgID64B, cfgID64A, []string{"remote"}, false); !errors.Is(err, ErrDotaSteamRunning) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestGameCopy_RefusesWhenNobodyIsKnownToBeSignedIn(t *testing.T) {
+	s, root, b := cfgFixture(t)
+	b.steamRunning = true
+	writeFile(t, LoginUsersPath(root), fmt.Sprintf("\"users\"\n{\n\t\"%s\"\n\t{\n\t\t\"AccountName\"\t\t\"a\"\n\t}\n\t\"%s\"\n\t{\n\t\t\"AccountName\"\t\t\"b\"\n\t}\n}\n", cfgID64A, cfgID64B))
+	writeFile(t, gamePath(root, cfgID32B, DotaAppID, "remote", "r"), "B")
+	if _, err := s.CopyGameConfigBetween(DotaAppID, cfgID64B, cfgID64A, []string{"remote"}, false); !errors.Is(err, ErrDotaSteamRunning) {
+		t.Fatalf("err = %v", err)
 	}
 }
 
@@ -425,6 +482,75 @@ func TestGameSnapshots_NamingARevertPointMakesItStopRemoving(t *testing.T) {
 }
 
 // A rollback puts the old files back, and they still need Steam's old inventory of them.
+func TestGameCopy_UndoAndWholeRevertPutRemotecacheBack(t *testing.T) {
+	s, root, _ := cfgFixture(t)
+	writeFile(t, gamePath(root, cfgID32A, "12345", "remote", "r"), "A")
+	writeFile(t, gamePath(root, cfgID32B, "12345", "remote", "r"), "B")
+	cache := gamePath(root, cfgID32B, "12345", "remotecache.vdf")
+	writeFile(t, cache, "inventory")
+
+	res, err := s.CopyGameConfigBetween("12345", cfgID64A, cfgID64B, []string{"remote"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.UndoGameConfigCopy("12345", res.RevertSnapshotID, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := readFile(t, cache); got != "inventory" {
+		t.Fatalf("after undo: %q", got)
+	}
+
+	res, err = s.CopyGameConfigBetween("12345", cfgID64A, cfgID64B, []string{"remote"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ApplyGameConfigSnapshot("12345", res.RevertSnapshotID, cfgID64B, []string{"remote"}, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := readFile(t, cache); got != "inventory" {
+		t.Fatalf("after applying the revert point: %q", got)
+	}
+}
+
+// Dota's local/ does not sync, so copying it leaves the inventory alone, and undoing that copy must
+// not put back an old inventory over whatever Steam has synced since.
+func TestGameCopy_UndoOfANonCloudCopyLeavesRemotecacheAlone(t *testing.T) {
+	s, root, _ := cfgFixture(t)
+	writeFile(t, gamePath(root, cfgID32A, DotaAppID, "local", "l"), "A")
+	writeFile(t, gamePath(root, cfgID32B, DotaAppID, "local", "l"), "B")
+	cache := gamePath(root, cfgID32B, DotaAppID, "remotecache.vdf")
+	writeFile(t, cache, "old inventory")
+	res, err := s.CopyGameConfigBetween(DotaAppID, cfgID64A, cfgID64B, []string{"local"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, cache, "synced since")
+	if _, err := s.UndoGameConfigCopy(DotaAppID, res.RevertSnapshotID, false); err != nil {
+		t.Fatal(err)
+	}
+	if got := readFile(t, cache); got != "synced since" {
+		t.Fatalf("remotecache.vdf = %q", got)
+	}
+}
+
+// Another account's inventory describes another account's files.
+func TestGameCopy_RevertPointOnAnotherAccountLeavesRemotecacheOut(t *testing.T) {
+	s, root, _ := cfgFixture(t)
+	writeFile(t, gamePath(root, cfgID32A, "12345", "remote", "r"), "A")
+	writeFile(t, gamePath(root, cfgID32B, "12345", "remote", "r"), "B")
+	writeFile(t, gamePath(root, cfgID32B, "12345", "remotecache.vdf"), "B's inventory")
+	res, err := s.CopyGameConfigBetween("12345", cfgID64A, cfgID64B, []string{"remote"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ApplyGameConfigSnapshot("12345", res.RevertSnapshotID, cfgID64A, []string{"remote"}, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(gamePath(root, cfgID32A, "12345", "remotecache.vdf")); !os.IsNotExist(err) {
+		t.Fatal("wrote B's inventory onto A")
+	}
+}
+
 func TestGameCopy_FailedWriteKeepsRemotecache(t *testing.T) {
 	s, root, _ := cfgFixture(t)
 	writeFile(t, gamePath(root, cfgID32A, "12345", "local", "l.dat"), "A")

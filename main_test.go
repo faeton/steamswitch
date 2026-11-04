@@ -24,6 +24,33 @@ func TestTrayIconPNGIsTraySized(t *testing.T) {
 	}
 }
 
+// macOS draws a template from its alpha alone, at the menu bar's height: 44 px is sharp on Retina.
+func TestTrayTemplateIsDuotoneAndRetinaSized(t *testing.T) {
+	img, format, err := image.Decode(bytes.NewReader(trayTemplatePNG))
+	if err != nil {
+		t.Fatalf("decode tray template: %v", err)
+	}
+	if format != "png" || img.Bounds().Dx() != 44 || img.Bounds().Dy() != 44 {
+		t.Fatalf("tray template = %s %dx%d, want png 44x44", format, img.Bounds().Dx(), img.Bounds().Dy())
+	}
+	var opaque, partial int
+	for y := 0; y < 44; y++ {
+		for x := 0; x < 44; x++ {
+			_, _, _, a := img.At(x, y).RGBA()
+			switch a >> 8 {
+			case 0:
+			case 255:
+				opaque++
+			default:
+				partial++
+			}
+		}
+	}
+	if opaque == 0 || partial < opaque/4 {
+		t.Fatalf("not two tones: %d opaque, %d partial pixels", opaque, partial)
+	}
+}
+
 // The old TCNO icon got into the Windows exe through release.yml copying other/NSIS/img/icon.ico
 // over the app icon. Compared by hash so it cannot come back under any of these names.
 func TestUpstreamIconIsGone(t *testing.T) {

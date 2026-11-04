@@ -156,10 +156,10 @@ const darwinClosePoll = 250 * time.Millisecond
 
 // Close asks Steam to quit, then signals it, then insists.
 //
-// `steam://exit` comes first because a signed-in Mac Steam ignores SIGTERM (measured: still
-// running after 35 s), while `open steam://exit` had it gone in 3 s with its helpers and tokens
-// intact. That was only measured on a signed-in client. One sitting at a login prompt may not
-// act on the URL, and the signal stages below are what catch it.
+// The request comes first because a signed-in Mac Steam ignores SIGTERM (measured: still running
+// after 35 s). At a password prompt it also ignores `steam://exit` and an AppKit quit, which
+// left only the force-kill, 20 s later. `steam_osx -shutdown` closed it in about 3 s there, with
+// its helpers and tokens intact. See darwinExitRequest.
 //
 // The Windows ClosingMethod ("Combined", "Close", "TaskKill") has no macOS analogue and is
 // ignored: there is exactly one sensible sequence here, and offering the user a choice between
@@ -172,7 +172,8 @@ func (b darwinBackend) Close(names []string, _ string) error {
 		askToExit: func() error {
 			ctx, cancel := context.WithTimeout(context.Background(), darwinAskTimeout)
 			defer cancel()
-			return exec.CommandContext(ctx, "/usr/bin/open", steamExitURL).Run()
+			name, args := darwinExitRequest(darwinBundleCandidates(b.DefaultRoot()), fileExists)
+			return exec.CommandContext(ctx, name, args...).Run()
 		},
 		terminate:   func() { signalAll(names, syscall.SIGTERM) },
 		kill:        func() { signalAll(names, syscall.SIGKILL) },
@@ -184,6 +185,25 @@ func (b darwinBackend) Close(names []string, _ string) error {
 	}.run()
 	steamLog.Info("steam close", slog.String("via", string(outcome)), slog.Duration("took", time.Since(started)))
 	return err
+}
+
+// darwinExitRequest is the command that asks a running client to quit. The client's own
+// `-shutdown` is preferred because it also works at a password prompt. The URL remains for a
+// bundle that cannot be found. It is only ever for a client known to be running: with none,
+// `-shutdown` starts Steam (measured), as the URL would.
+func darwinExitRequest(bundles []string, exists func(string) bool) (string, []string) {
+	for _, bundle := range bundles {
+		client := filepath.Join(bundle, "Contents", "MacOS", darwinSteamProcesses[0])
+		if exists(client) {
+			return client, []string{"-shutdown"}
+		}
+	}
+	return "/usr/bin/open", []string{steamExitURL}
+}
+
+func fileExists(path string) bool {
+	st, err := os.Stat(path)
+	return err == nil && !st.IsDir()
 }
 
 func (b darwinBackend) anyRunning(names []string) bool {

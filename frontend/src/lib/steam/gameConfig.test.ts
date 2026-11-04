@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canCopyConfig, configProfile, partHintKey, selectionHasCloudPart, type GameInfo } from "./gameConfig";
+import { canCopyConfig, cloudRiskFor, configProfile, partHintKey, selectionHasCloudPart, type GameInfo } from "./gameConfig";
 
 const info = (over: Partial<GameInfo> = {}): GameInfo => ({
   appId: "730",
@@ -53,5 +53,28 @@ describe("configProfile", () => {
     expect(configProfile("730")).toBe("cs2");
     expect(configProfile("12345")).toBe("generic");
     expect(partHintKey("cs2", "local")).toBe("GameCfg_Part_local_Hint_cs2");
+  });
+});
+
+describe("cloudRiskFor", () => {
+  const accounts = [{ steamId64: "1", currentSession: true }, { steamId64: "2" }];
+
+  it("only applies to the account signed in to a running Steam", () => {
+    const running = info({ steamRunning: true });
+    expect(cloudRiskFor(running, ["remote"], accounts, "1")).toBe(true);
+    expect(cloudRiskFor(running, ["remote"], accounts, "2")).toBe(false);
+    expect(cloudRiskFor(info({ steamRunning: false }), ["remote"], accounts, "1")).toBe(false);
+  });
+
+  it("assumes the risk when nobody is known to be signed in, as the backend does", () => {
+    expect(cloudRiskFor(info({ steamRunning: true }), ["remote"], [{ steamId64: "2" }], "2")).toBe(true);
+  });
+
+  it("does not apply to parts that do not sync", () => {
+    const dota = info({
+      steamRunning: true,
+      parts: [{ id: "local", cloudSynced: false, machineWide: false }],
+    });
+    expect(cloudRiskFor(dota, ["local"], accounts, "1")).toBe(false);
   });
 });

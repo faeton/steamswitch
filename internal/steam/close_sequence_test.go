@@ -78,6 +78,27 @@ func TestCloseSequence_SteamExitIsAskedFirstAndSignalsAreNotSent(t *testing.T) {
 }
 
 // With Steam closed, opening steam://exit would launch Steam just to quit it.
+// The client exits just before the request lands, so the request starts Steam again.
+func TestCloseSequence_RequestThatRestartsSteamIsNotReportedAsClosed(t *testing.T) {
+	f := running()
+	f.exitsOnTerm = true
+	seq := f.seq()
+	seq.askToExit = func() error {
+		f.client.Store(false)
+		f.helpers.Store(false)
+		time.Sleep(30 * time.Millisecond)
+		f.client.Store(true)
+		return nil
+	}
+	outcome, err := seq.run()
+	if err != nil || outcome != closeBySignal {
+		t.Fatalf("outcome %q err %v", outcome, err)
+	}
+	if f.client.Load() {
+		t.Fatal("Steam left running")
+	}
+}
+
 func TestCloseSequence_NothingRunningAsksNothing(t *testing.T) {
 	f := &fakeSteam{}
 	outcome, err := f.seq().run()

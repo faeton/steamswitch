@@ -52,6 +52,7 @@
 
   const dispatch = createEventDispatcher<{
     detail: string;
+    copyconfig: string;
     launch: void;
     refresh: void;
   }>();
@@ -69,7 +70,7 @@
             ? "running"
             : "closed"
           : "none";
-  $: loginCopy = heroLoginCopy(signIn, account?.steamId64 ?? "");
+  $: loginCopy = heroLoginCopy(signIn, account?.steamId64 ?? "", steamRunning);
   $: label = account
     ? account.displayName?.trim() || account.personaName?.trim() || account.steamId64
     : "";
@@ -156,6 +157,14 @@
     </div>
 
     <div class="hero__actions">
+      <button
+        type="button"
+        class="ss-btn"
+        disabled={busy}
+        on:click={() => dispatch("copyconfig", account?.steamId64 ?? "")}
+      >
+        {$t("Hero_Action_CopyConfig")}
+      </button>
       <button
         type="button"
         class="ss-btn"

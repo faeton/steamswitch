@@ -26,6 +26,19 @@ func TestDarwin_SwitchingIsSupported(t *testing.T) {
 	}
 }
 
+func TestDarwin_ExitRequestPrefersTheClientsOwnShutdown(t *testing.T) {
+	bundles := []string{"/A/Steam.app", "/B/Steam"}
+	client := filepath.Join("/B/Steam", "Contents", "MacOS", "steam_osx")
+	name, args := darwinExitRequest(bundles, func(p string) bool { return p == client })
+	if name != client || len(args) != 1 || args[0] != "-shutdown" {
+		t.Fatalf("got %s %v", name, args)
+	}
+	name, args = darwinExitRequest(bundles, func(string) bool { return false })
+	if name != "/usr/bin/open" || len(args) != 1 || args[0] != steamExitURL {
+		t.Fatalf("with no bundle: got %s %v", name, args)
+	}
+}
+
 // TestDarwin_ProcessNamesHaveNoExeSuffix guards the most likely porting mistake: reusing the
 // Windows list. "steam.exe" matches nothing on macOS, so every guard would report Steam closed
 // while it is running — a false all-clear, which is the failure this whole seam exists to

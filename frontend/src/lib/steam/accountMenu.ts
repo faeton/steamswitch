@@ -61,6 +61,20 @@ async function applyRoleChange(
   }
 }
 
+/** Copy a game's config between accounts, starting from this one, without leaving the switcher. */
+export async function openGameConfigCopy(t: Translate, steamId64: string): Promise<void> {
+  const [{ openAlert }, body] = await Promise.all([
+    import("../../stores/modal"),
+    import("../../components/GameConfigCopyForm.svelte"),
+  ]);
+  await openAlert({
+    title: t("GameCfg_Quick_Title"),
+    dismissLabel: t("Button_Close"),
+    bodyComponent: body.default,
+    bodyProps: { initialSourceId: steamId64 },
+  });
+}
+
 export function buildAccountMenu(deps: AccountMenuDeps): MenuItemDef[] {
   const { account, roles, blocked, t } = deps;
   const id = account.steamId64;
@@ -112,6 +126,11 @@ export function buildAccountMenu(deps: AccountMenuDeps): MenuItemDef[] {
         { label: t("Context_Steam_Id32"), action: () => void copyId(deps, "ID32") },
         { label: t("Context_LoginUsername"), action: () => void copyText(deps, account.accountName ?? "") },
       ],
+    },
+    {
+      label: t("Menu_CopyGameConfig"),
+      disabled: blocked,
+      action: () => void openGameConfigCopy(t, id),
     },
     {
       label: t("Context_Steam_OpenUserdata"),

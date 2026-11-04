@@ -40,6 +40,7 @@ type RunGUIParams struct {
 	StartupToast     string
 	EmbeddedAssets   fs.FS
 	TrayIconPNG      []byte
+	TrayTemplatePNG  []byte
 	UpdaterPublicKey []byte
 	Done             chan struct{}
 }
@@ -240,7 +241,7 @@ func RunGUI(params RunGUIParams) {
 		basic.SyncAllTrayKnownAccounts()
 		steam.SyncTrayKnownAccounts()
 	}
-	trayMgr.Start(params.TrayIconPNG)
+	trayMgr.Start(params.TrayIconPNG, params.TrayTemplatePNG)
 
 	basic.SetLiveAccountIDResolver(func(platformKey string) (string, error) {
 		if strings.EqualFold(strings.TrimSpace(platformKey), "Steam") {

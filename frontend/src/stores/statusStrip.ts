@@ -55,6 +55,15 @@ export type StatusStripState =
        */
       step: SwitchStepId | null;
       /**
+       * The engine reported kit work. Not derivable from `step`: every switch passes the kit's
+       * place in the order on its way to the login write.
+       */
+      sawKit: boolean;
+      /** The target's login name. Steam's prompt does not always fill it in. */
+      toLogin: string;
+      /** False when the account being left has no stored login, so nothing was kept for it. */
+      fromHasLogin: boolean;
+      /**
        * True once the engine is done, while the dock still shows the result.
        * A finished switch is not the same as an idle strip: the brief requires a clear
        * success state the user dismisses, not a dock that vanishes mid-read.
@@ -217,7 +226,13 @@ export function setIdleFacts(facts: {
  * otherwise both pass a caller-side check and issue concurrent swaps against the same live
  * Steam files.
  */
-export function beginSwitch(toLabel: string, fromLabel = "", initialPhase = "", toSteamId = ""): boolean {
+export function beginSwitch(
+  toLabel: string,
+  fromLabel = "",
+  initialPhase = "",
+  toSteamId = "",
+  accounts: { toLogin?: string; fromHasLogin?: boolean } = {},
+): boolean {
   const cur = get(internal);
   // A finished-but-undismissed switch must not block the next one: the dock is showing a
   // result, not doing work. Anything genuinely in flight still refuses.
@@ -234,6 +249,9 @@ export function beginSwitch(toLabel: string, fromLabel = "", initialPhase = "", 
     fromLabel,
     phase: initialPhase,
     step: null,
+    sawKit: false,
+    toLogin: accounts.toLogin ?? "",
+    fromHasLogin: accounts.fromHasLogin ?? true,
     finished: false,
     launched: false,
     toSteamId,
@@ -254,7 +272,13 @@ export function narrate(phase: string, statusKey = ""): void {
   if (cur.kind !== "switching" || cur.finished) {
     return;
   }
-  internal.set({ ...cur, phase, step: advanceStep(cur.step, stepForStatusKey(statusKey)) });
+  const reported = stepForStatusKey(statusKey);
+  internal.set({
+    ...cur,
+    phase,
+    step: advanceStep(cur.step, reported),
+    sawKit: cur.sawKit || reported === "kit",
+  });
 }
 
 /**

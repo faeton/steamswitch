@@ -117,15 +117,21 @@ func MaybeHideMainWindow() {
 }
 
 // Start creates the systray, wires menu actions, and calls Run().
-func (m *Manager) Start(iconPNG []byte) {
+//
+// templatePNG is for the macOS menu bar, which tints a template to suit the bar. It is macOS only:
+// elsewhere Wails would show it as drawn, which is dark on a dark taskbar.
+func (m *Manager) Start(iconPNG, templatePNG []byte) {
 	if m.app == nil {
 		return
 	}
 	m.systray = m.app.SystemTray.New()
-	if len(iconPNG) > 0 {
+	if runtime.GOOS == "darwin" && len(templatePNG) > 0 {
+		m.systray.SetTemplateIcon(templatePNG)
+	} else if len(iconPNG) > 0 {
 		m.systray.SetIcon(iconPNG)
 	}
-	m.systray.SetLabel("SteamSwitch")
+	// A tooltip, not a label: on macOS a label takes up menu bar space beside the icon.
+	m.systray.SetTooltip("SteamSwitch")
 	m.rebuildMenuLocked()
 
 	m.systray.OnDoubleClick(func() {

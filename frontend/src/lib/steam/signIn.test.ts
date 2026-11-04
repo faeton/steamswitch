@@ -57,3 +57,21 @@ describe("asSignInStatus", () => {
     expect(asSignInStatus(null).state).toBe("none");
   });
 });
+
+describe("what the dock and hero may claim", () => {
+  it("does not call an account with no saved login ready to switch back to", () => {
+    expect(dockResult("confirmed", "", true).subKey).toBe("Switch_Done_Sub");
+    expect(dockResult("confirmed", "", true, false).subKey).toBe("Switch_Done_SubNoSavedLogin");
+    expect(dockResult("none", "", false, false).subKey).toBe("Switch_Done_SubNoLaunchNoSavedLogin");
+  });
+
+  it("says nothing about a previous login when no account was being left", () => {
+    expect(dockResult("confirmed", "", true, null).subKey).toBe("Switch_Done_SubNoFrom");
+    expect(dockResult("none", "", false, null).subKey).toBe("Switch_Done_SubNoLaunchNoFrom");
+  });
+
+  it("does not say Steam is asking for a password once Steam has closed", () => {
+    expect(heroLoginCopy({ steamId64: "1", state: "needsSignIn" }, "1", true).key).toBe("Hero_NeedsPassword");
+    expect(heroLoginCopy({ steamId64: "1", state: "needsSignIn" }, "1", false)).toEqual({ key: "Hero_SignInUnconfirmed", warn: true });
+  });
+});

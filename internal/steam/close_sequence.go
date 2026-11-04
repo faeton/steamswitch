@@ -86,7 +86,8 @@ func (c closeSequence) waitForRequestedExit() bool {
 				steamLog.Warn("steam exit request still in flight after steam closed")
 			}
 		}
-		return true
+		// Asked again, not assumed: a request that reached no client starts Steam.
+		return !c.anyRunning()
 	}
 	for time.Now().Before(deadline) {
 		select {

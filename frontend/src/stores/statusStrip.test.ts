@@ -343,3 +343,25 @@ describe("sign-in result", () => {
     expect(strip().signIn).toBe("none");
   });
 });
+
+describe("the kit step", () => {
+  const sawKit = () => {
+    const s = get(statusStrip);
+    return s.kind === "switching" && s.sawKit;
+  };
+
+  it("is not implied by passing its place on the way to the login write", () => {
+    beginSwitch("B", "A", "", "2");
+    narrate("closing", "Status_ClosingPlatform");
+    narrate("login", "Status_ActionBar_UpdatingSteamLogin");
+    narrate("start", "Status_StartingPlatform");
+    expect(sawKit()).toBe(false);
+  });
+
+  it("appears once the engine reports kit work", () => {
+    beginSwitch("B", "A", "", "2");
+    narrate("kit", "Status_Kit_ApplyingKit");
+    narrate("login", "Status_ActionBar_UpdatingSteamLogin");
+    expect(sawKit()).toBe(true);
+  });
+});
