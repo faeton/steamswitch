@@ -143,6 +143,52 @@ func IsExeRunning(exeName string) bool {
 	return err == nil && ok
 }
 
+// AnyProcessRunningFrom reports whether a process's executable lies under dir. A process this one
+// may not query is skipped: that is an answer of "not known to be there", which the callers
+// combine with their other checks.
+func AnyProcessRunningFrom(dir string) bool {
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
+		return false
+	}
+	prefixes := []string{strings.ToLower(filepath.Clean(dir)) + `\`}
+	// A library reached through a junction reports its real path.
+	if real, err := filepath.EvalSymlinks(dir); err == nil {
+		prefixes = append(prefixes, strings.ToLower(filepath.Clean(real))+`\`)
+	}
+	all, err := snapshotProcesses()
+	if err != nil {
+		return false
+	}
+	for _, p := range all {
+		image := processImagePath(p.PID)
+		if image == "" {
+			continue
+		}
+		image = strings.ToLower(image)
+		for _, prefix := range prefixes {
+			if strings.HasPrefix(image, prefix) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func processImagePath(pid uint32) string {
+	h, err := windows.OpenProcess(windows.PROCESS_QUERY_LIMITED_INFORMATION, false, pid)
+	if err != nil {
+		return ""
+	}
+	defer windows.CloseHandle(h)
+	buf := make([]uint16, 32768)
+	size := uint32(len(buf))
+	if err := windows.QueryFullProcessImageName(h, 0, &buf[0], &size); err != nil {
+		return ""
+	}
+	return windows.UTF16ToString(buf[:size])
+}
+
 func utf16FixedToString(b []uint16) string {
 	n := 0
 	for n < len(b) && b[n] != 0 {

@@ -3,6 +3,7 @@
 package steam
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -145,6 +146,9 @@ const (
 	darwinExitGrace   = 10 * time.Second
 	darwinHelperGrace = 3 * time.Second
 	darwinTermGrace   = 10 * time.Second
+	// darwinAskTimeout bounds `open steam://exit`. It is shorter than the exit grace, so a stuck
+	// `open` is dead before a kill could leave it to start Steam again.
+	darwinAskTimeout = 5 * time.Second
 )
 
 // darwinClosePoll is how often the process table is re-checked while waiting.
@@ -165,13 +169,18 @@ func (b darwinBackend) Close(names []string, _ string) error {
 	outcome, err := closeSequence{
 		clientRunning: func() bool { return len(names) > 0 && b.IsRunning(darwinSteamProcesses[0]) },
 		anyRunning:    func() bool { return b.anyRunning(names) },
-		askToExit:     func() error { return b.OpenURL(steamExitURL) },
-		terminate:     func() { signalAll(names, syscall.SIGTERM) },
-		kill:          func() { signalAll(names, syscall.SIGKILL) },
-		exitGrace:     darwinExitGrace,
-		helperGrace:   darwinHelperGrace,
-		termGrace:     darwinTermGrace,
-		poll:          darwinClosePoll,
+		askToExit: func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), darwinAskTimeout)
+			defer cancel()
+			return exec.CommandContext(ctx, "/usr/bin/open", steamExitURL).Run()
+		},
+		terminate:   func() { signalAll(names, syscall.SIGTERM) },
+		kill:        func() { signalAll(names, syscall.SIGKILL) },
+		exitGrace:   darwinExitGrace,
+		askSettle:   darwinAskTimeout,
+		helperGrace: darwinHelperGrace,
+		termGrace:   darwinTermGrace,
+		poll:        darwinClosePoll,
 	}.run()
 	steamLog.Info("steam close", slog.String("via", string(outcome)), slog.Duration("took", time.Since(started)))
 	return err

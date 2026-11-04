@@ -22,12 +22,14 @@ const frontendReportPath = "/__frontend-report"
 const (
 	frontendSilentAfter  = 20 * time.Second
 	maxFrontendErrorLogs = 40
+	maxFrontendStages    = 24
 	maxFrontendTextLen   = 500
 )
 
 var (
 	frontendReported   atomic.Bool
 	frontendErrorCount atomic.Int32
+	frontendStageCount atomic.Int32
 	frontendStagesSeen sync.Map
 )
 
@@ -40,8 +42,10 @@ func handleFrontendReport(w http.ResponseWriter, r *http.Request) {
 		if frontendErrorCount.Add(1) <= maxFrontendErrorLogs {
 			slog.Warn("page error", "detail", detail)
 		}
-	} else if _, seen := frontendStagesSeen.LoadOrStore(stage, true); !seen {
-		slog.Info("page reached", "stage", stage, "detail", detail)
+	} else if _, seen := frontendStagesSeen.Load(stage); !seen && frontendStageCount.Add(1) <= maxFrontendStages {
+		if _, seen := frontendStagesSeen.LoadOrStore(stage, true); !seen {
+			slog.Info("page reached", "stage", stage, "detail", detail)
+		}
 	}
 	w.WriteHeader(http.StatusNoContent)
 }

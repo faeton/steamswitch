@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http/httptest"
 	"strings"
@@ -108,5 +109,17 @@ func TestMainWindowOptions_DiagnosticFlags(t *testing.T) {
 	opts := mainWindowOptions(platform.AppSettings{}, cli.Parsed{FramedWindow: true, DiagPage: true})
 	if opts.Frameless || opts.URL != "/diag.html" {
 		t.Fatalf("frameless %v url %q", opts.Frameless, opts.URL)
+	}
+}
+
+func TestFrontendReport_DistinctStagesCannotGrowWithoutLimit(t *testing.T) {
+	for i := 0; i < maxFrontendStages*3; i++ {
+		rec := httptest.NewRecorder()
+		handleFrontendReport(rec, httptest.NewRequest("GET", fmt.Sprintf("%s?stage=x%d", frontendReportPath, i), nil))
+	}
+	n := 0
+	frontendStagesSeen.Range(func(_, _ any) bool { n++; return true })
+	if n > maxFrontendStages {
+		t.Fatalf("%d stages remembered", n)
 	}
 }

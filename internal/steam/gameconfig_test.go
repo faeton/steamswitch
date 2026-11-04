@@ -351,3 +351,97 @@ func TestListConfigGames_DotaAndCS2FirstAndSteamsOwnFoldersHidden(t *testing.T) 
 		t.Fatalf("got %v, want %s", got, want)
 	}
 }
+
+// Applying the oldest revert point at the cap used to prune it first and then report success.
+func TestGameSnapshots_ApplyingTheOldestRevertPointAtTheCapWrites(t *testing.T) {
+	s, root, _ := cfgFixture(t)
+	writeFile(t, gamePath(root, cfgID32A, "12345", "local", "a.dat"), "A")
+	writeFile(t, gamePath(root, cfgID32B, "12345", "local", "b.dat"), "first")
+	first, err := s.CopyGameConfigBetween("12345", cfgID64A, cfgID64B, []string{"local"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 1; i < maxAutoRevertSnapshots; i++ {
+		if _, err := s.CopyGameConfigBetween("12345", cfgID64A, cfgID64B, []string{"local"}, false); err != nil {
+			t.Fatal(err)
+		}
+	}
+	res, err := s.ApplyGameConfigSnapshot("12345", first.RevertSnapshotID, cfgID64B, []string{"local"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(res.CopiedParts) != 1 {
+		t.Fatalf("copied %v", res.CopiedParts)
+	}
+	if got := readFile(t, gamePath(root, cfgID32B, "12345", "local", "b.dat")); got != "first" {
+		t.Fatalf("destination holds %q", got)
+	}
+	snaps, err := s.ListGameConfigSnapshots("12345")
+	if err != nil || len(snaps) != maxAutoRevertSnapshots {
+		t.Fatalf("library has %d, err %v", len(snaps), err)
+	}
+}
+
+// "This part was empty" describes one account. It must not delete anything from another.
+func TestGameSnapshots_EmptyPartsOnlyRemoveFromTheirOwnAccount(t *testing.T) {
+	s, root, _ := cfgFixture(t)
+	writeFile(t, gamePath(root, cfgID32A, "12345", "remote", "s.dat"), "A")
+	res, err := s.CopyGameConfigBetween("12345", cfgID64A, cfgID64B, []string{"remote"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The revert point says B had no remote/. A has one, and it stays.
+	if _, err := s.ApplyGameConfigSnapshot("12345", res.RevertSnapshotID, cfgID64A, []string{"remote"}, false); !errors.Is(err, errDotaNothingCopied) {
+		t.Fatalf("err = %v", err)
+	}
+	if got := readFile(t, gamePath(root, cfgID32A, "12345", "remote", "s.dat")); got != "A" {
+		t.Fatalf("A now holds %q", got)
+	}
+	// On B itself it is the undo it was taken for.
+	if _, err := s.ApplyGameConfigSnapshot("12345", res.RevertSnapshotID, cfgID64B, []string{"remote"}, false); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(gamePath(root, cfgID32B, "12345", "remote")); !os.IsNotExist(err) {
+		t.Fatal("remote/ should be gone from B")
+	}
+}
+
+func TestGameSnapshots_NamingARevertPointMakesItStopRemoving(t *testing.T) {
+	s, root, _ := cfgFixture(t)
+	writeFile(t, gamePath(root, cfgID32A, "12345", "remote", "s.dat"), "A")
+	res, err := s.CopyGameConfigBetween("12345", cfgID64A, cfgID64B, []string{"remote"}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.RenameGameConfigSnapshot("12345", res.RevertSnapshotID, "kept", ""); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.ApplyGameConfigSnapshot("12345", res.RevertSnapshotID, cfgID64B, []string{"remote"}, false); !errors.Is(err, errDotaNothingCopied) {
+		t.Fatalf("err = %v", err)
+	}
+	if got := readFile(t, gamePath(root, cfgID32B, "12345", "remote", "s.dat")); got != "A" {
+		t.Fatalf("B now holds %q", got)
+	}
+}
+
+// A rollback puts the old files back, and they still need Steam's old inventory of them.
+func TestGameCopy_FailedWriteKeepsRemotecache(t *testing.T) {
+	s, root, _ := cfgFixture(t)
+	writeFile(t, gamePath(root, cfgID32A, "12345", "local", "l.dat"), "A")
+	writeFile(t, gamePath(root, cfgID32A, "12345", "remote", "r.dat"), "A")
+	writeFile(t, gamePath(root, cfgID32B, "12345", "local", "l.dat"), "B")
+	writeFile(t, gamePath(root, cfgID32B, "12345", "remotecache.vdf"), "inventory")
+	// A file where the source folder's child should be makes the second part's copy fail.
+	if err := os.Symlink(filepath.Join(root, "missing"), gamePath(root, cfgID32A, "12345", "remote", "broken")); err != nil {
+		t.Skip(err)
+	}
+	if _, err := s.CopyGameConfigBetween("12345", cfgID64A, cfgID64B, nil, false); err == nil {
+		t.Skip("this filesystem copied the broken link; nothing failed to test")
+	}
+	if got := readFile(t, gamePath(root, cfgID32B, "12345", "remotecache.vdf")); got != "inventory" {
+		t.Fatalf("remotecache.vdf = %q", got)
+	}
+	if got := readFile(t, gamePath(root, cfgID32B, "12345", "local", "l.dat")); got != "B" {
+		t.Fatalf("local after rollback = %q", got)
+	}
+}

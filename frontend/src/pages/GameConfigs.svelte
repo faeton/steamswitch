@@ -49,6 +49,7 @@
     sourceSteamId64?: string;
     sourceAccountName?: string;
     parts: string[];
+    emptyParts?: string[];
     createdAt: string;
     auto: boolean;
     sizeBytes: number;
@@ -136,14 +137,24 @@
     return (info?.accounts.find((a) => a.steamId64 === id)?.parts.length ?? 0) > 0;
   }
 
+  /** Only the newest request may fill the page: a slow answer about the previous game must not. */
+  let refreshSeq = 0;
+
   async function refreshGame(): Promise<void> {
+    const seq = ++refreshSeq;
     if (!appId) {
       info = null;
       snapshots = [];
       return;
     }
-    info = (await GetGameConfigInfo(appId, accounts.map((a) => a.steamId64))) as GameInfo;
-    snapshots = ((await ListGameConfigSnapshots(appId)) ?? []) as Snapshot[];
+    const nextInfo = (await GetGameConfigInfo(appId, accounts.map((a) => a.steamId64))) as GameInfo;
+    const nextSnapshots = ((await ListGameConfigSnapshots(appId)) ?? []) as Snapshot[];
+    if (seq !== refreshSeq) return;
+    info = nextInfo;
+    snapshots = nextSnapshots;
+  }
+
+  function pickDefaultAccounts(): void {
     if (!sourceId || !hasData(sourceId)) {
       sourceId = accounts.find((a) => hasData(a.steamId64))?.steamId64 ?? sourceId;
     }
@@ -158,6 +169,7 @@
       games = ((await ListConfigGames(accounts.map((a) => a.steamId64))) ?? []) as Game[];
       if (!games.some((g) => g.appId === appId)) appId = games[0]?.appId ?? "";
       await refreshGame();
+      pickDefaultAccounts();
       loadError = "";
     } catch (e) {
       loadError = e instanceof Error ? e.message : String(e);
@@ -169,12 +181,22 @@
   async function onGameChange(): Promise<void> {
     lastRevertId = "";
     selected = { local: true, remote: true };
+    // The old game's details must not stay on show, or be acted on, while the new ones load.
+    info = null;
+    snapshots = [];
     try {
       await refreshGame();
+      pickDefaultAccounts();
       loadError = "";
     } catch (e) {
       loadError = e instanceof Error ? e.message : String(e);
     }
+  }
+
+  /** The game or Steam may have been closed while the window was in the background. */
+  function onWindowFocus(): void {
+    if (busy || !loaded || !appId) return;
+    void refreshGame().catch(() => {});
   }
 
   function reverseDirection(): void {
@@ -192,7 +214,7 @@
   let lastWroteCloud = false;
 
   function reportResult(
-    res: { copiedParts?: string[]; skippedParts?: string[]; revertSnapshotId?: string; cloudFollowUp?: boolean },
+    res: { copiedParts?: string[]; removedParts?: string[]; skippedParts?: string[]; revertSnapshotId?: string; cloudFollowUp?: boolean },
     message: string,
     dest: string,
   ): void {
@@ -200,6 +222,9 @@
     lastRevertLabel = dest;
     lastWroteCloud = !!res.cloudFollowUp;
     pushToast({ type: "success", message, duration: 6000 });
+    if (res.removedParts?.length) {
+      pushToast({ type: "info", message: $t("GameCfg_Toast_Removed", { parts: partsSummary(res.removedParts), dest }), duration: 10000 });
+    }
     const skipped = (res.skippedParts ?? []).filter((p) => p !== PART_GLOBAL);
     if (skipped.length > 0) {
       // The destination keeps what it had for these, which a bare "copied" would hide.
@@ -270,7 +295,7 @@
   }
 
   async function doSnapshot(): Promise<void> {
-    if (!sourceId || busy) return;
+    if (!sourceId || busy || selectedParts.length === 0) return;
     const label = await openPrompt({ title: $t("GameCfg_Prompt_SnapshotLabel"), initialValue: labelFor(sourceId) });
     if (label === null) return;
     if (!label.trim()) {
@@ -295,24 +320,32 @@
       pushToast({ type: "error", message: $t("GameCfg_Error_PickDestination"), duration: 5000 });
       return;
     }
-    if (!info) return;
+    if (!info || selectedParts.length === 0) return;
+    // What actually happens is the intersection. A revert point also removes what its own account
+    // did not have, and the dialog has to say so.
+    const written = selectedParts.filter((p) => snap.parts.includes(p));
+    const removed =
+      snap.auto && snap.sourceSteamId64 === destId
+        ? selectedParts.filter((p) => !snap.parts.includes(p) && (snap.emptyParts ?? []).includes(p))
+        : [];
     const ok = await openConfirm({
       title: $t("GameCfg_Confirm_ApplyTitle"),
       body:
         $t("GameCfg_Confirm_ApplyBody", {
           label: snap.label,
           dest: labelFor(destId),
-          parts: partsSummary(snap.parts.filter((x) => selectedParts.includes(x))),
+          parts: partsSummary([...written, ...removed]),
         }) +
+        (removed.length > 0
+          ? "\n\n" + $t("GameCfg_Confirm_ApplyRemoves", { parts: partsSummary(removed), dest: labelFor(destId) })
+          : "") +
         (selectedParts.includes(PART_GLOBAL) && snap.parts.includes(PART_GLOBAL)
           ? "\n\n" + $t("GameCfg_Confirm_GlobalWarning")
           : ""),
     });
     if (!ok) return;
-    // What actually gets written is the intersection: a snapshot with no cloud part carries no
-    // cloud risk however the checkboxes are set.
-    const written = selectedParts.filter((p) => snap.parts.includes(p));
-    const risk = await cloudRiskAccepted(selectionHasCloudPart(info, written));
+    // A snapshot with no cloud part carries no cloud risk however the checkboxes are set.
+    const risk = await cloudRiskAccepted(selectionHasCloudPart(info, [...written, ...removed]));
     if (risk === null) return;
     busy = true;
     try {
@@ -389,6 +422,8 @@
     );
   }
 </script>
+
+<svelte:window on:focus={onWindowFocus} />
 
 <div class="cfg-page">
   <PageHeader title={$t("GameCfg_Heading")} description={$t("GameCfg_Intro")} />
@@ -485,7 +520,7 @@
           <button type="button" class="ss-btn ss-btn--primary" disabled={!canCopy} on:click={doCopy}>
             {$t("GameCfg_Button_Copy")}
           </button>
-          <button type="button" class="ss-btn" disabled={busy || !sourceId || !appId} on:click={doSnapshot}>
+          <button type="button" class="ss-btn" disabled={busy || !sourceId || !appId || selectedParts.length === 0} on:click={doSnapshot}>
             {$t("GameCfg_Button_Snapshot")}
           </button>
           {#if lastRevertId}
@@ -514,7 +549,7 @@
                 </span>
               </div>
               <div class="snap__actions">
-                <button type="button" class="ss-btn snap__btn" disabled={busy} on:click={() => applySnapshot(snap)}>
+                <button type="button" class="ss-btn snap__btn" disabled={busy || selectedParts.length === 0} on:click={() => applySnapshot(snap)}>
                   {$t("GameCfg_Button_Apply")}
                 </button>
                 <button

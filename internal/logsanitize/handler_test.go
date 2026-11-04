@@ -28,8 +28,16 @@ func TestSteamIDHandler_MasksEveryPlaceAnIDCanTravel(t *testing.T) {
 	}
 }
 
+func TestMaskSteamIDs_NextToWordCharacters(t *testing.T) {
+	for _, s := range []string{"account_76561198000123456", "76561198000123456_avatar.jpg", "id76561198000123456x"} {
+		if got := MaskSteamIDs(s); strings.Contains(got, "76561198000123456") || !strings.Contains(got, "…123456") {
+			t.Errorf("%q became %q", s, got)
+		}
+	}
+}
+
 func TestSteamIDHandler_LeavesOtherNumbersAlone(t *testing.T) {
-	for _, s := range []string{"570", "1234567890123456789", "39734274", "timestamp=1762224000"} {
+	for _, s := range []string{"570", "1234567890123456789", "39734274", "timestamp=1762224000", "765611980001234567890"} {
 		if got := MaskSteamIDs(s); got != s {
 			t.Errorf("%q became %q", s, got)
 		}

@@ -29,6 +29,9 @@ type closeSequence struct {
 
 	// exitGrace is how long the client gets to act on askToExit.
 	exitGrace time.Duration
+	// askSettle is how long a request still in flight may hold up "closed". Delivered after the
+	// client has gone, the URL would start Steam again.
+	askSettle time.Duration
 	// helperGrace is how long helpers get once the client itself has gone. They normally
 	// follow within a second, so one that lingers should not cost the rest of exitGrace.
 	helperGrace time.Duration
@@ -40,13 +43,16 @@ func (c closeSequence) run() (closeOutcome, error) {
 	if !c.anyRunning() {
 		return closeNothingRunning, nil
 	}
+	started := time.Now()
 	// Only a running client may be asked: with Steam closed, opening the URL would start it.
 	// Leftover helpers with no client go straight to the signals.
 	if c.clientRunning() && c.waitForRequestedExit() {
 		return closeByRequest, nil
 	}
 	c.terminate()
-	if c.waitUntilClosed(c.termGrace) {
+	// Counted from the start, not from the signal. Giving up on the request early brings SIGTERM
+	// forward but never SIGKILL: Steam always gets the full time to flush its files.
+	if c.waitUntilClosed(time.Until(started.Add(c.exitGrace + c.termGrace))) {
 		return closeBySignal, nil
 	}
 	c.kill()
@@ -71,9 +77,21 @@ func (c closeSequence) waitForRequestedExit() bool {
 
 	deadline := time.Now().Add(c.exitGrace)
 	var clientGoneAt time.Time
+	delivered := false
+	closed := func() bool {
+		if !delivered {
+			select {
+			case <-asked:
+			case <-time.After(c.askSettle):
+				steamLog.Warn("steam exit request still in flight after steam closed")
+			}
+		}
+		return true
+	}
 	for time.Now().Before(deadline) {
 		select {
 		case err := <-asked:
+			delivered = true
 			if err != nil {
 				steamLog.Warn("steam exit request failed, using signals", "err", err)
 				return !c.anyRunning()
@@ -81,7 +99,7 @@ func (c closeSequence) waitForRequestedExit() bool {
 		default:
 		}
 		if !c.anyRunning() {
-			return true
+			return closed()
 		}
 		if !c.clientRunning() {
 			if clientGoneAt.IsZero() {
@@ -92,7 +110,7 @@ func (c closeSequence) waitForRequestedExit() bool {
 		}
 		time.Sleep(c.poll)
 	}
-	return !c.anyRunning()
+	return !c.anyRunning() && closed()
 }
 
 func (c closeSequence) waitUntilClosed(grace time.Duration) bool {

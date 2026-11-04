@@ -51,6 +51,7 @@ func (f *fakeSteam) seq() closeSequence {
 			}
 		},
 		exitGrace:   150 * time.Millisecond,
+		askSettle:   time.Second,
 		helperGrace: 30 * time.Millisecond,
 		termGrace:   50 * time.Millisecond,
 		poll:        5 * time.Millisecond,
@@ -158,5 +159,47 @@ func TestCloseSequence_LingeringHelperAfterClientQuitGetsSignalled(t *testing.T)
 	}
 	if took := time.Since(started); took > 2*time.Second {
 		t.Fatalf("took %v waiting on a lingering helper", took)
+	}
+}
+
+// Giving up on the request brings SIGTERM forward, never SIGKILL.
+func TestCloseSequence_KillNeverComesBeforeTheFullGrace(t *testing.T) {
+	for name, setup := range map[string]func(*fakeSteam){
+		"request failed":  func(f *fakeSteam) { f.askErr = errors.New("no handler") },
+		"leftover helper": func(f *fakeSteam) { f.client.Store(false) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			f := running()
+			setup(f)
+			seq := f.seq()
+			started := time.Now()
+			if outcome, _ := seq.run(); outcome != closeByForce {
+				t.Fatalf("outcome %q", outcome)
+			}
+			if took, min := time.Since(started), seq.exitGrace+seq.termGrace; took < min {
+				t.Fatalf("killed after %v, before the full %v", took, min)
+			}
+		})
+	}
+}
+
+// Delivered after the client has gone, the URL would start Steam again.
+func TestCloseSequence_WaitsForARequestStillInFlight(t *testing.T) {
+	f := running()
+	f.exitsOnRequest = true
+	seq := f.seq()
+	ask := seq.askToExit
+	var finished atomic.Bool
+	seq.askToExit = func() error {
+		err := ask()
+		time.Sleep(80 * time.Millisecond)
+		finished.Store(true)
+		return err
+	}
+	if outcome, err := seq.run(); err != nil || outcome != closeByRequest {
+		t.Fatalf("outcome %q err %v", outcome, err)
+	}
+	if !finished.Load() {
+		t.Fatal("reported closed while the request was still in flight")
 	}
 }

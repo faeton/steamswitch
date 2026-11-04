@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -29,14 +28,14 @@ import (
 //
 //   - connection_log.txt: logon results, with the account. The last result since launch decides,
 //     so a rejection followed by the user typing their password ends up confirmed.
-//   - ActiveUser: the client's own record of who is signed in.
-//   - the loginusers.vdf Timestamp moving forward. Weakest, because it was not measured whether
-//     Steam also rewrites it on a failed attempt, so it counts only after a settling delay.
+//   - ActiveUser: the client's own record of who is signed in. Only a change to this account counts,
+//     because a client that was killed leaves the old value behind.
 //   - the account's ConnectCache entry disappearing, which Steam does on rejection (measured).
 //
 // None of the positive signals could be measured on real Steam from where this was written. The
 // failure mode of a log format or registry key that differs is deliberate: the result is
-// "unconfirmed", never a false "signed in".
+// "unconfirmed", never a false "signed in". That is why the loginusers.vdf Timestamp is not used:
+// nobody knows whether Steam also rewrites it on a failed attempt.
 
 // SignInState is what the switcher may claim. The strings cross the bindings.
 type SignInState string
@@ -68,13 +67,16 @@ type SignInStatus struct {
 const SignInStatusEvent = "steam-signin-status"
 
 const (
-	signInAnswerTimeout   = 90 * time.Second
-	signInStartupGrace    = 45 * time.Second
-	signInWeakSignalDelay = 5 * time.Second
-	signInWatchLimit      = 10 * time.Minute
-	signInFastPoll        = time.Second
-	signInSlowPoll        = 3 * time.Second
-	connectionLogTail     = 512 * 1024
+	signInAnswerTimeout = 90 * time.Second
+	signInStartupGrace  = 45 * time.Second
+	// signInExitSettle: Steam restarts itself to apply an update, so one look at an empty process
+	// table does not mean it closed.
+	signInExitSettle  = 15 * time.Second
+	signInWatchLimit  = 10 * time.Minute
+	signInFastPoll    = time.Second
+	signInSlowPoll    = 3 * time.Second
+	signInIdlePoll    = 15 * time.Second
+	connectionLogTail = 512 * 1024
 )
 
 var (
@@ -120,7 +122,10 @@ func lastLogonEvent(logText, id32 string, since time.Time) (logonEvent, bool) {
 			continue
 		}
 		at, err := time.ParseInLocation("2006-01-02 15:04:05", m[1], time.Local)
-		if err != nil || at.Before(since.Truncate(time.Second)) {
+		// Strictly later than the launch's second: the log has one-second resolution, and a line
+		// from that same second can only be the previous session's. Steam cannot start and answer
+		// that fast.
+		if err != nil || !at.After(since.Truncate(time.Second)) {
 			continue
 		}
 		if ev, ok := parseLogonLine(line, tag); ok {
@@ -194,7 +199,11 @@ type signInWatch struct {
 	hadToken      bool
 
 	sawClient bool
-	weakSince time.Time
+	goneSince time.Time
+	// activeMoved: ActiveUser has been seen on something other than this account, so finding this
+	// account there now is news and not what a killed client left behind.
+	activeMoved   bool
+	rejectionSeen bool
 }
 
 // newSignInWatch must run before Steam starts: it records the launch time, and whether a token
@@ -213,6 +222,7 @@ func newSignInWatch(steamRoot string, now time.Time) *signInWatch {
 		return nil
 	}
 	w := &signInWatch{steamRoot: steamRoot, steamID64: id, id32: f.ID32, startedAt: now}
+	w.activeMoved = backend.ActiveUserID32(steamRoot) != f.ID32
 	for _, u := range users {
 		if u.SteamID64 == id {
 			w.accountName = u.AccountName
@@ -238,31 +248,39 @@ func (w *signInWatch) check(now time.Time) SignInStatus {
 	running := steamClientRunning()
 	if running {
 		w.sawClient = true
+		w.goneSince = time.Time{}
+	} else if w.goneSince.IsZero() {
+		w.goneSince = now
 	}
 
-	if ev, ok := lastLogonEvent(readConnectionLogTail(w.steamRoot), w.id32, w.startedAt); ok {
-		if ev.success {
-			status.State = SignInConfirmed
-		} else {
-			status.State, status.Reason = SignInNeedsPassword, ev.reason
-		}
-		return status
-	}
-	if running && backend.ActiveUserID32(w.steamRoot) == w.id32 {
+	ev, logged := lastLogonEvent(readConnectionLogTail(w.steamRoot), w.id32, w.startedAt)
+	if logged && ev.success {
 		status.State = SignInConfirmed
 		return status
 	}
-	if !running && (w.sawClient || now.Sub(w.startedAt) >= signInStartupGrace) {
-		status.State = SignInSteamExited
-		return status
+	rejected := logged
+	if rejected && !w.rejectionSeen {
+		// Steam may still hold this account in ActiveUser during the failed attempt. After a
+		// rejection, ActiveUser only counts once it has moved away and come back, which is the
+		// password being typed when the log's success line is not one this code recognises.
+		w.rejectionSeen, w.activeMoved = true, false
 	}
-	if running && w.loginTimestampMoved() {
-		if w.weakSince.IsZero() {
-			w.weakSince = now
-		} else if now.Sub(w.weakSince) >= signInWeakSignalDelay {
+	if running {
+		if backend.ActiveUserID32(w.steamRoot) != w.id32 {
+			w.activeMoved = true
+		} else if w.activeMoved {
 			status.State = SignInConfirmed
 			return status
 		}
+	}
+	if !running && ((w.sawClient && now.Sub(w.goneSince) >= signInExitSettle) ||
+		(!w.sawClient && now.Sub(w.startedAt) >= signInStartupGrace)) {
+		status.State = SignInSteamExited
+		return status
+	}
+	if rejected {
+		status.State, status.Reason = SignInNeedsPassword, ev.reason
+		return status
 	}
 	if w.noStoredLogin {
 		status.State, status.Reason = SignInNeedsPassword, "noStoredLogin"
@@ -278,20 +296,6 @@ func (w *signInWatch) check(now time.Time) SignInStatus {
 		status.State = SignInUnconfirmed
 	}
 	return status
-}
-
-func (w *signInWatch) loginTimestampMoved() bool {
-	users, err := ParseLoginUsers(LoginUsersPath(w.steamRoot))
-	if err != nil {
-		return false
-	}
-	for _, u := range users {
-		if u.SteamID64 == w.steamID64 {
-			ts, err := strconv.ParseInt(strings.TrimSpace(u.Timestamp), 10, 64)
-			return err == nil && ts >= w.startedAt.Unix()
-		}
-	}
-	return false
 }
 
 // The single current watch. A new launch replaces it, and the generation stops the old goroutine.
@@ -351,18 +355,17 @@ func launchAndWatchSignIn(steamRoot string, args []string, opts LaunchOpts) erro
 }
 
 // run polls until Steam gives a final answer. needsSignIn and unconfirmed are not final: the
-// person may type their password, and then the account really is signed in.
+// person may type their password, however long that takes, and then the account really is signed
+// in. steamExited is not final at first either, because a restart can look like an exit. A newer
+// launch replaces this watch, so it does not outlive the client it is watching for long.
 func (w *signInWatch) run(generation int) {
 	defer crashlog.Capture()
 	for {
 		now := time.Now()
 		status := w.check(now)
 		setSignInStatus(generation, status)
-		if status.State == SignInConfirmed || status.State == SignInSteamExited {
-			return
-		}
 		elapsed := now.Sub(w.startedAt)
-		if elapsed >= signInWatchLimit {
+		if status.State == SignInConfirmed || (status.State == SignInSteamExited && elapsed >= signInWatchLimit) {
 			return
 		}
 		signInTracker.Lock()
@@ -371,10 +374,13 @@ func (w *signInWatch) run(generation int) {
 		if stale {
 			return
 		}
-		if elapsed < signInAnswerTimeout {
+		switch {
+		case elapsed < signInAnswerTimeout:
 			time.Sleep(signInFastPoll)
-		} else {
+		case elapsed < signInWatchLimit:
 			time.Sleep(signInSlowPoll)
+		default:
+			time.Sleep(signInIdlePoll)
 		}
 	}
 }

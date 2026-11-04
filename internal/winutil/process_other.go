@@ -45,3 +45,6 @@ func IsExeRunning(_ string) bool {
 
 // ProcessInspectionSupported reports whether this build can tell if a process is running.
 func ProcessInspectionSupported() bool { return false }
+
+// AnyProcessRunningFrom has no implementation here.
+func AnyProcessRunningFrom(string) bool { return false }

@@ -518,6 +518,9 @@ func (s *SteamService) ListGameConfigSnapshots(appID string) ([]DotaSnapshot, er
 // RenameGameConfigSnapshot updates a label and note. A snapshot the user has deliberately named is
 // a curated config, not a revert point, so it stops being pruned.
 func (s *SteamService) RenameGameConfigSnapshot(appID, snapshotID, label, note string) (DotaSnapshot, error) {
+	// Pruning decides from Auto and then deletes, so a rename must not land in between.
+	dotaWriteMu.Lock()
+	defer dotaWriteMu.Unlock()
 	if err := security.RequireUnlocked(); err != nil {
 		return DotaSnapshot{}, err
 	}
@@ -540,6 +543,8 @@ func (s *SteamService) RenameGameConfigSnapshot(appID, snapshotID, label, note s
 	snap.Label = label
 	snap.Note = strings.TrimSpace(note)
 	snap.Auto = false
+	// A curated config holds what it holds. "This part was empty" only means something for undoing.
+	snap.EmptyParts = nil
 	if err := writeSnapshotMeta(dir, snap); err != nil {
 		return DotaSnapshot{}, err
 	}
@@ -651,22 +656,16 @@ func (s *SteamService) applyGameParts(
 		return res, err
 	}
 	res.RevertSnapshotID = revert.ID
-	pruneAutoSnapshots(appID)
 
 	var touched []string
+	cloudTouched := false
 	for _, part := range writes {
 		dst, _ := gamePartPath(steamRoot, destID32, appID, part)
 		touched = append(touched, part)
 		if err := replaceDir(sources[part], dst); err != nil {
 			return res, s.rollBackGameParts(&res, appID, steamRoot, destID32, revert, touched, err)
 		}
-		if partCloudSynced(appID, part) {
-			// remotecache.vdf is Steam's local inventory of the cloud payload (paths, sizes,
-			// hashes). Leaving the pre-copy version in place invites Steam to treat the new files
-			// as stale and re-download the old ones.
-			_ = os.Remove(filepath.Join(steamRoot, "userdata", destID32, appID, "remotecache.vdf"))
-			res.CloudFollowUp = true
-		}
+		cloudTouched = cloudTouched || partCloudSynced(appID, part)
 		res.CopiedParts = append(res.CopiedParts, part)
 	}
 	for _, part := range removeParts {
@@ -678,12 +677,19 @@ func (s *SteamService) applyGameParts(
 		if err := os.RemoveAll(dst); err != nil {
 			return res, s.rollBackGameParts(&res, appID, steamRoot, destID32, revert, touched, err)
 		}
-		if partCloudSynced(appID, part) {
-			_ = os.Remove(filepath.Join(steamRoot, "userdata", destID32, appID, "remotecache.vdf"))
-			res.CloudFollowUp = true
-		}
+		cloudTouched = cloudTouched || partCloudSynced(appID, part)
 		res.RemovedParts = append(res.RemovedParts, part)
 	}
+	if cloudTouched {
+		// remotecache.vdf is Steam's local inventory of the cloud payload (paths, sizes, hashes).
+		// Leaving the pre-copy version in place invites Steam to treat the new files as stale and
+		// re-download the old ones. Only once every write has worked: a rollback puts the old
+		// files back, and they still need the old inventory.
+		_ = os.Remove(filepath.Join(steamRoot, "userdata", destID32, appID, "remotecache.vdf"))
+		res.CloudFollowUp = true
+	}
+	// Last, because the snapshot being applied can itself be the oldest revert point.
+	pruneAutoSnapshots(appID)
 	return res, nil
 }
 
@@ -811,11 +817,14 @@ func (s *SteamService) ApplyGameConfigSnapshot(appID, snapshotID, destSteamID64 
 	if err != nil {
 		return res, err
 	}
+	// "This part was empty" describes the account the revert point was taken from. On any other
+	// account it is not a reason to delete anything.
+	removable := snap.Auto && s.sameAccount(snap.SourceSteamID64, destSteamID64)
 	var usable, removes []string
 	for _, p := range sel {
 		if containsPart(snap.Parts, p) {
 			usable = append(usable, p)
-		} else if containsPart(snap.EmptyParts, p) {
+		} else if removable && containsPart(snap.EmptyParts, p) {
 			removes = append(removes, p)
 		}
 	}
@@ -847,6 +856,13 @@ func (s *SteamService) UndoGameConfigCopy(appID, revertSnapshotID string, allowC
 		return res, errNotARevertPoint
 	}
 	return s.writeSnapshot(appID, dir, snap.SourceSteamID64, snap.Parts, snap.EmptyParts, allowCloudRisk)
+}
+
+// sameAccount compares by account number: the parser accepts more than one spelling of an ID.
+func (s *SteamService) sameAccount(a, b string) bool {
+	idA, errA := s.dotaAccountID32(a)
+	idB, errB := s.dotaAccountID32(b)
+	return errA == nil && errB == nil && idA == idB
 }
 
 func (s *SteamService) writeSnapshot(appID, dir, destSteamID64 string, usable, removes []string, allowCloudRisk bool) (DotaCopyResult, error) {

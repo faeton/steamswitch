@@ -99,7 +99,7 @@ Reachable from Tools, or `#/tools/game-configs`. The old `#/dota-configs` link s
   *not* have, so an undo also removes what the copy created. Each part is replaced, never merged.
   Cloud-synced parts are refused while Steam runs unless the risk is accepted. Nothing is written
   while the game runs, with no override: known process names, Steam's own Running flag while the
-  client is up, and on macOS any process started from the install folder. A write that fails part
+  client is up, and any process started from the install folder. A write that fails part
   way puts the destination straight back.
 - **What each game's copy holds is read from disk**, and the page names what it leaves behind.
   `local/` counts as cloud-synced for every game except Dota, where it is known not to be: public
@@ -204,12 +204,14 @@ Writing the login and starting Steam does not sign anybody in. A rejected token 
 expired)", measured) or an account with no stored login ends at a password prompt, and the app used
 to report success for both. Every launch now starts a watch whose verdict drives the dock and the
 top bar: `confirmed`, `needsSignIn` (with Steam's reason), `unconfirmed` or `steamExited`. If the
-person then types their password, it becomes `confirmed`.
+person then types their password, it becomes `confirmed`, however long that takes: the watch keeps
+going while Steam runs. `steamExited` needs 15 s of no client, because Steam restarts itself to update.
 
-Evidence is `logs/connection_log.txt`, the client's `ActiveUser`, the account's `Timestamp` moving
-(weakest, so it has to settle first) and its `ConnectCache` entry disappearing. Only the rejection
-lines have been measured on real Steam. Anything that does not match gives `unconfirmed`, never a
-false "signed in". Known gap: after restarting the app there is no watch, so the bar goes back to
+Evidence is `logs/connection_log.txt`, the client's `ActiveUser` changing to this account (a killed
+client leaves the old value behind, so its value alone proves nothing) and the `ConnectCache` entry
+disappearing. The `loginusers.vdf` `Timestamp` is deliberately not used: nobody has checked whether
+Steam rewrites it on a failed attempt. Only the rejection lines have been measured on real Steam.
+Anything that does not match gives `unconfirmed`, never a false "signed in". Known gap: after restarting the app there is no watch, so the bar goes back to
 reading the login files.
 
 `stored_login.go` reads which accounts have a `ConnectCache` key (CRC32(name) + "1") for the "Needs
@@ -242,7 +244,8 @@ What differs is small enough to sit behind one interface, `osBackend`:
   under `Registry/HKCU/Software/Valve/Steam`, edited losslessly by `registryvdf.go`;
 - processes are `steam_osx` / `Steam Helper` / `dota2`, found with `pgrep -x`. Steam is closed by
   asking it (`steam://exit`), because a signed-in Mac Steam ignores SIGTERM, then with SIGTERM after
-  10 s and SIGKILL after 20 s. `close_sequence.go` holds the order; Windows has its own close path;
+  10 s, or at once if the request could not be made, and SIGKILL 20 s from the start either way.
+  `close_sequence.go` holds the order; Windows has its own close path;
 - the application bundle is separate from the data directory, so `steamRoot` throughout this
   package means the *data* root and only `Launch` looks for `/Applications/Steam.app`.
 

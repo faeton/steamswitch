@@ -237,7 +237,7 @@ separate implementation rather than shared code.
 | # | Steps | Expected |
 |---|---|---|
 | M1 | With Steam **running**, try a switch | Refused with "Steam or a game is still running", or Steam is closed first — never a write while `steam_osx` is alive. Check with `pgrep -x steam_osx`. |
-| M2 | Start a switch while Steam is running and watch `pgrep -x steam_osx` | Steam gets a SIGTERM and is given up to 20s to exit cleanly before SIGKILL. It must not be killed instantly: Steam flushes `loginusers.vdf` and `registry.vdf` on exit. |
+| M2 | Start a switch while Steam is running and watch `pgrep -x steam_osx` | Steam is asked to quit with `steam://exit` and normally goes in seconds. If it does not, it gets SIGTERM at 10s and SIGKILL at 20s. It must not be killed instantly: Steam flushes `loginusers.vdf` and `registry.vdf` on exit. |
 | M3 | After a switch, open `~/Library/Application Support/Steam/registry.vdf` | `AutoLoginUser` under `Registry/HKCU/Software/Valve/Steam` is the new account. |
 | M4 | Diff that file against a copy taken before the switch | **Only** `AutoLoginUser` and `RememberPassword` changed. Every other key — `language`, `SourceModInstallPath`, the `steamglobal` subtree, the whole `HKLM` hive — is byte-identical. |
 | M5 | With Dota **running** but Steam closed, try a Dota config copy touching cloud settings | Refused. `dota2` on macOS has no `.exe` suffix; if this is *allowed*, the process-name list is wrong and every cloud guard is dead. |

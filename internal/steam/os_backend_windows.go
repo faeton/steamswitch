@@ -171,6 +171,5 @@ func (windowsBackend) AppMarkedRunning(_, appID string) bool {
 	return false
 }
 
-// ProcessRunningFrom is not implemented: winutil's snapshot lists basenames, not paths. The
-// Running flag above covers anything Steam started; the listed names cover Dota and CS2.
-func (windowsBackend) ProcessRunningFrom(string) bool { return false }
+// ProcessRunningFrom catches a game that outlived Steam, where the Running flag says nothing.
+func (windowsBackend) ProcessRunningFrom(dir string) bool { return winutil.AnyProcessRunningFrom(dir) }

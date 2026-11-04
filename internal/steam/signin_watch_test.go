@@ -185,7 +185,8 @@ func TestSignIn_SteamClosingIsReported(t *testing.T) {
 	w := newTestWatch(t, root, start)
 	w.check(start.Add(time.Second))
 	b.running = false
-	if st := w.check(start.Add(2 * time.Second)); st.State != SignInSteamExited {
+	w.check(start.Add(2 * time.Second))
+	if st := w.check(start.Add(2*time.Second + signInExitSettle)); st.State != SignInSteamExited {
 		t.Fatalf("status = %+v", st)
 	}
 }
@@ -213,10 +214,10 @@ func TestSignIn_TokenVanishingCountsAsRejected(t *testing.T) {
 	}
 }
 
-// The weakest signal has to settle, so a failure line arriving just after it still wins.
-func TestSignIn_TimestampAloneConfirmsOnlyAfterSettling(t *testing.T) {
+// Nobody knows whether Steam rewrites Timestamp on a failed attempt, so it proves nothing.
+func TestSignIn_TimestampMovingNeverConfirms(t *testing.T) {
 	_, root := signInFixture(t)
-	writeLocalVDF(t, root, "target")
+	writeLocalVDF(t, root, "other")
 	start := time.Now()
 	w := newTestWatch(t, root, start)
 	writeFile(t, LoginUsersPath(root), fmt.Sprintf(`"users"
@@ -229,11 +230,97 @@ func TestSignIn_TimestampAloneConfirmsOnlyAfterSettling(t *testing.T) {
 	}
 }
 `, signInID64, start.Unix()+1))
-	if st := w.check(start.Add(2 * time.Second)); st.State != SignInWaiting {
-		t.Fatalf("immediately: %+v", st)
+	for _, after := range []time.Duration{2 * time.Second, 20 * time.Second, signInAnswerTimeout} {
+		if st := w.check(start.Add(after)); st.State == SignInConfirmed {
+			t.Fatalf("after %v: %+v", after, st)
+		}
 	}
-	if st := w.check(start.Add(2*time.Second + signInWeakSignalDelay)); st.State != SignInConfirmed {
-		t.Fatalf("after settling: %+v", st)
+}
+
+// A killed client leaves ActiveUser behind. Relaunching that account must not read as signed in
+// before Steam has answered, or a rejection right after it would never be seen.
+func TestSignIn_ActiveUserLeftBehindDoesNotConfirm(t *testing.T) {
+	b, root := signInFixture(t)
+	writeLocalVDF(t, root, "target")
+	b.activeUser = signInID32
+	start := time.Now()
+	w := newTestWatch(t, root, start)
+	if st := w.check(start.Add(time.Second)); st.State != SignInWaiting {
+		t.Fatalf("stale value: %+v", st)
+	}
+	b.activeUser = "0"
+	if st := w.check(start.Add(2 * time.Second)); st.State != SignInWaiting {
+		t.Fatalf("cleared: %+v", st)
+	}
+	b.activeUser = signInID32
+	if st := w.check(start.Add(3 * time.Second)); st.State != SignInConfirmed {
+		t.Fatalf("really signed in: %+v", st)
+	}
+}
+
+func TestSignIn_RejectionThenActiveUserComingBackConfirms(t *testing.T) {
+	b, root := signInFixture(t)
+	writeLocalVDF(t, root, "target")
+	start := time.Now()
+	w := newTestWatch(t, root, start)
+	writeConnLog(t, root, start.Add(time.Second), "Clearing in-memory token - 27 (License expired): LogonFailureReceived(2)")
+	// Still naming this account during the failed attempt says nothing.
+	b.activeUser = signInID32
+	if st := w.check(start.Add(2 * time.Second)); st.State != SignInNeedsPassword {
+		t.Fatalf("during the rejection: %+v", st)
+	}
+	b.activeUser = "0"
+	if st := w.check(start.Add(3 * time.Second)); st.State != SignInNeedsPassword {
+		t.Fatalf("at the prompt: %+v", st)
+	}
+	// The success line is not one this code knows, but the client says so.
+	b.activeUser = signInID32
+	if st := w.check(start.Add(4 * time.Second)); st.State != SignInConfirmed {
+		t.Fatalf("after the password: %+v", st)
+	}
+}
+
+func TestSignIn_RestartIsNotAnExit(t *testing.T) {
+	b, root := signInFixture(t)
+	writeLocalVDF(t, root, "target")
+	start := time.Now()
+	w := newTestWatch(t, root, start)
+	w.check(start.Add(time.Second))
+	b.running = false
+	if st := w.check(start.Add(2 * time.Second)); st.State == SignInSteamExited {
+		t.Fatalf("one look at an empty process table: %+v", st)
+	}
+	b.running = true
+	w.check(start.Add(5 * time.Second))
+	b.running = false
+	if st := w.check(start.Add(6 * time.Second)); st.State == SignInSteamExited {
+		t.Fatalf("settling restarted after the client came back: %+v", st)
+	}
+}
+
+func TestSignIn_ClosingAtThePasswordPromptIsAnExit(t *testing.T) {
+	b, root := signInFixture(t)
+	writeLocalVDF(t, root, "target")
+	start := time.Now()
+	w := newTestWatch(t, root, start)
+	writeConnLog(t, root, start.Add(time.Second), "Clearing in-memory token - 27 (License expired): LogonFailureReceived(2)")
+	w.check(start.Add(2 * time.Second))
+	b.running = false
+	w.check(start.Add(3 * time.Second))
+	if st := w.check(start.Add(3*time.Second + signInExitSettle)); st.State != SignInSteamExited {
+		t.Fatalf("status = %+v", st)
+	}
+}
+
+// The log has one-second resolution, so the launch's own second can only be the previous session.
+func TestSignIn_LineFromTheLaunchSecondDoesNotCount(t *testing.T) {
+	_, root := signInFixture(t)
+	writeLocalVDF(t, root, "target")
+	start := time.Now()
+	writeConnLog(t, root, start, "RecvMsgClientLogOnResponse() : [U:1:"+signInID32+"] 'OK' (Cell 1)")
+	w := newTestWatch(t, root, start)
+	if st := w.check(start.Add(time.Second)); st.State != SignInWaiting {
+		t.Fatalf("status = %+v", st)
 	}
 }
 

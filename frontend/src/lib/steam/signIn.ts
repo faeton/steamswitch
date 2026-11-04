@@ -71,6 +71,7 @@ export function heroLoginCopy(status: SignInStatus, accountId: string): { key: s
       case "needsSignIn":
         return { key: "Hero_NeedsPassword", warn: true };
       case "unconfirmed":
+      case "steamExited":
         return { key: "Hero_SignInUnconfirmed", warn: true };
     }
   }

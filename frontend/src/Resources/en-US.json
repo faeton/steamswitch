@@ -1189,6 +1189,8 @@
   "GameCfg_Prompt_SnapshotLabel": "Name this config (for example: Ceb's config)",
   "GameCfg_Prompt_SnapshotNote": "Optional note — where did this config come from?",
   "GameCfg_Toast_Copied": "Copied {parts} to {dest}.",
+  "GameCfg_Confirm_ApplyRemoves": "{parts}: this account had none when the revert point was taken, so it will be removed from {dest}.",
+  "GameCfg_Toast_Removed": "{parts} removed from {dest}.",
   "GameCfg_Toast_Skipped": "{parts}: nothing to copy from the source, so the destination keeps what it had.",
   "GameCfg_Toast_Snapshotted": "Saved config \"{label}\".",
   "GameCfg_Toast_Applied": "Applied \"{label}\" ({parts}) to {dest}.",

@@ -42,6 +42,7 @@ describe("heroLoginCopy", () => {
   it("stops saying 'signed in' while Steam is asking for a password", () => {
     expect(heroLoginCopy({ steamId64: "1", state: "needsSignIn" }, "1")).toEqual({ key: "Hero_NeedsPassword", warn: true });
     expect(heroLoginCopy({ steamId64: "1", state: "waiting" }, "1").key).toBe("Hero_SigningInAs");
+    expect(heroLoginCopy({ steamId64: "1", state: "steamExited" }, "1")).toEqual({ key: "Hero_SignInUnconfirmed", warn: true });
     expect(heroLoginCopy({ steamId64: "1", state: "confirmed" }, "1").key).toBe("Hero_SignedInAs");
   });
 
