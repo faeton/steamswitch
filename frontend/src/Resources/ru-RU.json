@@ -358,22 +358,5 @@
   "Heading_UpdateAvailable": "Доступно обновление",
   "Button_UpdateNow": "Обновить сейчас",
   "Button_OpenDownloadPage": "Скачать с GitHub",
-  "Button_Loading": "Загрузка…",
-  "Stability_DidSwitchWork": "Смена аккаунта сработала?",
-  "Stability_ThanksRating": "Спасибо за оценку",
-  "Stability_ThanksReportLine1": "Спасибо за оценку.",
-  "Stability_ThanksReportAskPrefix": "Нужно ",
-  "Stability_ThanksReportAskSuffix": "?",
-  "Stability_ReportIssue": "сообщить о проблеме",
-  "Stability_ThumbUp": "Да, смена аккаунта сработала",
-  "Stability_ThumbDown": "Нет, смена аккаунта не сработала",
-  "Feedback_Issue_Title": "Сообщить о проблеме",
-  "Feedback_Issue_Body": "Опишите, что пошло не так и что вы ожидали:",
-  "Feedback_Suggestion_Title": "Предложить функцию или изменение",
-  "Feedback_Suggestion_Body": "Введите идею, изменение или исправление подробно:",
-  "Feedback_Submit": "Отправить",
-  "Feedback_AttachLog": "Отправить журнал",
-  "Feedback_AttachLog_Hint": "Имена пользователей, ID и похожие данные по возможности удаляются из журнала перед отправкой.",
-  "Toast_FeedbackThanks": "Спасибо за ваш отзыв.",
-  "Toast_FeedbackSubmitFailed": "Не удалось отправить отзыв."
+  "Button_Loading": "Загрузка…"
 }

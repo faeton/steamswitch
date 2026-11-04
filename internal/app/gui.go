@@ -105,6 +105,12 @@ func mainWindowOptions(guiSettings platform.AppSettings, parsed cli.Parsed) appl
 	if parsed.StartInTray {
 		winOpts.Hidden = true
 	}
+	if parsed.FramedWindow {
+		winOpts.Frameless = false
+	}
+	if parsed.DiagPage {
+		winOpts.URL = "/diag.html"
+	}
 	return winOpts
 }
 
@@ -129,11 +135,12 @@ func RunGUI(params RunGUIParams) {
 	if !parsed.LogLevelSet && wailsLvl < slog.LevelInfo {
 		wailsLvl = slog.LevelInfo
 	}
-	wailsLogger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: wailsLvl}))
+	wailsLogHandler := newWailsLogHandler(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: wailsLvl}))
+	wailsLogger := slog.New(wailsLogHandler)
 	notifier := notifications.New()
 	platform.SetNativeNotifier(notifier)
 	services := append([]application.Service{}, params.Services...)
-	services = append(services, application.NewService(notifier))
+	services = append(services, application.NewService(&optionalNotifications{inner: notifier}))
 
 	var wailsApp *application.App
 	appOpts := application.Options{
@@ -163,6 +170,7 @@ func RunGUI(params RunGUIParams) {
 		} else {
 			configureWindowsWebViewCache(&appOpts, cacheDir)
 		}
+		appOpts.Windows.AdditionalBrowserArgs = append(appOpts.Windows.AdditionalBrowserArgs, parsed.WebViewArgs...)
 	}
 
 	wailsApp = application.New(appOpts)
@@ -181,6 +189,7 @@ func RunGUI(params RunGUIParams) {
 	}
 	var ipcStop func()
 	wailsApp.OnShutdown(func() {
+		wailsLogHandler.markShuttingDown()
 		params.DiscordRPC.Stop()
 		if ipcStop != nil {
 			ipcStop()
@@ -270,6 +279,8 @@ func RunGUI(params RunGUIParams) {
 			}
 		}
 	}()
+
+	watchFrontendReports(ctx)
 
 	err = wailsApp.Run()
 	if err != nil {

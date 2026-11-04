@@ -16,6 +16,7 @@
  */
 import { derived, get, writable, type Readable } from "svelte/store";
 import { advanceStep, stepForStatusKey, type SwitchStepId } from "../lib/steam/switchSteps";
+import type { SignInState, SignInStatus } from "../lib/steam/signIn";
 
 /** A button rendered on the strip. `id` is dispatched to the host page, not handled here. */
 export type StatusAction = {
@@ -67,6 +68,15 @@ export type StatusStripState =
        * "relaunched" from "left closed" — and the result line must not guess.
        */
       launched: boolean;
+      /** The account being switched to, so Steam's sign-in answer can be matched to this switch. */
+      toSteamId: string;
+      /**
+       * Steam's own answer on whether the account signed in. The engine finishing only means the
+       * files were written and Steam was started; "signed in" may be claimed from this alone.
+       */
+      signIn: SignInState;
+      /** Steam's short reason ("License expired") or "noStoredLogin", when there is one. */
+      signInReason: string;
     }
   | {
       kind: "kit-active";
@@ -207,7 +217,7 @@ export function setIdleFacts(facts: {
  * otherwise both pass a caller-side check and issue concurrent swaps against the same live
  * Steam files.
  */
-export function beginSwitch(toLabel: string, fromLabel = "", initialPhase = ""): boolean {
+export function beginSwitch(toLabel: string, fromLabel = "", initialPhase = "", toSteamId = ""): boolean {
   const cur = get(internal);
   // A finished-but-undismissed switch must not block the next one: the dock is showing a
   // result, not doing work. Anything genuinely in flight still refuses.
@@ -226,6 +236,9 @@ export function beginSwitch(toLabel: string, fromLabel = "", initialPhase = ""):
     step: null,
     finished: false,
     launched: false,
+    toSteamId,
+    signIn: "none",
+    signInReason: "",
   });
   return true;
 }
@@ -251,12 +264,28 @@ export function narrate(phase: string, statusKey = ""): void {
  * and a dock that disappears the instant the engine returns leaves the user staring at the
  * same grid wondering whether anything happened.
  */
-export function endSwitch(launched = false): void {
+export function endSwitch(launched = false, signIn?: SignInStatus): void {
   const cur = get(internal);
   if (cur.kind !== "switching") {
     return;
   }
-  internal.set({ ...cur, finished: true, launched });
+  const matches = !!signIn && signIn.steamId64 === cur.toSteamId;
+  internal.set({
+    ...cur,
+    finished: true,
+    launched,
+    signIn: matches ? signIn.state : "none",
+    signInReason: matches ? (signIn.reason ?? "") : "",
+  });
+}
+
+/** Steam gave a new answer. Applies only to the switch it is about, once the engine is done. */
+export function applySignInStatus(status: SignInStatus): void {
+  const cur = get(internal);
+  if (cur.kind !== "switching" || !cur.finished || status.steamId64 !== cur.toSteamId) {
+    return;
+  }
+  internal.set({ ...cur, launched: true, signIn: status.state, signInReason: status.reason ?? "" });
 }
 
 /** Dismiss a finished switch's result and settle back to kit-active or idle. */

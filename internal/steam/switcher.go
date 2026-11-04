@@ -10,7 +10,6 @@ import (
 	"steamswitch/internal/fsutil"
 	"steamswitch/internal/platform"
 	"steamswitch/internal/security"
-	"steamswitch/internal/stability"
 	"steamswitch/internal/stats"
 	"steamswitch/internal/tray"
 	"steamswitch/internal/vault"
@@ -125,7 +124,6 @@ func swapToAccountLocked(steamID64 string, personaState int, extraLaunchArgs []s
 	}
 
 	RecordTrayRecentAfterSwap(steamID64)
-	stability.OnSuccessfulSwitch("Steam")
 	if err := stats.IncrementSwitches("Steam"); err != nil {
 		return err
 	}
@@ -137,7 +135,7 @@ func swapToAccountLocked(steamID64 string, personaState int, extraLaunchArgs []s
 	}
 
 	platform.EmitActionBarStatusI18nPlatform("Status_StartingPlatform", "Steam")
-	if err := backend.Launch(root, buildSteamArgs(st, extraLaunchArgs), launchOpts(st, st.RunAsAdmin)); err != nil {
+	if err := launchAndWatchSignIn(root, buildSteamArgs(st, extraLaunchArgs), launchOpts(st, st.RunAsAdmin)); err != nil {
 		return err
 	}
 	tray.MaybeHideMainWindow()
@@ -174,7 +172,7 @@ func LaunchSteamOnly(extraLaunchArgs []string) error {
 	if root == "" {
 		return fmt.Errorf("steam install folder not found")
 	}
-	return backend.Launch(root, buildSteamArgs(st, extraLaunchArgs), launchOpts(st, st.RunAsAdmin))
+	return launchAndWatchSignIn(root, buildSteamArgs(st, extraLaunchArgs), launchOpts(st, st.RunAsAdmin))
 }
 
 func LaunchSteamOnlyAs(forceAdmin bool, extraLaunchArgs []string) error {
@@ -208,7 +206,7 @@ func LaunchSteamOnlyAs(forceAdmin bool, extraLaunchArgs []string) error {
 		return fmt.Errorf("steam install folder not found")
 	}
 	admin := st.RunAsAdmin || forceAdmin
-	return backend.Launch(root, buildSteamArgs(st, extraLaunchArgs), launchOpts(st, admin))
+	return launchAndWatchSignIn(root, buildSteamArgs(st, extraLaunchArgs), launchOpts(st, admin))
 }
 
 // launchOpts narrows the settings to the OS-neutral pair a backend can act on.

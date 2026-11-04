@@ -45,7 +45,7 @@
   function isActive(current: Route, page: TopLevelPage): boolean {
     if (current.page === page) return true;
     if (page === "tools") {
-      return current.page === "dota-configs" || current.page === "steam-advanced-clearing";
+      return current.page === "game-configs" || current.page === "steam-advanced-clearing";
     }
     if (page === "settings") return current.page === "preview-css";
     return false;

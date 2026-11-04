@@ -24,10 +24,11 @@
     stepPercent,
     visibleSteps,
   } from "../lib/steam/switchSteps";
+  import { dockResult, signInMark } from "../lib/steam/signIn";
 
   const dispatch = createEventDispatcher<{ done: void; action: string }>();
 
-  const MARK_GLYPH = { done: "✓", active: "▸", pending: "·", skipped: "–" } as const;
+  const MARK_GLYPH = { done: "✓", active: "▸", pending: "·", skipped: "–", attention: "!" } as const;
 
   $: s = $statusStrip;
   /*
@@ -48,7 +49,11 @@
   $: launched = s.kind === "switching" && s.launched;
   $: steps = visibleSteps(sawKit);
   $: marks = s.kind === "switching" ? stepMarks(s.step, s.finished, launched) : null;
-  $: percent = s.kind === "switching" ? stepPercent(s.step, s.finished) : 0;
+  $: result = s.kind === "switching" && s.finished ? dockResult(s.signIn, s.signInReason, launched) : null;
+  // Not full while Steam has not answered: a bar at 100% says it is over.
+  $: percent = result?.tone === "waiting" ? 90 : s.kind === "switching" ? stepPercent(s.step, s.finished) : 0;
+  // No chip when Steam was left closed, since no sign-in is going to happen.
+  $: signInChip = s.kind === "switching" && !(s.finished && !launched) ? signInMark(s.signIn, s.finished) : null;
 
   function onDone(): void {
     dismissSwitch();
@@ -78,19 +83,27 @@
     </div>
   </div>
 {:else if open && s.kind === "switching"}
-  <div class="dock" class:dock--done={finished} role="status" aria-live="polite">
+  <div
+    class="dock"
+    class:dock--done={result?.tone === "ok"}
+    class:dock--attention={result?.tone === "attention"}
+    role={result?.tone === "attention" ? "alert" : "status"}
+    aria-live={result?.tone === "attention" ? "assertive" : "polite"}
+  >
     <div class="dock__top">
       <div class="dock__lead">
         <div class="dock__title">
-          {finished
-            ? $t("Switch_Done_Title", { name: s.toLabel })
+          {result
+            ? $t(result.titleKey, { name: s.toLabel })
             : $t("Switch_Running_Title", { name: s.toLabel })}
         </div>
         <div class="dock__sub">
-          {#if finished}
-            {launched
-              ? $t("Switch_Done_Sub", { from: s.fromLabel || $t("Status_NoAccount") })
-              : $t("Switch_Done_SubNoLaunch", { from: s.fromLabel || $t("Status_NoAccount") })}
+          {#if result}
+            {$t(result.subKey, {
+              from: s.fromLabel || $t("Status_NoAccount"),
+              name: s.toLabel,
+              reason: result.reason,
+            })}
           {:else}
             {s.phase || $t("Switch_Running_Sub", { from: s.fromLabel || $t("Status_NoAccount") })}
           {/if}
@@ -123,6 +136,12 @@
           </span>
         </span>
       {/each}
+      {#if signInChip}
+        <span class="step meta-mono" data-mark={signInChip}>
+          <span class="step__glyph" aria-hidden="true">{MARK_GLYPH[signInChip]}</span>
+          <span>{$t("Switch_Step_SignIn")}</span>
+        </span>
+      {/if}
     </div>
 
     {#if !finished}
@@ -151,6 +170,14 @@
 
   .dock--failed {
     border-top-color: var(--border-fail);
+  }
+
+  .dock--attention {
+    border-top-color: var(--border-warn);
+  }
+
+  .dock--attention .dock__title {
+    color: var(--fg-warn);
   }
 
   .dock--failed .dock__title {
@@ -237,6 +264,10 @@
 
   .step[data-mark="done"] {
     color: var(--fg-ok);
+  }
+
+  .step[data-mark="attention"] {
+    color: var(--fg-warn);
   }
 
   .step[data-mark="active"] {

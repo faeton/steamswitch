@@ -120,6 +120,23 @@ func (r *registryVDF) Get(key string) string {
 	return childValueCI(*node, key)
 }
 
+// GetNested reads a value below the Steam hive, e.g. GetNested("ActiveProcess", "ActiveUser").
+// An absent key at any level reads as "".
+func (r *registryVDF) GetNested(levels ...string) string {
+	if len(levels) == 0 {
+		return ""
+	}
+	node := &r.root
+	for _, level := range append(append([]string(nil), steamHivePath...), levels[:len(levels)-1]...) {
+		idx := childIdxCI(*node, level)
+		if idx < 0 {
+			return ""
+		}
+		node = &node.Children[idx]
+	}
+	return childValueCI(*node, levels[len(levels)-1])
+}
+
 // Set writes one value into the Steam hive, replacing any existing entry.
 func (r *registryVDF) Set(key, value string) {
 	setChildValueCI(r.hive(), key, value)

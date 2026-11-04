@@ -54,6 +54,8 @@
     statusStripAction,
     switchingBlocked,
   } from "../stores/statusStrip";
+  import { refreshSignInStatus, signInStatus } from "../stores/signInStatus";
+  import type { SignInStatus } from "../lib/steam/signIn";
   import {
     kitIsActive,
     kitStatus,
@@ -269,6 +271,7 @@
           displayName: r.displayName,
           accountName: r.accountName,
           currentSession: r.currentSession ?? false,
+          noStoredLogin: r.noStoredLogin ?? false,
         }) as SteamAccountRow,
     );
     accounts = mergeById(accounts, list);
@@ -455,12 +458,27 @@
     await runSwitch(steamId64, labelOf(acc), personaState);
   }
 
+  /*
+    Steam answered. The password may just have been typed, or a rejected token cleared, so the
+    bar, the running pill and the "needs sign-in" badges may all have moved.
+  */
+  let lastSignInSeen = "";
+  $: onSignInChanged($signInStatus);
+  function onSignInChanged(status: SignInStatus): void {
+    const key = `${status.steamId64}:${status.state}`;
+    if (key === lastSignInSeen) return;
+    lastSignInSeen = key;
+    if (status.state === "none" || status.state === "waiting") return;
+    void refreshSession();
+    void refreshSteamRunning();
+  }
+
   /** The actual engine call, shared by a plain switch and by "retry". */
   async function runSwitch(steamId64: string, label: string, personaState = -1): Promise<void> {
     // The account being left is captured before the engine touches anything: `afterSwitch`
     // reloads the list, and by the time the dock renders "Saving X's login" the old current
     // account is already gone from `currentAccount`.
-    if (!beginSwitch(label, labelOf(currentAccount))) return;
+    if (!beginSwitch(label, labelOf(currentAccount), "", steamId64)) return;
     inFlightId = steamId64;
     // Opening the detail panel and switching from it should not leave the panel sitting over
     // an account that is no longer current.
@@ -471,7 +489,12 @@
       // `afterSwitch` refreshes `steamRunning`; the dock's result line is only allowed to say
       // "Steam was relaunched" if Steam actually is.
       await afterSwitch();
-      endSwitch(steamRunning);
+      // The engine finishing means the files are written and Steam was started. Whether the
+      // account is signed in is Steam's answer, which arrives later and carries on updating the
+      // dock (App.svelte). A watch existing also means Steam was launched, even if `open` has
+      // returned before its process shows up.
+      const signIn = await refreshSignInStatus();
+      endSwitch(steamRunning || signIn.state !== "none", signIn);
     } catch (e) {
       // No success toast on the happy path any more: the strip is the narration channel.
       retryTarget.set(steamId64);
@@ -866,6 +889,7 @@
         sessionState={session.state}
         conflictAccountName={session.conflictAccountName ?? ""}
         switchingTo={inFlightId ? labelOf(byId.get(inFlightId)) : ""}
+        signIn={$signInStatus}
         avatarEpoch={avatarEpoch[currentId] ?? 0}
         on:detail={(e) => (detailId = e.detail)}
         on:launch={() => void launchSteam()}
@@ -902,6 +926,9 @@
       <div class="switcher__list-head">
         <div class="switcher__list-title">
           <h2 class="switcher__h2">{$t("Switcher_SwitchTo")}</h2>
+          {#if others.length > 0}
+            <span class="switcher__hint">{$t("Switch_List_Hint")}</span>
+          {/if}
           {#if others.length > 0}
             <span class="switcher__count">
               {targets.length === others.length
@@ -1105,6 +1132,11 @@
     font-size: var(--fs-body);
     font-weight: var(--fw-semibold);
     color: var(--fg-primary);
+  }
+
+  .switcher__hint {
+    font-size: var(--fs-meta);
+    color: var(--fg-muted);
   }
 
   .switcher__count {

@@ -77,26 +77,9 @@ func CurrentLiveSteamID64() (string, error) {
 	return s.currentActiveSteamID64()
 }
 
-// CopySteamGameSettingsFrom copies <steam>/userdata/{source32}/{appID} into the current session
-// account folder, auto-backing up the destination tree into Backups/Steam first (legacy C# behavior).
+// CopySteamGameSettingsFrom copies a game's config from another account into the signed-in one.
+// It is CopyGameConfigBetween with the destination filled in, so it has the same guards.
 func (s *SteamService) CopySteamGameSettingsFrom(sourceSteamID64, appID string) error {
-	if err := security.RequireUnlocked(); err != nil {
-		return err
-	}
-	appID, err := normalizeSteamAppID(appID)
-	if err != nil {
-		return err
-	}
-	if _, e := FormatsFromID64(strings.TrimSpace(sourceSteamID64)); e != nil {
-		return errSteamDataInvalidID
-	}
-	root, err := s.steamInstallRoot()
-	if err != nil {
-		return err
-	}
-	if strings.TrimSpace(root) == "" {
-		return errSteamDataInvalidID
-	}
 	destID64, err := s.currentActiveSteamID64()
 	if err != nil {
 		return err
@@ -104,43 +87,8 @@ func (s *SteamService) CopySteamGameSettingsFrom(sourceSteamID64, appID string) 
 	if destID64 == "" {
 		return errSteamDataInvalidID
 	}
-	if strings.TrimSpace(sourceSteamID64) == strings.TrimSpace(destID64) {
-		return errSteamDataSameAccount
-	}
-	srcFmt, err := FormatsFromID64(strings.TrimSpace(sourceSteamID64))
-	if err != nil {
-		return errSteamDataInvalidID
-	}
-	dstFmt, err := FormatsFromID64(strings.TrimSpace(destID64))
-	if err != nil {
-		return errSteamDataInvalidID
-	}
-	srcDir := steamUserdataGamePath(root, srcFmt.ID32, appID)
-	dstDir := steamUserdataGamePath(root, dstFmt.ID32, appID)
-
-	st, err := os.Stat(srcDir)
-	if err != nil || !st.IsDir() {
-		return errNoSteamUserdataPath(srcDir)
-	}
-	if st2, e := os.Stat(dstDir); e == nil && st2.IsDir() {
-		toBackup, berr := steamBackupGamePath(dstFmt.ID32, appID)
-		if berr != nil {
-			return berr
-		}
-		if err := os.RemoveAll(toBackup); err != nil {
-			return err
-		}
-		if err := fsutil.CopyDir(dstDir, toBackup); err != nil {
-			return err
-		}
-		if err := os.RemoveAll(dstDir); err != nil {
-			return err
-		}
-	}
-	if err := fsutil.CopyDir(srcDir, dstDir); err != nil {
-		return err
-	}
-	return nil
+	_, err = s.CopyGameConfigBetween(appID, sourceSteamID64, destID64, nil, false)
+	return err
 }
 
 // RestoreSteamGameSettingsTo restores from Backups/Steam/{id32}/{appID} into userdata.

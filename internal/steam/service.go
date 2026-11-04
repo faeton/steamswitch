@@ -63,6 +63,9 @@ type AccountDTO struct {
 	// CurrentSession: exactly one loginusers row has MostRecent=="1" and it is this account.
 	CurrentSession bool `json:"currentSession"`
 
+	// NoStoredLogin: see SteamAccountListItemDTO.
+	NoStoredLogin bool `json:"noStoredLogin"`
+
 	Tags []basic.AccountTagDTO `json:"tags"`
 
 	// ManualProfileImage: user-set avatar not replaced by refresh until removed.
@@ -718,8 +721,7 @@ func (s *SteamService) runProfileRefresh() {
 				patch.AvatarPending = false
 				patch.Error = ""
 				steamLog.Info("avatar cached",
-					slog.String("steamId", tailSteamID(u.SteamID64)),
-					slog.String("url", imageURL))
+					slog.String("steamId", tailSteamID(u.SteamID64)))
 			} else {
 				steamLog.Warn("avatar download failed",
 					slog.String("steamId", tailSteamID(u.SteamID64)),

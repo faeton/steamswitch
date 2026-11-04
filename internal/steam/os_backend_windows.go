@@ -3,6 +3,7 @@
 package steam
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -133,3 +134,43 @@ func (windowsBackend) Launch(steamRoot string, args []string, opts LaunchOpts) e
 func (windowsBackend) OpenURL(url string) error {
 	return winutil.Start("cmd.exe", []string{"/c", "start", "", url}, winutil.StartOpts{})
 }
+
+// ActiveUserID32 reads HKCU\Software\Valve\Steam\ActiveProcess\ActiveUser, which the client
+// sets to the signed-in account's id32 and to 0 while it has none.
+func (windowsBackend) ActiveUserID32(string) string {
+	v, _, err := winutil.RegistryRead(steamRegKey + `\ActiveProcess:ActiveUser`)
+	if err != nil {
+		return ""
+	}
+	s := strings.TrimSpace(fmt.Sprint(v))
+	if s == "0" || s == "<nil>" {
+		return ""
+	}
+	return s
+}
+
+// LocalVDFPath is under %LOCALAPPDATA%, not the install folder.
+func (windowsBackend) LocalVDFPath(string) string {
+	dir, err := os.UserCacheDir()
+	if err != nil {
+		return ""
+	}
+	return filepath.Join(dir, "Steam", "local.vdf")
+}
+
+// AppMarkedRunning reads the per-app Running flag, then the client's own RunningAppID.
+func (windowsBackend) AppMarkedRunning(_, appID string) bool {
+	if v, _, err := winutil.RegistryRead(steamRegKey + `\Apps\` + appID + `:Running`); err == nil {
+		if strings.TrimSpace(fmt.Sprint(v)) == "1" {
+			return true
+		}
+	}
+	if v, _, err := winutil.RegistryRead(steamRegKey + `:RunningAppID`); err == nil {
+		return strings.TrimSpace(fmt.Sprint(v)) == appID
+	}
+	return false
+}
+
+// ProcessRunningFrom is not implemented: winutil's snapshot lists basenames, not paths. The
+// Running flag above covers anything Steam started; the listed names cover Dota and CS2.
+func (windowsBackend) ProcessRunningFrom(string) bool { return false }

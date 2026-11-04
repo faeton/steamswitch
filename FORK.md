@@ -77,7 +77,8 @@ The fork is not a TcNo product and does not talk to TcNo's infrastructure:
   auto-submit crash reports) and the now-dead "check for updates" / "suggest a feature"
   buttons. Local statistics collection and the stats viewer stay — they never leave the PC.
 - **Artwork replaced** with neutral placeholder icons (`build/appicon.png`,
-  `build/trayicon.png`, regenerated `.ico`/`.icns`) and a plain `SteamSwitch` wordmark
+  `build/trayicon.png`, regenerated `.ico`/`.icns`, `other/**/icon.ico` and the installer banners)
+  and a plain `SteamSwitch` wordmark
   (`frontend/public/img/SteamSwitch_Logo.svg`). TroubleChute's logo files are deleted.
   These are placeholders — drop in real artwork and re-run
   `wails3 task common:generate:icons`.
@@ -85,24 +86,38 @@ The fork is not a TcNo product and does not talk to TcNo's infrastructure:
 
 ## New features
 
-### Dota 2 config management (`internal/steam/dota.go`, `pages/DotaConfigs.svelte`)
+### Game config copy (`internal/steam/gameconfig.go`, `pages/GameConfigs.svelte`)
 
-Reachable from the "Dota configs" button on the Steam page, or `#/dota-configs`.
+Reachable from Tools, or `#/tools/game-configs`. The old `#/dota-configs` link still works.
 
-- **Account → account copy.** `CopyDotaConfigBetween(source, dest, parts)` copies
-  `userdata/<id32>/570/…` directly between any two accounts. This is the main thing
-  upstream could not do: upstream's `CopySteamGameSettingsFrom` always writes into
-  whichever account is *currently signed in*, so copying A → B meant switching to B first.
-- **Snapshot library.** Save any account's Dota config under a name — "Ceb's config",
-  "my 2026 setup" — then apply it to any account later. Snapshots live in
-  `<DataRoot>/Backups/Dota/<uuid>/` with a `snapshot.json` holding the label, note,
-  source account, parts and timestamp.
-- **Automatic revert points.** Every copy or apply first snapshots the destination
-  account, tagged `Auto: true` and shown as a "revert point" in the UI. Renaming one
-  promotes it to a normal curated config, so a revert point can be re-tagged as
-  somebody else's config after you import it.
+- **Account → account copy for any game, either way.** `CopyGameConfigBetween(appID, source, dest,
+  parts, allowCloudRisk)` copies `userdata/<id32>/<appid>/…` directly between any two accounts. This
+  is the main thing upstream could not do: its `CopySteamGameSettingsFrom` wrote into whichever
+  account was *currently signed in*. That method now calls this one. The `*Dota*` service methods
+  are this path with 570 filled in.
+- **The same rules for every game.** The destination is snapshotted first, including what it does
+  *not* have, so an undo also removes what the copy created. Each part is replaced, never merged.
+  Cloud-synced parts are refused while Steam runs unless the risk is accepted. Nothing is written
+  while the game runs, with no override: known process names, Steam's own Running flag while the
+  client is up, and on macOS any process started from the install folder. A write that fails part
+  way puts the destination straight back.
+- **What each game's copy holds is read from disk**, and the page names what it leaves behind.
+  `local/` counts as cloud-synced for every game except Dota, where it is known not to be: public
+  guides describe CS2's `local/cfg` as synced. CS2's layout comes from those guides and has not been
+  checked against a real install. For other games `remote/` can hold save games, and the page says so.
+  Steam's own folders (7, 760) are refused.
+- **Not the Session Kit.** "Moving your game settings" journals a kit onto a shared account during
+  a switch. Only Dota has a writing module, and `cs2Enabled` stays off until TESTING.md §C has been
+  run. The two never overlap: this tool refuses while a kit is live.
+- **Snapshot library, per game.** Save any account's config under a name and apply it to any account
+  later. Dota's stay in `<DataRoot>/Backups/Dota/<uuid>/`; others are in
+  `<DataRoot>/Backups/Games/<appid>/<uuid>/`. Each has a `snapshot.json` with the label, note, source
+  account, parts and timestamp.
+- **Automatic revert points.** Every copy or apply first snapshots the destination account, tagged
+  `Auto: true` and shown as a "revert point" in the UI. Renaming one promotes it to a normal curated
+  config. The newest 10 are kept per game.
 
-Three config parts can be selected independently:
+For Dota, three config parts can be selected independently:
 
 | Part | Path | Notes |
 |---|---|---|
@@ -174,6 +189,46 @@ window as where to finish. It fails *open* when it cannot tell (no engine, unrea
 because a guard that blocks every switch on a transient read failure would be worse than the
 hole it closes.
 
+### Double-click to switch
+
+A switch closes Steam, so one stray click must not start one (`AccountRow.svelte`, `tileKeys.ts`).
+A pointer's click does nothing, a double-click switches, and Shift-click still opens the detail
+panel. Number keys, Enter in search and Enter on a focused row are deliberate and switch at once, as
+does a click with no pointer behind it (screen reader, controller). Space on a focused row shows
+details instead, because a click leaves the row focused and a stray Space should not close Steam.
+A second switch is refused by `beginSwitch`, so a double-click cannot fire two.
+
+### "Signed in" means Steam said so (`internal/steam/signin_watch.go`)
+
+Writing the login and starting Steam does not sign anybody in. A rejected token ("27 (License
+expired)", measured) or an account with no stored login ends at a password prompt, and the app used
+to report success for both. Every launch now starts a watch whose verdict drives the dock and the
+top bar: `confirmed`, `needsSignIn` (with Steam's reason), `unconfirmed` or `steamExited`. If the
+person then types their password, it becomes `confirmed`.
+
+Evidence is `logs/connection_log.txt`, the client's `ActiveUser`, the account's `Timestamp` moving
+(weakest, so it has to settle first) and its `ConnectCache` entry disappearing. Only the rejection
+lines have been measured on real Steam. Anything that does not match gives `unconfirmed`, never a
+false "signed in". Known gap: after restarting the app there is no watch, so the bar goes back to
+reading the login files.
+
+`stored_login.go` reads which accounts have a `ConnectCache` key (CRC32(name) + "1") for the "Needs
+sign-in" badge. Only the keys are used, never the token values. Unreadable, or nothing matching at
+all, means no badge rather than a badge on everyone.
+
+### The rating prompt is gone
+
+Upstream's "Did the switch work?" prompt and its feedback dialog posted to an endpoint this fork
+removed, so the answer went nowhere and nothing left the machine. It still thanked people for it.
+Both were removed. The endpoints in `internal/api` stay empty.
+
+### Blank window diagnostics
+
+The page reports how far it got and any script errors to the normal log, over the app's local asset
+scheme (`internal/app/frontend_report.go`), and the log says so if it hears nothing for 20 s.
+`--framed` uses the OS frame, `--diag-page` opens a plain test page, and `--webview-arg=<flag>` passes
+a WebView2 flag.
+
 ### macOS support (`internal/steam/os_backend*.go`)
 
 Upstream is Windows-only, and reasonably so: it drives 24 platforms, most of which do not
@@ -185,8 +240,9 @@ What differs is small enough to sit behind one interface, `osBackend`:
 
 - the Windows registry values (`AutoLoginUser`, `RememberPassword`) live in `registry.vdf`
   under `Registry/HKCU/Software/Valve/Steam`, edited losslessly by `registryvdf.go`;
-- processes are `steam_osx` / `steamwebhelper` / `dota2`, found with `pgrep -x` and stopped
-  with SIGTERM followed by SIGKILL after a 20-second grace period;
+- processes are `steam_osx` / `Steam Helper` / `dota2`, found with `pgrep -x`. Steam is closed by
+  asking it (`steam://exit`), because a signed-in Mac Steam ignores SIGTERM, then with SIGTERM after
+  10 s and SIGKILL after 20 s. `close_sequence.go` holds the order; Windows has its own close path;
 - the application bundle is separate from the data directory, so `steamRoot` throughout this
   package means the *data* root and only `Launch` looks for `/Applications/Steam.app`.
 
@@ -220,7 +276,8 @@ to resolve imports until bindings are generated at least once.
 ### Test baseline on non-Windows
 
 `go test ./...` shows **15 failures on macOS/Linux**, all inherited from upstream and all
-caused by Windows path/registry/file-locking assumptions:
+caused by Windows path/registry/file-locking assumptions. Linux has a 16th,
+`TestWriteLoginUsersAndRegistry_FieldSwapping`, because switching is not enabled there:
 
 - `internal/basic` — 13 (`TestFlow_*`, `TestResolveDescriptorVariables_WithTokens`)
 - `internal/platform` — 1 (`TestResolveSafeDeletePatternRejectsGlobAtPlaceholderBase`)

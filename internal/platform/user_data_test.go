@@ -151,3 +151,22 @@ func TestRemoveUserDataDir(t *testing.T) {
 		t.Fatalf("expected dir removed, err=%v", err)
 	}
 }
+
+// The exact startup failure: `open <dir>/SteamSwitch/WindowSettings.json: not a directory`.
+func TestLoadSettings_ExecutableNamedLikeTheDataFolderDoesNotFail(t *testing.T) {
+	setTestAppData(t)
+	exeDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(exeDir, UserDataDirName), []byte("binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadSettingsFromDisk(exeDir); err != nil {
+		t.Fatalf("loadSettingsFromDisk: %v", err)
+	}
+	dir, err := ResolveUserDataDir(exeDir, AppSettings{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if dir == filepath.Join(exeDir, UserDataDirName) {
+		t.Fatalf("data folder resolved to the executable: %q", dir)
+	}
+}

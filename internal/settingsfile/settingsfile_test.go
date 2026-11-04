@@ -116,3 +116,33 @@ func redirectUserConfigDir(t *testing.T, dir string) {
 		}
 	}
 }
+
+// The Mac and Linux binary is called SteamSwitch and has no suffix, so {exeDir}/SteamSwitch is a
+// file. Looking inside it answers ENOTDIR, which is not "not found", and the app refused to start.
+func TestDefaultSearchDirs_SkipsABinaryNamedLikeTheDataFolder(t *testing.T) {
+	exeDir := t.TempDir()
+	if err := os.WriteFile(PortableUserDataDir(exeDir), []byte("binary"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	redirectUserConfigDir(t, filepath.Join(t.TempDir(), "appdata"))
+
+	for _, dir := range DefaultSearchDirs(exeDir) {
+		if dir == PortableUserDataDir(exeDir) {
+			t.Fatalf("the executable %q was offered as a data folder", dir)
+		}
+	}
+	if _, ok := Discover(exeDir); ok {
+		t.Fatal("found a settings file in an empty install")
+	}
+}
+
+func TestDefaultSearchDirs_KeepsARealPortableFolder(t *testing.T) {
+	exeDir := t.TempDir()
+	if err := os.MkdirAll(PortableUserDataDir(exeDir), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	redirectUserConfigDir(t, filepath.Join(t.TempDir(), "appdata"))
+	if got := DefaultSearchDirs(exeDir)[0]; got != PortableUserDataDir(exeDir) {
+		t.Fatalf("first search dir = %q, want the portable folder", got)
+	}
+}

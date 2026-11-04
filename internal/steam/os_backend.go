@@ -92,6 +92,22 @@ type osBackend interface {
 	// OpenURL hands a `steam://` URL to the desktop's protocol handler, which is how a game
 	// is launched once the right account is signed in.
 	OpenURL(url string) error
+
+	// ActiveUserID32 is the account the running client reports as signed in, or "" when it
+	// reports none or the value cannot be read. It only ever adds evidence: "" says nothing.
+	ActiveUserID32(steamRoot string) string
+
+	// LocalVDFPath is where this OS keeps Steam's `local.vdf`, whose ConnectCache holds the
+	// stored login tokens. Empty when unknown.
+	LocalVDFPath(steamRoot string) string
+
+	// AppMarkedRunning reports whether Steam's own record says this app is running. Only
+	// meaningful while the client is up: a client that was killed leaves the flag set.
+	AppMarkedRunning(steamRoot, appID string) bool
+
+	// ProcessRunningFrom reports whether a process was started from under dir. Lets a guard
+	// recognise a game whose executable name nobody has listed. False when unsupported.
+	ProcessRunningFrom(dir string) bool
 }
 
 // LaunchOpts is the OS-neutral subset of the launch settings.
@@ -148,6 +164,10 @@ func (unsupportedBackend) DeleteRegistryValue(string, string) (bool, error) {
 func (unsupportedBackend) DefaultRoot() string                       { return "" }
 func (unsupportedBackend) OpenURL(string) error                      { return ErrSwitchingUnsupported }
 func (unsupportedBackend) Launch(string, []string, LaunchOpts) error { return ErrSwitchingUnsupported }
+func (unsupportedBackend) ActiveUserID32(string) string              { return "" }
+func (unsupportedBackend) LocalVDFPath(string) string                { return "" }
+func (unsupportedBackend) AppMarkedRunning(string, string) bool      { return false }
+func (unsupportedBackend) ProcessRunningFrom(string) bool            { return false }
 
 // runningProcessNames is the shared implementation behind sessionkit.Lifecycle.RunningProcesses.
 //

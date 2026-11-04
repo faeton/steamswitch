@@ -30,6 +30,11 @@ type Manager struct {
 
 	lastDetails string
 	lastState   string
+
+	// startFailing is true while the local Discord client cannot be reached. Most machines have
+	// no Discord running, and the refresh loop retries every refreshPeriod, so only the change
+	// of state is worth a warning.
+	startFailing bool
 }
 
 func logRPC() *slog.Logger {
@@ -85,14 +90,20 @@ func (m *Manager) Refresh() {
 		return
 	}
 	if settings.OfflineMode || !settings.DiscordRpc {
-		logRPC().Info("refresh gate: rpc disabled", "offlineMode", settings.OfflineMode, "discordRpc", settings.DiscordRpc)
+		logRPC().Debug("refresh gate: rpc disabled", "offlineMode", settings.OfflineMode, "discordRpc", settings.DiscordRpc)
 		m.shutdown()
 		return
 	}
 	if err := m.ensureStarted(); err != nil {
-		logRPC().Warn("refresh skipped: rpc start failed", "err", err)
+		if m.startFailing {
+			logRPC().Debug("refresh skipped: rpc start failed", "err", err)
+		} else {
+			m.startFailing = true
+			logRPC().Warn("discord not reachable, will keep retrying quietly", "err", err)
+		}
 		return
 	}
+	m.startFailing = false
 
 	activity := richgo.Activity{
 		State:      "",

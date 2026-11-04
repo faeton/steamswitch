@@ -5,9 +5,11 @@ package steam
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"syscall"
@@ -38,12 +40,22 @@ type darwinBackend struct{}
 
 // Process names as they appear in the kernel's process table, which is what pgrep matches.
 //
-// `steam_osx` is the client itself. `steamwebhelper` is the CEF host and is the one that
-// actually holds config file handles open after the main window closes. There is no
-// equivalent of the Windows "Steam Client Service"; on macOS the client runs entirely as the
-// logged-in user.
+// `steam_osx` is the client itself and must stay first: steamClientRunning takes it to be.
+// `Steam Helper` is the CEF host on current Mac Steam (measured: 8 of them, and `steamwebhelper`
+// matched none), and holds config files open after the main window closes. `steamwebhelper` is
+// kept for older clients and because listing a name that matches nothing costs nothing.
+//
+// Every name has to fit in MAXCOMLEN (16): see TestDarwin_ProcessNamesFitInTheKernelCommField.
+//
+// `ipcserver` is deliberately absent. It outlives Steam by hours (measured 6h54m), holds no
+// config files that a switch rewrites, and listing it would make "is Steam closed" wait for
+// a process that does not exit with the client.
+//
+// There is no equivalent of the Windows "Steam Client Service"; on macOS the client runs
+// entirely as the logged-in user.
 var darwinSteamProcesses = []string{
 	"steam_osx",
+	"Steam Helper",
 	"steamwebhelper",
 }
 
@@ -123,41 +135,46 @@ func (darwinBackend) CanClose(names []string, _ string) error {
 	return nil
 }
 
-// darwinCloseGrace is how long a SIGTERM'd Steam gets to shut down cleanly.
+// Close grace periods. Together they are the 20 seconds a signalled Steam always got, so a Steam
+// that ignores all of this is force-killed no sooner than before.
 //
 // Steam flushes `loginusers.vdf`, `registry.vdf` and the cloud-sync state on exit. Killing it
 // before that finishes is precisely how a switch corrupts the file it is about to rewrite, so
-// the grace period is generous and SIGKILL is a last resort.
-const darwinCloseGrace = 20 * time.Second
+// SIGKILL stays a last resort.
+const (
+	darwinExitGrace   = 10 * time.Second
+	darwinHelperGrace = 3 * time.Second
+	darwinTermGrace   = 10 * time.Second
+)
 
 // darwinClosePoll is how often the process table is re-checked while waiting.
 const darwinClosePoll = 250 * time.Millisecond
 
-// Close asks politely, then insists.
+// Close asks Steam to quit, then signals it, then insists.
+//
+// `steam://exit` comes first because a signed-in Mac Steam ignores SIGTERM (measured: still
+// running after 35 s), while `open steam://exit` had it gone in 3 s with its helpers and tokens
+// intact. That was only measured on a signed-in client. One sitting at a login prompt may not
+// act on the URL, and the signal stages below are what catch it.
 //
 // The Windows ClosingMethod ("Combined", "Close", "TaskKill") has no macOS analogue and is
 // ignored: there is exactly one sensible sequence here, and offering the user a choice between
 // signals they cannot reason about would be a setting that only creates support questions.
 func (b darwinBackend) Close(names []string, _ string) error {
-	signalAll(names, syscall.SIGTERM)
-
-	deadline := time.Now().Add(darwinCloseGrace)
-	for time.Now().Before(deadline) {
-		if !b.anyRunning(names) {
-			return nil
-		}
-		time.Sleep(darwinClosePoll)
-	}
-
-	signalAll(names, syscall.SIGKILL)
-	// Give the kernel a moment to reap, then report honestly. The caller treats a non-nil
-	// error as advisory and re-checks with IsRunning, so a stubborn process surfaces either
-	// way — but saying so here makes the log useful.
-	time.Sleep(darwinClosePoll)
-	if b.anyRunning(names) {
-		return fmt.Errorf("steam did not exit after SIGKILL")
-	}
-	return nil
+	started := time.Now()
+	outcome, err := closeSequence{
+		clientRunning: func() bool { return len(names) > 0 && b.IsRunning(darwinSteamProcesses[0]) },
+		anyRunning:    func() bool { return b.anyRunning(names) },
+		askToExit:     func() error { return b.OpenURL(steamExitURL) },
+		terminate:     func() { signalAll(names, syscall.SIGTERM) },
+		kill:          func() { signalAll(names, syscall.SIGKILL) },
+		exitGrace:     darwinExitGrace,
+		helperGrace:   darwinHelperGrace,
+		termGrace:     darwinTermGrace,
+		poll:          darwinClosePoll,
+	}.run()
+	steamLog.Info("steam close", slog.String("via", string(outcome)), slog.Duration("took", time.Since(started)))
+	return err
 }
 
 func (b darwinBackend) anyRunning(names []string) bool {
@@ -285,4 +302,47 @@ func (darwinBackend) Launch(steamRoot string, args []string, _ LaunchOpts) error
 // installation is registered for it.
 func (darwinBackend) OpenURL(url string) error {
 	return exec.Command("/usr/bin/open", url).Run()
+}
+
+// ActiveUserID32 reads registry.vdf's ActiveProcess block. 0 means the client has nobody signed in.
+func (darwinBackend) ActiveUserID32(steamRoot string) string {
+	reg, err := readRegistryVDF(steamRoot)
+	if err != nil {
+		return ""
+	}
+	v := strings.TrimSpace(reg.GetNested("ActiveProcess", "ActiveUser"))
+	if v == "0" {
+		return ""
+	}
+	return v
+}
+
+// LocalVDFPath: on macOS local.vdf sits in the data root with everything else.
+func (darwinBackend) LocalVDFPath(steamRoot string) string {
+	if strings.TrimSpace(steamRoot) == "" {
+		return ""
+	}
+	return filepath.Join(steamRoot, "local.vdf")
+}
+
+func (darwinBackend) AppMarkedRunning(steamRoot, appID string) bool {
+	reg, err := readRegistryVDF(steamRoot)
+	if err != nil {
+		return false
+	}
+	if strings.TrimSpace(reg.GetNested("Apps", appID, "Running")) == "1" {
+		return true
+	}
+	return strings.TrimSpace(reg.Get("RunningAppID")) == appID
+}
+
+// ProcessRunningFrom matches the whole command line, which starts with the executable's path.
+// pgrep -f takes a regular expression, so the directory is escaped.
+func (darwinBackend) ProcessRunningFrom(dir string) bool {
+	dir = strings.TrimSpace(dir)
+	if dir == "" {
+		return false
+	}
+	out, err := exec.Command("/usr/bin/pgrep", "-f", regexp.QuoteMeta(dir+"/")).Output()
+	return err == nil && len(strings.TrimSpace(string(out))) > 0
 }

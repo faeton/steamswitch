@@ -45,6 +45,13 @@ Other:               -h, --help    Show this help
                      --log-level=  Logging: debug, info, warn, error (app + Wails; default info)
                      -tray, --tray Start with the main window hidden (tray / background)
 
+Blank window?        --framed      Use the OS window frame instead of the frameless one
+                     --diag-page   Open a plain test page instead of the app. If it shows,
+                                   the webview works and the problem is in the app's page
+                     --webview-arg=<flag>  Extra WebView2 flag, repeatable, e.g.
+                                   --webview-arg=--remote-debugging-port=9333
+                     The page reports to the log whether it ran, and any script errors.
+
 Second instance forwards arguments to the running GUI via a named pipe (Windows).
 `
 }

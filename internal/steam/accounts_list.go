@@ -20,6 +20,9 @@ type SteamAccountListItemDTO struct {
 	DisplayName    string `json:"displayName"`
 	AccountName    string `json:"accountName"`
 	CurrentSession bool   `json:"currentSession"`
+	// NoStoredLogin: Steam holds no login token for this account, so switching to it ends at a
+	// password prompt. False also means "could not tell". An expired token cannot be seen here.
+	NoStoredLogin bool `json:"noStoredLogin"`
 }
 
 // SteamAccountEnrichmentDTO carries slower per-account Steam metadata.
@@ -62,6 +65,7 @@ type steamListContext struct {
 	vacMap           map[string]VacEntry
 	vacKnown         map[string]struct{}
 	tagByUID         map[string][]basic.AccountTagDTO
+	noStoredLogin    map[string]bool
 }
 
 func (s *SteamService) buildSteamListContext() (*steamListContext, error) {
@@ -132,7 +136,13 @@ func (s *SteamService) buildSteamListContext() (*steamListContext, error) {
 
 	tagByUID, _ := basic.BuildAccountTagMap(PlatformKey)
 
+	names := make([]string, 0, len(users))
+	for _, u := range users {
+		names = append(names, u.AccountName)
+	}
+
 	return &steamListContext{
+		noStoredLogin:    accountsWithoutStoredLogin(backend.LocalVDFPath(root), names),
 		users:            users,
 		activeSteamID:    activeSteamID,
 		session:          session,
@@ -174,6 +184,7 @@ func (s *SteamService) GetSteamAccountsList() (SteamAccountListDTO, error) {
 			DisplayName:    persona,
 			AccountName:    strings.TrimSpace(u.AccountName),
 			CurrentSession: ctx.activeSteamID != "" && u.SteamID64 == ctx.activeSteamID,
+			NoStoredLogin:  ctx.noStoredLogin[strings.ToLower(strings.TrimSpace(u.AccountName))],
 		})
 	}
 	if len(out) > 0 {
@@ -280,6 +291,7 @@ func mergeSteamAccountDTO(list SteamAccountListItemDTO, enrich SteamAccountEnric
 		ShowAvatarFrame:    enrich.ShowAvatarFrame,
 		SyncError:          enrich.SyncError,
 		CurrentSession:     list.CurrentSession,
+		NoStoredLogin:      list.NoStoredLogin,
 		Tags:               enrich.Tags,
 		ManualProfileImage: enrich.ManualProfileImage,
 	}

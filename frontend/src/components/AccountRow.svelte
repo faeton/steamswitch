@@ -12,8 +12,10 @@
    * switched accounts. Here the main button is a real <button> (Enter and Space are native)
    * and the menu button sits beside it.
    *
-   * One click switches; Shift-click opens the detail panel; right-click, the ContextMenu key,
-   * Shift+F10 or the ⋯ button open the account menu.
+   * A switch closes Steam, so it takes a double-click: one stray click must not do that. Enter
+   * on the focused row and number keys are deliberate and switch at once; Space shows details.
+   * Shift-click opens the detail panel; right-click, the ContextMenu key, Shift+F10 or the ⋯
+   * button open the account menu.
    */
   import { createEventDispatcher } from "svelte";
   import SteamAccountAvatar from "./SteamAccountAvatar.svelte";
@@ -27,7 +29,7 @@
   import type { AccountRole } from "../lib/steam/accountRoles";
   import { vaultHealth } from "../stores/vault";
   import { healthState } from "../lib/vault/health";
-  import { tileKeyIntent } from "../lib/steam/tileKeys";
+  import { rowClickIntent, rowDoubleClickSwitches, tileKeyIntent } from "../lib/steam/tileKeys";
 
   export let account: SteamAccountRow;
   export let role: AccountRole = "plain";
@@ -67,13 +69,15 @@
   $: tone = vac || health?.tone === "fail" ? "fail" : showHealthBadge || limited ? "warn" : undefined;
   $: quickKey = index > 0 && index <= 9 ? index : 0;
 
-  function activate(e: MouseEvent): void {
+  function onClick(e: MouseEvent): void {
     if (disabled) return;
-    // Shift opens detail instead of switching — the same modifier the digit shortcut uses.
-    if (e.shiftKey) {
-      dispatch("detail", id);
-      return;
-    }
+    const intent = rowClickIntent(e);
+    if (intent === "detail") dispatch("detail", id);
+    else if (intent === "switch") dispatch("switch", id);
+  }
+
+  function onDoubleClick(e: MouseEvent): void {
+    if (disabled || !rowDoubleClickSwitches(e)) return;
     dispatch("switch", id);
   }
 
@@ -91,12 +95,23 @@
     openMenu(r.left, r.bottom + 4);
   }
 
-  /** Enter and Space are the button's own; only the menu keys need handling. */
+  /** Enter is the button's own click. Space and the menu keys are handled here. */
   function onKeydown(e: KeyboardEvent): void {
-    if (tileKeyIntent(e) !== "menu") return;
-    e.preventDefault();
-    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    openMenu(r.left + 48, r.bottom - 4);
+    const intent = tileKeyIntent(e);
+    if (intent === "detail") {
+      // Stops the button's own Space-to-click, which would count as a keyboard activation.
+      e.preventDefault();
+      if (!e.repeat && !disabled) dispatch("detail", id);
+    } else if (intent === "menu") {
+      e.preventDefault();
+      const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+      openMenu(r.left + 48, r.bottom - 4);
+    }
+  }
+
+  function onKeyup(e: KeyboardEvent): void {
+    // Some engines fire the Space click on keyup whatever keydown did.
+    if (tileKeyIntent(e) === "detail") e.preventDefault();
   }
 </script>
 
@@ -112,8 +127,11 @@
     {disabled}
     aria-busy={switching}
     aria-keyshortcuts={quickKey ? String(quickKey) : undefined}
-    on:click={activate}
+    title={$t("Switch_Row_Hint")}
+    on:click={onClick}
+    on:dblclick={onDoubleClick}
     on:keydown={onKeydown}
+    on:keyup={onKeyup}
     on:contextmenu={onContextMenu}
   >
     <span class="row__key">
@@ -142,6 +160,9 @@
     </span>
 
     <span class="row__status">
+      {#if account.noStoredLogin}
+        <span class="flag" data-tone="warn" title={$t("Badge_NeedsSignIn_Hint")}>{$t("Badge_NeedsSignIn")}</span>
+      {/if}
       {#if vac}
         <span class="flag" data-tone="fail">{$t("Badge_Vac")}</span>
       {/if}

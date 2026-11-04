@@ -358,22 +358,5 @@
   "Heading_UpdateAvailable": "有可用更新",
   "Button_UpdateNow": "立即更新",
   "Button_OpenDownloadPage": "从 GitHub 下载",
-  "Button_Loading": "正在加载…",
-  "Stability_DidSwitchWork": "切换是否成功？",
-  "Stability_ThanksRating": "感谢你的评分",
-  "Stability_ThanksReportLine1": "感谢你的评分。",
-  "Stability_ThanksReportAskPrefix": "需要",
-  "Stability_ThanksReportAskSuffix": "吗？",
-  "Stability_ReportIssue": "报告问题",
-  "Stability_ThumbUp": "是，切换成功",
-  "Stability_ThumbDown": "否，切换未成功",
-  "Feedback_Issue_Title": "报告问题",
-  "Feedback_Issue_Body": "描述哪里出了问题以及你期望的结果：",
-  "Feedback_Suggestion_Title": "建议功能或更改",
-  "Feedback_Suggestion_Body": "详细输入一个想法、更改或修复：",
-  "Feedback_Submit": "提交",
-  "Feedback_AttachLog": "发送日志",
-  "Feedback_AttachLog_Hint": "用户名、ID 和类似详细信息会在发送前尽可能从日志中移除。",
-  "Toast_FeedbackThanks": "感谢你的反馈。",
-  "Toast_FeedbackSubmitFailed": "无法提交反馈。"
+  "Button_Loading": "正在加载…"
 }

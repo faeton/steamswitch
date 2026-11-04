@@ -27,7 +27,7 @@ const ROUTES: Route[] = [
   { page: "tools" },
   { page: "preview-css" },
   { page: "steam-advanced-clearing" },
-  { page: "dota-configs" },
+  { page: "game-configs" },
 ];
 
 describe("serialize/parse round trip", () => {
@@ -54,7 +54,8 @@ describe("legacy aliases", () => {
 
   it("keeps the pre-redesign hashes for the two Steam tools working", () => {
     expect(parseHash("#/steam/advanced-clearing")).toEqual({ page: "steam-advanced-clearing" });
-    expect(parseHash("#/dota-configs")).toEqual({ page: "dota-configs" });
+    expect(parseHash("#/dota-configs")).toEqual({ page: "game-configs" });
+    expect(parseHash("#/tools/dota-configs")).toEqual({ page: "game-configs" });
   });
 });
 
@@ -65,7 +66,7 @@ describe("validateRoute", () => {
     });
   });
 
-  it.each([{ page: "steam-advanced-clearing" }, { page: "dota-configs" }] as Route[])(
+  it.each([{ page: "steam-advanced-clearing" }, { page: "game-configs" }] as Route[])(
     "drops %j when Steam is unavailable",
     (route) => {
       expect(validateRoute(route, startup({ disabledPlatformNames: ["Steam"] }))).toEqual({
@@ -76,7 +77,7 @@ describe("validateRoute", () => {
   );
 
   it("keeps Steam tools when Steam is available", () => {
-    const route: Route = { page: "dota-configs" };
+    const route: Route = { page: "game-configs" };
     expect(validateRoute(route, startup())).toBe(route);
   });
 

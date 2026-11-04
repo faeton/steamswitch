@@ -114,6 +114,25 @@ func TestDarwin_ProcessNamesFitInTheKernelCommField(t *testing.T) {
 	}
 }
 
+// On current Mac Steam the CEF helpers are named "Steam Helper" (measured: 8 running, none named
+// steamwebhelper), so without this name "is Steam closed" cannot see them. ipcserver outlives Steam
+// by hours, and listing it would make every close wait for something that does not exit.
+func TestDarwin_HelpersAreListedAndIpcserverIsNot(t *testing.T) {
+	names := backend.ProcessNames()
+	found := false
+	for _, name := range names {
+		if name == "Steam Helper" {
+			found = true
+		}
+		if name == "ipcserver" {
+			t.Fatal("ipcserver outlives Steam, so a close would never see Steam as gone")
+		}
+	}
+	if !found {
+		t.Fatalf("process names = %v, want Steam Helper", names)
+	}
+}
+
 func TestDarwin_PgrepIsPresent(t *testing.T) {
 	// The backend shells out to it, so its absence would silently turn every "is Steam
 	// running" answer into "no" — the fail-open case.

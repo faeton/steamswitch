@@ -15,6 +15,10 @@ import (
 func newCompositeAssetHandler(embedded fs.FS) http.Handler {
 	embedHandler := application.AssetFileServerFS(embedded)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == frontendReportPath {
+			handleFrontendReport(w, r)
+			return
+		}
 		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			embedHandler.ServeHTTP(w, r)
 			return

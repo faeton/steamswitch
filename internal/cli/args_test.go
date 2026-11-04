@@ -196,3 +196,20 @@ func TestParseSealRoster_IsExclusiveWithASwap(t *testing.T) {
 		t.Fatal("sealing a roster and swapping an account in one invocation should be refused")
 	}
 }
+
+func TestParse_WindowDiagnosticFlags(t *testing.T) {
+	p, err := Parse([]string{"--framed", "--diag-page", "--webview-arg=--remote-debugging-port=9333", "--webview-arg=--disable-GPU"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !p.FramedWindow || !p.DiagPage {
+		t.Fatalf("%+v", p)
+	}
+	// The value keeps its case: browser flags are not ours to lower-case.
+	if len(p.WebViewArgs) != 2 || p.WebViewArgs[0] != "--remote-debugging-port=9333" || p.WebViewArgs[1] != "--disable-GPU" {
+		t.Fatalf("args %v", p.WebViewArgs)
+	}
+	if len(p.PassthroughLaunchArgs) != 0 {
+		t.Fatalf("leaked into Steam's arguments: %v", p.PassthroughLaunchArgs)
+	}
+}

@@ -18,8 +18,8 @@ function routeToStatsPath(r: Route): string {
       return "/about";
     case "preview-css":
       return "/preview-css";
-    case "dota-configs":
-      return "/dota-configs";
+    case "game-configs":
+      return "/game-configs";
     case "tools":
       return "/tools";
     case "steam-advanced-clearing":

@@ -68,10 +68,10 @@ Do this with **no** account marked Shared.
 
 | # | Steps | Expected |
 |---|---|---|
-| B1 | Click a non-current account tile | Steam closes, the strip narrates each step, Steam relaunches signed in as that account. No password prompt, no 2FA prompt. |
+| B1 | Double-click a non-current account row (a single click must do nothing) | Steam closes, the strip narrates each step, Steam relaunches signed in as that account. No password prompt, no 2FA prompt. |
 | B2 | Watch the strip during B1 | It narrates. It **must not** show a success toast at the end — the strip is the channel now. |
 | B3 | Press `1`, `2`, `3`, `4` | Switches to the first four tiles in listed order. |
-| B4 | Click a tile twice, fast | Only **one** switch runs. The second click is ignored, not queued. |
+| B4 | Double-click a row, then keep clicking fast | Only **one** switch runs. Further clicks are ignored, not queued. |
 | B5 | Right-click → Advanced → **Log in as ▸ Invisible** | Switches and Steam comes up Invisible. Critically, this **must** go through the same gate as B4 — try clicking a tile immediately after and confirm it is refused. |
 | B6 | During a switch, try to click another tile | Tiles are disabled while switching. |
 | B7 | Right-click → **Set as Home** on your main account | A Home badge appears; the tile sorts first. |

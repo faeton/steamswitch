@@ -13,7 +13,6 @@
   import UpdateBar from './components/UpdateBar.svelte'
   import AppModal from './components/AppModal.svelte'
   import Toast from './components/Toast.svelte'
-  import StabilityPrompt from './components/StabilityPrompt.svelte'
   import VaultGuardCodePrompt from './components/VaultGuardCodePrompt.svelte'
   import FileDropOverlay from './components/FileDropOverlay.svelte'
   import UserDataMoveOverlay from './components/UserDataMoveOverlay.svelte'
@@ -26,7 +25,8 @@
   import { route, applyNavigateJSON, navigateBackLikeButton, navigateForward } from './stores/nav'
   import { installPageStatsTracking } from "./lib/pageStatsTrack";
   import { loadPageModule, prefetchCommonPages } from "./lib/pageLoaders";
-  import { narrate, statusStrip, statusStripAction, stripEarnsSpace } from './stores/statusStrip'
+  import { applySignInStatus, narrate, statusStrip, statusStripAction, stripEarnsSpace } from './stores/statusStrip'
+  import { initSignInStatus, signInStatus } from './stores/signInStatus'
   import { t } from "./stores/i18n";
   import { NotifyLaunchUpdateCheck } from "../bindings/steamswitch/internal/platform/platformservice.js";
   import * as PlatformService from "../bindings/steamswitch/internal/platform/platformservice.js";
@@ -371,6 +371,8 @@
       return { key };
     }
 
+    const offSignIn = initSignInStatus();
+    const offSignInDock = signInStatus.subscribe(applySignInStatus);
     const off = Events.On("action-bar-status", (ev) => {
       const raw = typeof ev.data === "string" ? ev.data : "";
       if (raw.startsWith("i18n:")) {
@@ -389,6 +391,8 @@
     window.addEventListener("mouseup", onGlobalHistoryMouseUpCapture, true);
     window.addEventListener("contextmenu", preventUnmodifiedBrowserContextMenu, true);
     return () => {
+      offSignIn();
+      offSignInDock();
       window.removeEventListener("keydown", onGlobalKeydownCapture, true);
       window.removeEventListener("keydown", onGlobalHistoryKeydownCapture, true);
       window.removeEventListener("mouseup", onGlobalHistoryMouseUpCapture, true);
@@ -459,7 +463,6 @@
     <SecurityProgressOverlay />
     <AppModal />
     <Toast />
-    <StabilityPrompt />
     <VaultGuardCodePrompt />
   </div>
 </div>

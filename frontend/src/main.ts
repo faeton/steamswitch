@@ -29,6 +29,11 @@ const app = void (async () => {
   await resolveInitialRoute()
   installHashSync()
   new App({ target: document.getElementById('app')! })
+  // Blank-window evidence: see internal/app/frontend_report.go. Painted means the page did its
+  // part, so a window still showing nothing is the webview or the OS.
+  const report = (window as unknown as { __reportStage?: (s: string, d?: string) => void }).__reportStage
+  report?.('mounted', `${innerWidth}x${innerHeight} ${document.visibilityState}`)
+  requestAnimationFrame(() => report?.('first-frame', `${innerWidth}x${innerHeight}`))
 })()
 
 export default app

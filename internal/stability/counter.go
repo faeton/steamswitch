@@ -139,8 +139,3 @@ func incrementSwitchLocked(platformKey string) (int, error) {
 	}
 	return count, nil
 }
-
-// ShouldPromptForCount reports whether a stability prompt should appear for this switch count.
-func ShouldPromptForCount(count int) bool {
-	return count == 1 || (count > 0 && count%10 == 0)
-}

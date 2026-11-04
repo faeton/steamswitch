@@ -27,6 +27,7 @@
   import Icon from "./Icon.svelte";
   import type { SteamAccountRow } from "../lib/steam/types";
   import type { SessionState } from "../lib/steam/sessionState";
+  import { heroLoginCopy, NO_SIGN_IN, type SignInStatus } from "../lib/steam/signIn";
 
   /** The account Steam is set to log in as, or undefined when there is none. */
   export let account: SteamAccountRow | undefined = undefined;
@@ -46,6 +47,8 @@
    * "B" is not true yet. The hero says that instead of asserting either.
    */
   export let switchingTo = "";
+  /** Steam's answer on the last launch. The login files alone cannot say who is signed in. */
+  export let signIn: SignInStatus = NO_SIGN_IN;
 
   const dispatch = createEventDispatcher<{
     detail: string;
@@ -66,6 +69,7 @@
             ? "running"
             : "closed"
           : "none";
+  $: loginCopy = heroLoginCopy(signIn, account?.steamId64 ?? "");
   $: label = account
     ? account.displayName?.trim() || account.personaName?.trim() || account.steamId64
     : "";
@@ -136,7 +140,10 @@
       <div class="hero__lead">
         <div class="hero__name" title={label}>{label}</div>
         <div class="hero__meta">
-          <span class="hero__login">{$t("Hero_SignedInAs", { login: account.accountName || label })}</span>
+          <span class="hero__login" class:hero__login--warn={loginCopy.warn}>
+            {#if loginCopy.warn}<Icon name="warn" size={13} />{/if}
+            {$t(loginCopy.key, { login: account.accountName || label })}
+          </span>
           <!-- Steam's state is a pill of its own rather than a colour on the bar: whether
                Steam is *running* changes what a switch will do to the user (it gets closed),
                so it has to be legible, not inferred. -->
@@ -341,5 +348,12 @@
 
   .hero__skeleton-line--short {
     width: 120px;
+  }
+
+  .hero__login--warn {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    color: var(--fg-warn);
   }
 </style>

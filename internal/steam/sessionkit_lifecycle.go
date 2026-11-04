@@ -8,7 +8,6 @@ import (
 
 	"steamswitch/internal/platform"
 	"steamswitch/internal/sessionkit"
-	"steamswitch/internal/stability"
 	"steamswitch/internal/stats"
 	"steamswitch/internal/tray"
 )
@@ -150,20 +149,21 @@ func (l Lifecycle) LaunchSteam(ctx context.Context) error {
 		return err
 	}
 	if !st.AutoStart {
+		// Nothing was launched, so nothing can be verified, and an older verdict about a
+		// previous launch no longer describes anything.
+		clearSignInWatch()
 		return nil
 	}
-	return backend.Launch(root, buildSteamArgs(st, nil), launchOpts(st, st.RunAsAdmin))
+	return launchAndWatchSignIn(root, buildSteamArgs(st, nil), launchOpts(st, st.RunAsAdmin))
 }
 
 // OnSwitchSucceeded runs the bookkeeping from the tail of SwapToAccount.
 //
 // It is deliberately the last thing the engine calls, and only on a committed transaction:
-// counting a switch that later failed would inflate the statistics and, worse, feed
-// `stability.OnSuccessfulSwitch` a success it did not have.
+// counting a switch that later failed would inflate the statistics.
 func (Lifecycle) OnSwitchSucceeded(account sessionkit.AccountRef) {
 	id := strings.TrimSpace(account.SteamID64)
 	RecordTrayRecentAfterSwap(id)
-	stability.OnSuccessfulSwitch("Steam")
 	if err := stats.IncrementSwitches("Steam"); err != nil {
 		steamLog.Warn("increment switch statistics", slog.Any("err", err))
 	}

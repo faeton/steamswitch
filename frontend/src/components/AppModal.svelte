@@ -8,7 +8,6 @@
   import PasswordSetupModalBody from "./modals/PasswordSetupModalBody.svelte";
   import TagExpiryModalBody from "./modals/TagExpiryModalBody.svelte";
   import FolderPickerModalBody from "./modals/FolderPickerModalBody.svelte";
-  import FeedbackModalBody from "./modals/FeedbackModalBody.svelte";
   import CrashReportModalBody from "./modals/CrashReportModalBody.svelte";
   import UpdateModalBody from "./modals/UpdateModalBody.svelte";
 
@@ -17,7 +16,6 @@
   $: modalTitle = (() => {
     if (!m) return "";
     if (m.kind === "update") return $t("Heading_UpdateAvailable");
-    if (m.kind === "feedback") return m.mode === "issue" ? $t("Feedback_Issue_Title") : $t("Feedback_Suggestion_Title");
     if (m.kind === "crashReport") return $t("Modal_CrashReport_Title");
     return m.title;
   })();
@@ -95,12 +93,6 @@
           soughtFilename={m.soughtFilename ?? ""}
           positiveLabel={m.positiveLabel ?? (!(m.dirsOnly ?? true) ? $t("Modal_Button_Select") : $t("Modal_SetUserdata_ChooseFolder"))}
           showPortableButton={m.showPortableButton ?? false}
-          on:resolve={onResolve}
-        />
-      {:else if m.kind === "feedback"}
-        <FeedbackModalBody
-          mode={m.mode}
-          platform={m.platform ?? ""}
           on:resolve={onResolve}
         />
       {:else if m.kind === "crashReport"}

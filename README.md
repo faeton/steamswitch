@@ -2,7 +2,7 @@
 
 **A Steam account switcher that protects your game settings.**
 
-Switch between your Steam accounts in one click — no passwords, no 2FA codes. And when you log
+Switch between your Steam accounts with a double-click — no passwords, no 2FA codes. And when you log
 into an account you share with someone else, SteamSwitch can carry *your* game config with you
 and put *theirs* back when you leave.
 
@@ -111,7 +111,7 @@ simply deleted.
 ## Features
 
 ### Account switching
-- One-click switching between saved Steam accounts; `1`–`4` for the first four.
+- Double-click to switch between saved Steam accounts; `1`–`9` for the first nine. A single click does nothing, because a switch closes Steam.
 - Log in as Invisible / Offline and other persona states, copy SteamID formats and profile links.
 - Per-account notes and custom images; desktop shortcuts for quick switching.
 - Tray menu for switching without opening the window.
@@ -170,7 +170,7 @@ are proven and which are not.
 1. Launch SteamSwitch. Accounts you've already logged into appear automatically.
 2. Right-click your main account → **Set as Home**.
 3. Right-click an account you share → **Mark as shared account**.
-4. Click a tile to switch.
+4. Double-click an account to switch.
 
 To use the Dota kit, Dota 2 must be installed and both accounts must have played it at least
 once, so the config folders exist.

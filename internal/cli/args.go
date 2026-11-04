@@ -53,6 +53,11 @@ type Parsed struct {
 	// SealRosterOut is the output path for --seal-roster=<path>. Empty means stdout, which is
 	// the form that keeps the ciphertext in a pipe the caller controls.
 	SealRosterOut string
+
+	// Diagnostics for a window that does not render (seen under Wine/CrossOver).
+	FramedWindow bool     // --framed: use the OS window frame instead of the frameless one
+	DiagPage     bool     // --diag-page: open a plain test page instead of the app
+	WebViewArgs  []string // --webview-arg=<flag>, repeatable: extra WebView2 browser flags
 }
 
 const steamPlatformName = "Steam"
@@ -114,6 +119,18 @@ func Parse(argv []string, idx *PlatformIndex) (Parsed, error) {
 			continue
 		case "--json", "-json":
 			p.OutputJSON = true
+			continue
+		case "--framed":
+			p.FramedWindow = true
+			continue
+		case "--diag-page":
+			p.DiagPage = true
+			continue
+		}
+		if strings.HasPrefix(al, "--webview-arg=") {
+			if arg := strings.TrimSpace(a[len("--webview-arg="):]); arg != "" {
+				p.WebViewArgs = append(p.WebViewArgs, arg)
+			}
 			continue
 		}
 

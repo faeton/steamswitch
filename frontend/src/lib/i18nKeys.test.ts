@@ -177,8 +177,8 @@ describe("i18n keys", () => {
   });
 
   it("leaves every runtime-built key family with something to resolve to", () => {
-    // A prune cannot see `` $t(`Dota_Part_${p}`) ``, so the family is what gets checked: if
-    // every `Dota_Part_*` key were deleted, the panel would render raw keys for every row.
+    // A prune cannot see `` $t(`GameCfg_Part_${p}`) ``, so the family is what gets checked: if
+    // every `GameCfg_Part_*` key were deleted, the panel would render raw keys for every row.
     const keys = Object.keys(source);
     const orphaned = [...templatePrefixes().entries()]
       .filter(([prefix]) => !keys.some((k) => k.startsWith(prefix)))

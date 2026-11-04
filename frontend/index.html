@@ -7,6 +7,25 @@
     <title>SteamSwitch</title>
   </head>
   <body>
+    <!-- Runs before the app's bundle, so a bundle that fails to load or parse is still reported.
+         See internal/app/frontend_report.go: this goes to the local log, nowhere else. -->
+    <script>
+      (function () {
+        function report(stage, detail) {
+          try {
+            fetch("/__frontend-report?stage=" + encodeURIComponent(stage) + "&detail=" + encodeURIComponent(detail || "")).catch(function () {});
+          } catch (e) {}
+        }
+        window.__reportStage = report;
+        report("html", innerWidth + "x" + innerHeight + " " + document.visibilityState);
+        addEventListener("error", function (e) {
+          report("error", (e.message || (e.target && e.target.src) || "resource failed") + " @" + (e.filename || "") + ":" + (e.lineno || 0));
+        }, true);
+        addEventListener("unhandledrejection", function (e) {
+          report("error", "unhandled rejection: " + String(e.reason && (e.reason.message || e.reason)));
+        });
+      })();
+    </script>
     <div id="app"></div>
     <script type="module" src="/src/main.ts"></script>
   </body>

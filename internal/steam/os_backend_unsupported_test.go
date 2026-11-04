@@ -23,7 +23,7 @@ func TestUnsupportedOS_SwitchingIsRefused(t *testing.T) {
 func TestDotaSteamRunningGuard_RefusesRemoteWritesWhenSteamCannotBeSeen(t *testing.T) {
 	// The guard with no backstop: without it, a remote/ write is silently reverted by Steam
 	// Cloud on next launch and the user is never told.
-	if err := dotaSteamRunningGuard([]string{DotaPartRemote}); !errors.Is(err, ErrSwitchingUnsupported) {
+	if err := dotaSteamRunningGuard([]string{DotaPartRemote}, false); !errors.Is(err, ErrSwitchingUnsupported) {
 		t.Fatalf("err = %v, want ErrSwitchingUnsupported", err)
 	}
 }
@@ -31,7 +31,7 @@ func TestDotaSteamRunningGuard_RefusesRemoteWritesWhenSteamCannotBeSeen(t *testi
 func TestDotaSteamRunningGuard_StillAllowsWritesThatDoNotTouchRemote(t *testing.T) {
 	// local/ is not cloud-synced, so it is not subject to the clobber this guard prevents.
 	// Refusing it too would break Dota config management for no safety gain.
-	if err := dotaSteamRunningGuard([]string{DotaPartLocal}); err != nil {
+	if err := dotaSteamRunningGuard([]string{DotaPartLocal}, false); err != nil {
 		t.Fatalf("err = %v, want nil for a local-only write", err)
 	}
 }

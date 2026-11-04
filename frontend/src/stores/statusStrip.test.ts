@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { get } from "svelte/store";
+import type { SignInState } from "../lib/steam/signIn";
 import {
+  applySignInStatus,
   beginSwitch,
   clearError,
   clearKitActive,
@@ -294,5 +296,50 @@ describe("stripEarnsSpace", () => {
     expect(stripEarnsSpace({ kind: "kit-active" } as StatusStripState)).toBe(true);
     expect(stripEarnsSpace({ kind: "recovery" } as StatusStripState)).toBe(true);
     expect(stripEarnsSpace({ kind: "error", message: "x", scope: "general" } as StatusStripState)).toBe(true);
+  });
+});
+
+describe("sign-in result", () => {
+  beforeEach(() => resetStatusStrip());
+
+  const status = (state: SignInState, reason = "") => ({ steamId64: "1", state, reason });
+  function strip() {
+    const s = get(statusStrip);
+    if (s.kind !== "switching") throw new Error(`kind ${s.kind}`);
+    return s;
+  }
+
+  it("does not treat the engine finishing as signed in", () => {
+    beginSwitch("B", "A", "", "1");
+    endSwitch(true, status("waiting"));
+    expect(strip().finished).toBe(true);
+    expect(strip().signIn).toBe("waiting");
+  });
+
+  it("follows Steam's answer, including a rejection and a later success", () => {
+    beginSwitch("B", "A", "", "1");
+    endSwitch(true, status("waiting"));
+    applySignInStatus(status("needsSignIn", "License expired"));
+    expect(strip().signIn).toBe("needsSignIn");
+    expect(strip().signInReason).toBe("License expired");
+    applySignInStatus(status("confirmed"));
+    expect(strip().signIn).toBe("confirmed");
+    expect(strip().signInReason).toBe("");
+  });
+
+  it("ignores an answer about another account", () => {
+    beginSwitch("B", "A", "", "1");
+    endSwitch(true, status("waiting"));
+    applySignInStatus({ steamId64: "2", state: "confirmed", reason: "" });
+    expect(strip().signIn).toBe("waiting");
+    endSwitch(true, { steamId64: "2", state: "confirmed", reason: "" });
+    expect(strip().signIn).toBe("none");
+  });
+
+  it("does not let an answer arrive before the engine is done", () => {
+    beginSwitch("B", "A", "", "1");
+    applySignInStatus(status("confirmed"));
+    expect(strip().finished).toBe(false);
+    expect(strip().signIn).toBe("none");
   });
 });

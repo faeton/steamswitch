@@ -95,8 +95,12 @@
     $: backPromptHidden = !backAvailable || backDisabled || !!$contextMenu || $searchOverlayCtrl.open || escapeOwnedPopupOpen
     $: titleLabel = (() => {
         switch ($route.page) {
-            case "dota-configs":
-                return $t("Title_DotaConfigs")
+            // The Switcher sets no title of its own, so falling through showed whatever the last
+            // page had set: "SteamSwitch - Vault" on the way back from the Vault.
+            case "home":
+                return "SteamSwitch"
+            case "game-configs":
+                return $t("Title_GameConfigs")
             case "preview-css":
                 return $t("Title_Settings_TestCss")
             case "settings":

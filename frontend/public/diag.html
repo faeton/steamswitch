@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SteamSwitch window test</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #c2185b; color: #fff; font: 16px/1.5 system-ui, sans-serif; }
+  main { padding: 32px; }
+  h1 { margin: 0 0 12px; font-size: 24px; }
+  a { color: #fff; }
+  code { font-size: 14px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Window test page</h1>
+  <p>If you can read this on a pink background, the webview draws pages in this window. The blank window is then caused by the app's own page.</p>
+  <p>Scripts: <strong id="js">not running</strong>. Seconds since load: <strong id="n">0</strong></p>
+  <p><code id="ua"></code></p>
+  <p><a href="/">Open the app</a></p>
+</main>
+<script>
+  // Uses nothing from the app, so it still works when the app's own page fails.
+  function report(stage, detail) {
+    fetch("/__frontend-report?stage=" + encodeURIComponent(stage) + "&detail=" + encodeURIComponent(detail || "")).catch(function () {});
+  }
+  document.getElementById("js").textContent = "running";
+  document.getElementById("ua").textContent = navigator.userAgent;
+  report("diag-page-script", innerWidth + "x" + innerHeight + " " + document.visibilityState);
+  requestAnimationFrame(function () { report("diag-page-frame", innerWidth + "x" + innerHeight); });
+  var n = 0;
+  setInterval(function () { document.getElementById("n").textContent = String(++n); }, 1000);
+</script>
+</body>
+</html>

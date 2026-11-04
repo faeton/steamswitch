@@ -133,9 +133,9 @@
       labelKey: "Tools_Group_Session",
       entries: [
         {
-          titleKey: "Tools_DotaConfigs_Title",
-          descKey: "Tools_DotaConfigs_Desc",
-          target: { page: "dota-configs" },
+          titleKey: "Tools_GameConfigs_Title",
+          descKey: "Tools_GameConfigs_Desc",
+          target: { page: "game-configs" },
         },
       ],
     },

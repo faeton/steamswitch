@@ -29,8 +29,16 @@ func DefaultUserDataDir() (string, error) {
 }
 
 // DefaultSearchDirs returns the two default user data folders checked on launch (portable first).
+//
+// On macOS and Linux the binary has no `.exe` suffix, so `{exeDir}/SteamSwitch` is usually the
+// executable itself. Looking inside it fails with ENOTDIR rather than "not found", which every
+// caller rightly treats as a real error — so a file at that path is simply not a candidate.
 func DefaultSearchDirs(exeDir string) []string {
-	dirs := []string{PortableUserDataDir(exeDir)}
+	var dirs []string
+	portable := PortableUserDataDir(exeDir)
+	if st, err := os.Stat(portable); err != nil || st.IsDir() {
+		dirs = append(dirs, portable)
+	}
 	if appData, err := DefaultUserDataDir(); err == nil {
 		dirs = append(dirs, appData)
 	}

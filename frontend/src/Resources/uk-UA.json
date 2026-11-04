@@ -358,22 +358,5 @@
   "Heading_UpdateAvailable": "Доступне оновлення",
   "Button_UpdateNow": "Оновити зараз",
   "Button_OpenDownloadPage": "Завантажити з GitHub",
-  "Button_Loading": "Завантаження…",
-  "Stability_DidSwitchWork": "Чи спрацював перемикач?",
-  "Stability_ThanksRating": "Дякуємо за оцінку",
-  "Stability_ThanksReportLine1": "Дякуємо за оцінку.",
-  "Stability_ThanksReportAskPrefix": "Потрібно",
-  "Stability_ThanksReportAskSuffix": "?",
-  "Stability_ReportIssue": "повідомити про проблему",
-  "Stability_ThumbUp": "Так, перемикач спрацював",
-  "Stability_ThumbDown": "Ні, перемикач не спрацював",
-  "Feedback_Issue_Title": "Повідомити про проблему",
-  "Feedback_Issue_Body": "Опишіть, що пішло не так і що ви очікували:",
-  "Feedback_Suggestion_Title": "Запропонувати функцію або зміну",
-  "Feedback_Suggestion_Body": "Введіть ідею, зміну або виправлення детально:",
-  "Feedback_Submit": "Надіслати",
-  "Feedback_AttachLog": "Надіслати журнал",
-  "Feedback_AttachLog_Hint": "Імена користувачів, ID та подібні дані буде вилучено з журналу настільки ретельно, наскільки це можливо, перед надсиланням.",
-  "Toast_FeedbackThanks": "Дякуємо за ваш відгук.",
-  "Toast_FeedbackSubmitFailed": "Не вдалося надіслати відгук."
+  "Button_Loading": "Завантаження…"
 }

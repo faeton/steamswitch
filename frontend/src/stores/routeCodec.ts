@@ -40,7 +40,7 @@ export type Route =
   | { page: "about" }
   | { page: "preview-css" }
   | { page: "steam-advanced-clearing" }
-  | { page: "dota-configs" };
+  | { page: "game-configs" };
 
 /** The five sidebar destinations, in the order the brief lists them. */
 export const TOP_LEVEL_PAGES = ["home", "vault", "tools", "settings", "about"] as const;
@@ -63,8 +63,8 @@ export function serializeRoute(r: Route): string {
       return "#/preview-css";
     case "steam-advanced-clearing":
       return "#/tools/advanced-clearing";
-    case "dota-configs":
-      return "#/tools/dota-configs";
+    case "game-configs":
+      return "#/tools/game-configs";
     default:
       return "#/";
   }
@@ -74,7 +74,9 @@ type RouteParser = (parts: string[]) => Route | null;
 
 const TOOLS_SUBROUTES: Record<string, Route> = {
   "advanced-clearing": { page: "steam-advanced-clearing" },
-  "dota-configs": { page: "dota-configs" },
+  "game-configs": { page: "game-configs" },
+  // The page's name before it covered every game.
+  "dota-configs": { page: "game-configs" },
 };
 
 /**
@@ -106,7 +108,8 @@ const ROUTE_PARSERS: Record<string, RouteParser> = {
   "platform-settings": () => ({ page: "settings", category: DEFAULT_SETTINGS_CATEGORY }),
   steam: (p) =>
     p[1]?.toLowerCase() === "advanced-clearing" ? { page: "steam-advanced-clearing" } : null,
-  "dota-configs": () => ({ page: "dota-configs" }),
+  "dota-configs": () => ({ page: "game-configs" }),
+  "game-configs": () => ({ page: "game-configs" }),
 };
 
 export function parseHash(hash: string): Route | null {
@@ -131,7 +134,7 @@ export function validateRoute(r: Route, startup: PlatformStartup): Route {
     // All Steam tools; without Steam there is nothing for them to operate on. The vault keys
     // its entries by SteamID64, so it is in the same boat.
     case "steam-advanced-clearing":
-    case "dota-configs":
+    case "game-configs":
     case "vault":
       return steamAvailable ? r : { page: "home" };
     default:

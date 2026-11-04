@@ -22,7 +22,9 @@
       rows: [
         { keys: ["1", "…", "9"], descKey: "Shortcuts_QuickSwitch" },
         { keys: ["Shift", "1–9"], descKey: "Shortcuts_QuickDetail" },
+        { keys: ["Double-click"], descKey: "Shortcuts_DoubleClick" },
         { keys: ["Enter"], descKey: "Shortcuts_Activate" },
+        { keys: ["Space"], descKey: "Shortcuts_SpaceDetail" },
         { keys: ["Shift", "Click"], descKey: "Shortcuts_ShiftClick" },
       ],
     },

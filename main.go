@@ -17,10 +17,10 @@ import (
 	"steamswitch/internal/crashlog"
 	"steamswitch/internal/discordrpc"
 	"steamswitch/internal/ipc"
+	"steamswitch/internal/logsanitize"
 	"steamswitch/internal/platform"
 	"steamswitch/internal/security"
 	"steamswitch/internal/shortcuts"
-	"steamswitch/internal/stability"
 	"steamswitch/internal/stats"
 	"steamswitch/internal/steam"
 	"steamswitch/internal/tray"
@@ -61,7 +61,7 @@ func init() {
 	application.RegisterEvent[string]("navigate")
 
 	application.RegisterEvent[app.ToastPayload]("toast")
-	application.RegisterEvent[stability.StabilityPromptPayload]("stability-prompt")
+	application.RegisterEvent[steam.SignInStatus](steam.SignInStatusEvent)
 	application.RegisterEvent[string](controllerinput.EventName)
 	application.RegisterEvent[steam.AccountPatch](steam.AccountUpdatedEvent)
 	application.RegisterEvent[basic.AccountImagePatch](basic.AccountImageUpdatedEvent)
@@ -154,7 +154,7 @@ func main() {
 	}
 
 	lvl := app.ResolvedLogLevel(parsed)
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: lvl})))
+	slog.SetDefault(slog.New(logsanitize.NewSteamIDHandler(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: lvl}))))
 	actionlog.Init()
 
 	startupSettings, _ := loadStartupSettings()
