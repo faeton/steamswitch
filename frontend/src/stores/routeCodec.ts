@@ -38,7 +38,6 @@ export type Route =
   | { page: "tools" }
   | { page: "settings"; category: SettingsCategory }
   | { page: "about" }
-  | { page: "preview-css" }
   | { page: "steam-advanced-clearing" }
   | { page: "game-configs" };
 
@@ -59,8 +58,6 @@ export function serializeRoute(r: Route): string {
       return "#/about";
     case "tools":
       return "#/tools";
-    case "preview-css":
-      return "#/preview-css";
     case "steam-advanced-clearing":
       return "#/tools/advanced-clearing";
     case "game-configs":
@@ -99,8 +96,6 @@ const ROUTE_PARSERS: Record<string, RouteParser> = {
   vault: () => ({ page: "vault" }),
   about: () => ({ page: "about" }),
   settings: parseSettings,
-  "preview-css": () => ({ page: "preview-css" }),
-  test: () => ({ page: "preview-css" }),
   tools: (p) => (p[1] ? (TOOLS_SUBROUTES[p[1].toLowerCase()] ?? null) : { page: "tools" }),
 
   // --- Aliases kept for links minted by older builds -------------------------------

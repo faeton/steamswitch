@@ -1,7 +1,8 @@
 <script lang="ts">
   /**
-   * The library of saved configs. Copying between accounts is on the switcher; this page borrows
-   * that form's pickers, because saving and applying act on the selection it holds.
+   * The library of saved configs: save one from an account, apply one to an account. Copying between
+   * accounts is on the switcher; this page borrows that form's game, account and part pickers for
+   * the saving half. Applying picks its account on the row, so nothing has to be set up first.
    */
   import { onMount } from "svelte";
   import { previousPage, appBarTitle } from "../stores/nav";
@@ -51,7 +52,6 @@
   let appId = "";
   let info: GameInfo | null = null;
   let sourceId = "";
-  let destId = "";
   let selectedParts: string[] = [];
   let busy = false;
   let snapshots: Snapshot[] = [];
@@ -129,19 +129,20 @@
     }
   }
 
-  async function applySnapshot(snap: Snapshot): Promise<void> {
-    if (!destId) {
-      pushToast({ type: "error", message: $t("GameCfg_Error_PickDestination"), duration: 5000 });
-      return;
-    }
-    if (!info || selectedParts.length === 0) return;
-    // What actually happens is the intersection. A revert point also removes what its own account
-    // did not have, and the dialog has to say so.
-    const written = selectedParts.filter((p) => snap.parts.includes(p));
-    const removed =
-      snap.auto && snap.sourceSteamId64 === destId
-        ? selectedParts.filter((p) => !snap.parts.includes(p) && (snap.emptyParts ?? []).includes(p))
-        : [];
+  /**
+   * What applying writes. A revert point also removes what its own account did not have, and leaves
+   * the machine-wide part alone: copies never change it, so there is nothing of it to revert.
+   */
+  function partsToApply(snap: Snapshot, destId: string): { written: string[]; removed: string[] } {
+    if (!snap.auto) return { written: snap.parts, removed: [] };
+    const account = snap.parts.filter((p) => p !== PART_GLOBAL);
+    const empty = snap.sourceSteamId64 === destId ? (snap.emptyParts ?? []).filter((p) => p !== PART_GLOBAL) : [];
+    return { written: account, removed: empty };
+  }
+
+  async function applySnapshot(snap: Snapshot, destId: string): Promise<void> {
+    if (!info) return;
+    const { written, removed } = partsToApply(snap, destId);
     const ok = await openConfirm({
       title: $t("GameCfg_Confirm_ApplyTitle"),
       body:
@@ -153,17 +154,16 @@
         (removed.length > 0
           ? "\n\n" + $t("GameCfg_Confirm_ApplyRemoves", { parts: partsSummary(removed), dest: labelFor(destId) })
           : "") +
-        (selectedParts.includes(PART_GLOBAL) && snap.parts.includes(PART_GLOBAL)
+        (written.includes(PART_GLOBAL)
           ? "\n\n" + $t("GameCfg_Confirm_GlobalWarning")
           : ""),
     });
     if (!ok) return;
-    // A snapshot with no cloud part carries no cloud risk however the checkboxes are set.
     const risk = await cloudRiskAccepted([...written, ...removed], destId);
     if (risk === null) return;
     busy = true;
     try {
-      const res = await ApplyGameConfigSnapshot(appId, snap.id, destId, selectedParts, risk);
+      const res = await ApplyGameConfigSnapshot(appId, snap.id, destId, [...written, ...removed], risk);
       form.report(
         res,
         $t("GameCfg_Toast_Applied", {
@@ -222,6 +222,14 @@
     }
   }
 
+  function openApplyMenu(e: MouseEvent, snap: Snapshot): void {
+    const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    openContextMenuAtRect(
+      { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height },
+      accounts.map((a) => ({ label: labelFor(a.steamId64), action: () => void applySnapshot(snap, a.steamId64) })),
+    );
+  }
+
   /** Rename, open and delete sit behind ⋯; Apply, the reason the library exists, stays out. */
   function openSnapMenu(e: MouseEvent, snap: (typeof snapshots)[number]): void {
     const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
@@ -241,7 +249,7 @@
   <PageHeader title={$t("GameCfg_Heading")} description={$t("GameCfg_Intro")} />
 
   <div class="cfg-page__scroll">
-    <SettingsCard title={$t("GameCfg_Section_Selection")} description={$t("GameCfg_Note_AutoRevert")}>
+    <SettingsCard title={$t("GameCfg_Section_Save")}>
       <GameConfigCopyForm
         bind:this={form}
         detailed
@@ -250,7 +258,6 @@
         bind:appId
         bind:info
         bind:sourceId
-        bind:destId
         bind:selectedParts
         bind:busy
         on:refreshed={(e) => void refreshSnapshots(e.detail).catch(toastError)}
@@ -267,7 +274,7 @@
       </GameConfigCopyForm>
     </SettingsCard>
 
-    <SettingsCard title={$t("GameCfg_Section_Library")}>
+    <SettingsCard title={$t("GameCfg_Section_Library")} description={$t("GameCfg_Note_AutoRevert")}>
       {#if snapshots.length === 0}
         <p class="cfg-empty">{$t("GameCfg_Library_Empty")}</p>
       {:else}
@@ -285,7 +292,7 @@
               </span>
             </div>
             <div class="snap__actions">
-              <button type="button" class="ss-btn snap__btn" disabled={busy || selectedParts.length === 0} on:click={() => applySnapshot(snap)}>
+              <button type="button" class="ss-btn snap__btn" aria-haspopup="menu" disabled={busy || accounts.length === 0} on:click={(e) => openApplyMenu(e, snap)}>
                 {$t("GameCfg_Button_Apply")}
               </button>
               <button

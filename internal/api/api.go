@@ -1,6 +1,6 @@
-// Package api used to hold the endpoints of the upstream TcNo web service.
+// Package api holds the endpoints of remote services, of which there are none.
 //
-// SteamSwitch is a private fork and deliberately talks to no remote service: no
+// SteamSwitch deliberately talks to no remote service: no
 // anonymous statistics, no crash reports, no stability ratings, no feedback and no
 // version checks. Every endpoint below therefore returns an empty string, and each
 // caller treats an empty URL as "this feature is disabled" and returns early.

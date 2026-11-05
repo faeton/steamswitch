@@ -47,7 +47,6 @@
     if (page === "tools") {
       return current.page === "game-configs" || current.page === "steam-advanced-clearing";
     }
-    if (page === "settings") return current.page === "preview-css";
     return false;
   }
 

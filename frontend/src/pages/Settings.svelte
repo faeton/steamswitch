@@ -4,8 +4,7 @@
    *
    * What this replaces: a single flat column that stacked all six blocks — Appearance, Steam,
    * Game modules, Vault, System, Language — one after another, so finding "run as admin"
-   * meant scrolling past every theme in the catalogue. That column, plus the inherited
-   * upstream selectors it was styled with, was the "still looks like TcNo" tell in Part B #11.
+   * meant scrolling past all of it.
    *
    * The six blocks are *reused, not rewritten*: each becomes the body of its category. The
    * category lives in the route, so a settings page is linkable and Back walks categories

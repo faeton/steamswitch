@@ -5,12 +5,11 @@
  *
  * Moved out of tooltipContrast.test.ts so the text-role test checks themes the same way.
  */
-import { readdirSync, existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import * as sass from "sass";
 
 export const STYLES = join(__dirname);
-export const THEMES = join(STYLES, "themes");
 
 const SASS_OPTS = {
     loadPaths: [STYLES, join(STYLES, ".."), join(STYLES, "..", "..", "node_modules")],
@@ -33,12 +32,10 @@ export function compile(file: string): string {
 export function collectVars(
     css: string,
     appearance?: "light" | "dark",
-    classic = false,
 ): Record<string, string> {
     const vars: Record<string, string> = {};
     for (const rule of css.matchAll(/([^{}]*)\{([^{}]*)\}/g)) {
         const selector = rule[1];
-        if (classic && /data-base-theme/.test(selector)) continue;
         if (appearance === "light" && /appearance=dark/.test(selector)) continue;
         if (appearance === "dark" && /appearance=light/.test(selector)) continue;
         for (const decl of rule[2].matchAll(/(--[\w-]+)\s*:\s*([^;]+)/g)) {
@@ -130,17 +127,10 @@ export type Variant = {
     name: string;
     sheets: string[];
     appearance?: "light" | "dark";
-    /** A classic pack: `data-base-theme` is removed from <html>, so rules keyed on it do not apply. */
-    classic?: boolean;
 };
 
 export const variants: Variant[] = [
     { name: "base (light)", sheets: base, appearance: "light" },
     { name: "base (dark)", sheets: base, appearance: "dark" },
 ];
-for (const entry of readdirSync(THEMES, { withFileTypes: true })) {
-    const file = join(THEMES, entry.name, "style.scss");
-    if (!entry.isDirectory() || !existsSync(file)) continue;
-    variants.push({ name: entry.name, sheets: [...base, compile(file)], classic: true });
-}
 

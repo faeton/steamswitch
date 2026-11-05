@@ -52,6 +52,14 @@ describe("command palette hotkeys", () => {
     expect(formatCommandPaletteHotkeyEvent(keyEvent("k"))).toBeNull();
   });
 
+  it("takes Cmd for Ctrl on a Mac, and only there", () => {
+    const cmdK = keyEvent("k", { metaKey: true });
+    expect(eventMatchesCommandPaletteHotkey(cmdK, "Ctrl+K", true)).toBe(true);
+    expect(eventMatchesCommandPaletteHotkey(keyEvent("k", { ctrlKey: true }), "Ctrl+K", true)).toBe(true);
+    expect(eventMatchesCommandPaletteHotkey(cmdK, "Ctrl+K", false)).toBe(false);
+    expect(eventMatchesCommandPaletteHotkey(keyEvent("k", { metaKey: true, shiftKey: true }), "Ctrl+K", true)).toBe(false);
+  });
+
   it("matches exact modifier combinations", () => {
     expect(eventMatchesCommandPaletteHotkey(keyEvent("k", { ctrlKey: true }), "Ctrl+K")).toBe(true);
     expect(eventMatchesCommandPaletteHotkey(keyEvent("k", { ctrlKey: true, shiftKey: true }), "Ctrl+K")).toBe(false);

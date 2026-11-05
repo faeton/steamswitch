@@ -56,7 +56,6 @@
   } from "./stores/security";
   import { appBgInfo, userOverriddenAppBg } from "./stores/backgroundImage";
   import type { AppBackgroundInfo } from "./stores/backgroundImage";
-  import { currentThemeBgUrl } from "./lib/themes";
   import {
     backgroundObjectPosition,
     normalizeBackgroundAlignment,
@@ -88,7 +87,7 @@
     return null;
   }
 
-  $: activeBg = resolveActiveBg($appBgInfo, $currentThemeBgUrl, $userOverriddenAppBg);
+  $: activeBg = resolveActiveBg($appBgInfo, "", $userOverriddenAppBg);
   // Mounted only when it says something nothing else on screen says (see stripEarnsSpace).
   $: showStatusStrip = stripEarnsSpace($statusStrip);
 

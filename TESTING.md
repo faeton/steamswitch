@@ -59,7 +59,7 @@ lists them, and the section can be skipped entirely if you are only checking swi
 | A3 | Click **Add New** | Steam opens at its own login screen. No SteamSwitch crash, no half-written state. |
 | A4 | Close Steam, look at the footer | **Launch Steam** appears only while Steam is closed, and disappears once it is running. |
 | A5 | Settings → Appearance, switch System / Light / Dark | Applies instantly. **System** follows the OS setting — flip Windows to dark and confirm the app follows without a restart. |
-| A6 | Appearance → expand **Classic themes**, pick one, then set it back to None | The pack applies, and returning to None restores the built-in light/dark palette rather than leaving a half-themed window. |
+| A6 | Appearance | System, Light and Dark plus an accent colour. There are no theme packs. A saved theme from an older build falls back to this without errors. |
 | A7 | Resize the window to its minimum | Nothing clips or overlaps; the status strip text truncates rather than pushing buttons off-screen. |
 
 ## B. Plain switching (no kit)
@@ -183,7 +183,7 @@ Only meaningful if you can arrange it, but please do arrange it.
 | # | Steps | Expected |
 |---|---|---|
 | F1 | Tools hub | Grouped under Session / Steam maintenance / Diagnostics. Rows that open a page show a chevron; one-shot actions don't. |
-| F2 | Tools → Game configs | Saved configs only: the game and account pickers, **Save as named config**, and the library with Apply. No Copy or Reverse button; copying is **Copy game config** on the Switcher. |
+| F2 | Tools → Game configs | Save a config with **Save as named config**, then press **Apply to…** on its row and pick an account. No Copy or Reverse button and no destination picker; copying is **Copy game config** on the Switcher. |
 | F3 | Tools → Advanced cleaning | Opens; individual options behave; does not sign you out. |
 | F4 | Tools → Refresh avatars / VAC status check | Each runs and reports; rows disable while one is in flight. |
 | F5 | Tools → Open data folder | Explorer opens at the data folder. |
@@ -201,7 +201,7 @@ Only meaningful if you can arrange it, but please do arrange it.
 | F6d | Turn on **Note preview under username**, add a note with two paragraphs via the account menu | The preview shows on one line with the newlines collapsed; the tile does not grow to fit it. |
 | F6e | Settings → Steam → **Set method to close Steam** | The dropdown reads in your language, including "TaskKill". It used to be English in every locale. |
 | F6f | Change any Steam setting, quit and relaunch | It stuck. Then open `Settings\SteamSettings.json` and confirm `SteamWebApiKey`, `ForgetAccountEnabled` and `AlwaysSwapOnShortcut` are gone — they had no reader. |
-| F7 | Tray → quick switch | Switches without opening the window. |
+| F7 | Tray → quick switch | Switches without opening the window. The current account reads "(current)"; with Steam closed, clicking it starts Steam. The menu's **SteamSwitch** entry brings the window in front of other apps. On Windows, a left click on the icon does too; on macOS it currently does nothing. |
 | F8 | Tray while a kit is active | The tooltip reflects it. |
 
 ### F-tags. Tags

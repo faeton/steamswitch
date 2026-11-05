@@ -2,15 +2,11 @@
   /**
    * The System / Light / Dark segmented control (REDESIGN.md §6).
    *
-   * System is the default and follows `prefers-color-scheme` live. While a classic theme
-   * pack is loaded the control still reflects the stored preference, but the pack supplies
-   * the palette, so the row explains that rather than silently doing nothing.
+   * System is the default and follows `prefers-color-scheme` live.
    */
   import { t } from "../stores/i18n";
   import {
     appearanceMode,
-    currentThemeId,
-    isBaseThemeId,
     setUserAppearanceMode,
     type AppearanceMode,
   } from "../lib/themes";
@@ -20,8 +16,6 @@
     { id: "light", labelKey: "Appearance_Mode_Light" },
     { id: "dark", labelKey: "Appearance_Mode_Dark" },
   ];
-
-  $: overriddenByClassicTheme = !isBaseThemeId($currentThemeId);
 </script>
 
 <div class="rowDropdown">
@@ -34,16 +28,11 @@
         aria-checked={$appearanceMode === mode.id}
         class="segmented__btn"
         class:segmented__btn--on={$appearanceMode === mode.id}
-        disabled={overriddenByClassicTheme}
         on:click={() => void setUserAppearanceMode(mode.id)}>{$t(mode.labelKey)}</button
       >
     {/each}
   </div>
 </div>
-
-{#if overriddenByClassicTheme}
-  <p class="hint">{$t("Appearance_Mode_ClassicOverride")}</p>
-{/if}
 
 <style>
   /* A segmented control the way Windows 11 and macOS draw one: a recessed track, and the
@@ -95,10 +84,5 @@
       background: Highlight;
       color: HighlightText;
     }
-  }
-  .hint {
-    color: var(--role-text-muted, var(--text-subtle-gray));
-    font-size: var(--fs-secondary);
-    margin: 4px 0 0;
   }
 </style>

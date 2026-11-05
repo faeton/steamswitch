@@ -179,8 +179,7 @@ func RunGUI(params RunGUIParams) {
 		wailsApp.Logger.Warn("autostart sync", "error", err)
 	}
 
-	// Auto-update is disabled in this fork: the upstream release feed publishes the
-	// multi-platform TcNo Account Switcher, which would overwrite this build.
+	// Auto-update is disabled: there is no release feed for this build.
 
 	if params.CrashSubmitted {
 		EmitToast("success", "i18n:Toast_CrashReported", "", 0)
@@ -233,6 +232,13 @@ func RunGUI(params RunGUIParams) {
 		},
 		SwapSteam: func(steamID64 string, personaState int) error {
 			return disp.SteamSvc.SwapToSteamAccount(steamID64, personaState, nil)
+		},
+		CurrentSteamID: func() string {
+			id, err := steam.CurrentLiveSteamID64()
+			if err != nil {
+				return ""
+			}
+			return id
 		},
 	})
 	trayMgr.RegisterCloseHook()

@@ -86,7 +86,13 @@ func swapToAccountLocked(steamID64 string, personaState int, extraLaunchArgs []s
 	if tr := strings.TrimSpace(steamID64); tr != "" && len(extraLaunchArgs) == 0 {
 		if users, err := ParseLoginUsers(LoginUsersPath(root)); err == nil {
 			if a := ActiveSessionSteamID64(users); a != "" && strings.EqualFold(strings.TrimSpace(a), tr) {
-				return nil
+				// Nothing to swap, but the tray or a link was asked for this account, and with
+				// Steam closed doing nothing looks like the click was lost.
+				if !launchForCurrentAccount(steamClientRunning(), st.AutoStart) {
+					return nil
+				}
+				platform.EmitActionBarStatusI18nPlatform("Status_StartingPlatform", "Steam")
+				return launchAndWatchSignIn(root, buildSteamArgs(st, nil), launchOpts(st, st.RunAsAdmin))
 			}
 		}
 	}
@@ -144,6 +150,11 @@ func swapToAccountLocked(steamID64 string, personaState int, extraLaunchArgs []s
 	}
 	tray.MaybeHideMainWindow()
 	return nil
+}
+
+// launchForCurrentAccount decides whether a swap to the account already selected starts Steam.
+func launchForCurrentAccount(steamRunning, autoStart bool) bool {
+	return autoStart && !steamRunning
 }
 
 func LaunchSteamOnly(extraLaunchArgs []string) error {

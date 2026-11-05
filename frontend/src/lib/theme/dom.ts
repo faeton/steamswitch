@@ -1,11 +1,9 @@
 import { Events } from "@wailsio/runtime";
 import { get } from "svelte/store";
-import { offlineMode } from "../../stores/offlineMode";
 import { scheduleUpdaterThemeSync } from "../updaterTheme";
 import modalPrimaryCss from "../../styles/modal-primary.scss?inline";
 import {
   BASE_DEFAULT_ACCENT_BY_SCHEME,
-  DEFAULT_THEME_ID,
   WINDOWS_THEME_ACCENT_KEY,
   CUSTOM_THEME_ACCENT_KEY,
 } from "./types";
@@ -20,13 +18,10 @@ import {
   currentThemeCustomAccentColor,
 } from "./stores";
 
-const OVERLAY_STYLE_ID = "steamswitch-theme-overlay";
-const OVERLAY_STYLE_ATTR = "data-steamswitch-theme-overlay";
 const ACCENT_OVERLAY_STYLE_ID = "steamswitch-theme-accent-overlay";
 const ACCENT_OVERLAY_STYLE_ATTR = "data-steamswitch-theme-accent-overlay";
 const MODAL_PRIMARY_STYLE_ID = "steamswitch-modal-primary-overlay";
 const MODAL_PRIMARY_STYLE_ATTR = "data-steamswitch-modal-primary-overlay";
-const THEME_FONT_LINK_ATTR = "data-steamswitch-google-fonts-theme";
 
 const WINDOWS_ACCENT_CHANGED_EVENT = "windows-accent-changed";
 
@@ -37,39 +32,6 @@ export function supportsWindowsThemeAccent(): boolean {
     return false;
   }
   return /windows/i.test(navigator.userAgent) || /win32/i.test(navigator.userAgent);
-}
-
-export function removeThemeGoogleFontLinks(): void {
-  if (typeof document === "undefined") {
-    return;
-  }
-  document.querySelectorAll(`link[${THEME_FONT_LINK_ATTR}]`).forEach((node) => node.remove());
-}
-
-export function syncThemeGoogleFonts(themeId: string): void {
-  if (typeof document === "undefined") {
-    return;
-  }
-  removeThemeGoogleFontLinks();
-  if (themeId === DEFAULT_THEME_ID || get(offlineMode)) {
-    return;
-  }
-  const theme = getThemeOptionById(themeId);
-  if (!theme?.googleFontsCss) {
-    return;
-  }
-  const link = document.createElement("link");
-  link.rel = "stylesheet";
-  link.href = theme.googleFontsCss;
-  link.setAttribute(THEME_FONT_LINK_ATTR, themeId);
-  document.head.appendChild(link);
-}
-
-export function removeThemeOverlay(): void {
-  if (typeof document === "undefined") {
-    return;
-  }
-  document.querySelectorAll(`style[${OVERLAY_STYLE_ATTR}]`).forEach((node) => node.remove());
 }
 
 export function removeAccentOverlay(): void {
@@ -145,9 +107,6 @@ export function validateAccentKey(theme: ThemeOption, key: string): string {
  * their own stylesheet, so theirs is scheme-independent.
  */
 export function defaultAccentColorFor(theme: ThemeOption): string {
-  if (!theme.isBase) {
-    return theme.defaultAccentColor;
-  }
   return BASE_DEFAULT_ACCENT_BY_SCHEME[currentResolvedAppearance()] ?? theme.defaultAccentColor;
 }
 
@@ -170,9 +129,9 @@ export function applyResolvedAccent(themeId: string, accentKey: string, customCo
     return;
   }
 
-  // On the base theme every preset can be an explicit choice, including its nominal default:
-  // that key is only the default in one of the two schemes.
-  if (validAccentKey && (theme.isBase || validAccentKey !== theme.defaultAccentKey)) {
+  // Every preset can be an explicit choice, including the nominal default: that key is only the
+  // default in one of the two schemes.
+  if (validAccentKey) {
     const preset = theme.accents.find((option) => option.id === validAccentKey);
     if (preset) {
       currentThemeAccentKey.set(validAccentKey);
@@ -182,15 +141,8 @@ export function applyResolvedAccent(themeId: string, accentKey: string, customCo
   }
 
   currentThemeAccentKey.set("");
-  // Classic packs carry their default accent inside their own stylesheet, so dropping the
-  // overlay is correct there. The built-in base has no stylesheet accent — `appearance.scss`
-  // omits accent tokens on purpose (its attribute selectors would out-rank this overlay), so
-  // the default has to be written out explicitly, and it depends on the current scheme.
-  applyAccentOverlay(theme.isBase ? defaultAccentColorFor(theme) : null);
+  // `appearance.scss` omits accent tokens on purpose (its attribute selectors would out-rank this
+  // overlay), so the default has to be written out, and it depends on the current scheme.
+  applyAccentOverlay(defaultAccentColorFor(theme));
 }
 
-export function clearThemeAccentState(): void {
-  currentThemeAccentKey.set("");
-  currentThemeCustomAccentColor.set("");
-  applyAccentOverlay(null);
-}

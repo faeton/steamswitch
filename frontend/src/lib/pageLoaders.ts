@@ -15,8 +15,6 @@ function loaderFor(route: Route): () => Promise<PageModule> {
       return () => import("../pages/About.svelte");
     case "tools":
       return () => import("../pages/Tools.svelte");
-    case "preview-css":
-      return () => import("../pages/PreviewCss.svelte");
     case "steam-advanced-clearing":
       return () => import("../pages/SteamAdvancedClearing.svelte");
     case "game-configs":

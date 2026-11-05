@@ -137,8 +137,7 @@ func saveAppNameMapToDisk(m map[string]string) error {
 }
 
 const (
-	// Valve's own public app-list endpoint. Upstream additionally used a TcNo-hosted
-	// mirror (a plain and an xz-compressed copy); this fork talks only to Valve.
+	// Valve's own public app-list endpoint, the only source this talks to.
 	steamAppArrayValveURL       = "https://api.steampowered.com/ISteamApps/GetAppList/v2/"
 	steamAppNameMapCacheTTL     = 24 * time.Hour
 	steamAppNameMapFetchTimeout = 10 * time.Minute
@@ -186,10 +185,9 @@ type valveAppListResponse struct {
 
 // parseAppNameMapJSON accepts both supported encodings of the app-name map:
 //
-//   - a flat {"appid": "name"} object, which is what the on-disk cache stores (and what
-//     upstream's TcNo-hosted mirror served);
+//   - a flat {"appid": "name"} object, which is what the on-disk cache stores;
 //   - Valve's ISteamApps/GetAppList/v2 response, {"applist":{"apps":[{appid,name}]}},
-//     which is the only remote source this fork talks to.
+//     which is the only remote source.
 func parseAppNameMapJSON(raw []byte) (map[string]string, error) {
 	var flat map[string]string
 	if err := json.Unmarshal(raw, &flat); err == nil && steamAppNameMapLooksValid(flat) {

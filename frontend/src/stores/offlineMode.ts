@@ -2,8 +2,6 @@ import { writable } from "svelte/store";
 import * as PlatformService from "../../bindings/steamswitch/internal/platform/platformservice.js";
 
 const STORAGE_KEY = "steamswitch:offlineMode";
-// Pre-rename builds stored the flag under this key; read it once as a fallback.
-const LEGACY_STORAGE_KEY = "tcno:offlineMode";
 
 export const offlineMode = writable(false);
 
@@ -41,7 +39,7 @@ export async function initOfflineMode(): Promise<void> {
   try {
     on = await PlatformService.GetOfflineMode();
   } catch {
-    const ls = localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem(LEGACY_STORAGE_KEY);
+    const ls = localStorage.getItem(STORAGE_KEY);
     on = ls === "1" || ls === "true";
   }
   offlineMode.set(on);

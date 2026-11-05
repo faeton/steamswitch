@@ -259,14 +259,16 @@
     </div>
   {/if}
 
-  <SettingRow label={$t(copyActions ? "GameCfg_Label_Destination" : "GameCfg_Label_ApplyTo")} controlId="cfg-dest">
-    <select id="cfg-dest" class="ss-field cfg-select" bind:value={destId} disabled={busy}>
-      <option value="">{$t("GameCfg_Label_PickAccount")}</option>
-      {#each accounts.filter((a) => a.steamId64 !== sourceId) as a (a.steamId64)}
-        <option value={a.steamId64}>{optionLabel(a)}</option>
-      {/each}
-    </select>
-  </SettingRow>
+  {#if copyActions}
+    <SettingRow label={$t("GameCfg_Label_Destination")} controlId="cfg-dest">
+      <select id="cfg-dest" class="ss-field cfg-select" bind:value={destId} disabled={busy}>
+        <option value="">{$t("GameCfg_Label_PickAccount")}</option>
+        {#each accounts.filter((a) => a.steamId64 !== sourceId) as a (a.steamId64)}
+          <option value={a.steamId64}>{optionLabel(a)}</option>
+        {/each}
+      </select>
+    </SettingRow>
+  {/if}
 
   {#if info && sourceId && destId}
     <p class="cfg-contents">

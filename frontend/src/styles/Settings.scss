@@ -13,10 +13,8 @@
 /*
   Section heading *inside* a settings category (REDESIGN_BRIEF.md A11).
 
-  It used to be the app's only structural device on a single flat scrolling column, styled
-  with an accent bar borrowed from upstream — the "still looks like TcNo" tell in Part B #11.
-  Now that each category is its own page with a `PageHeader` above it, this is a plain section
-  heading and no longer has to shout to be found.
+  Each category is its own page with a `PageHeader` above it, so this is a plain section heading
+  and does not have to shout to be found.
 */
 .SettingsHeader {
   margin: 0;

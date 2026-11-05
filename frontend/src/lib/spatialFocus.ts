@@ -71,9 +71,7 @@ function focusElement(target: HTMLElement): void {
 }
 
 function actionbarCandidates(active?: HTMLElement): HTMLElement[] {
-  const previewRoot = active?.closest(".preview-css-page");
-  const actionbar = previewRoot?.querySelector<HTMLElement>(".preview_accounts_actionbar")
-    ?? document.querySelector<HTMLElement>(".actionbar__actions");
+  const actionbar = document.querySelector<HTMLElement>(".actionbar__actions");
   if (!actionbar) return [];
   return preferInnerControls(Array.from(actionbar.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))).filter(isVisibleFocusable);
 }

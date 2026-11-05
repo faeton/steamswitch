@@ -25,7 +25,6 @@ const ROUTES: Route[] = [
   { page: "settings", category: "appearance" },
   { page: "settings", category: "vault" },
   { page: "tools" },
-  { page: "preview-css" },
   { page: "steam-advanced-clearing" },
   { page: "game-configs" },
 ];

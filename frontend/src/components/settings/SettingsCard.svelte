@@ -2,10 +2,8 @@
   /**
    * A group of related settings (REDESIGN_BRIEF.md A11).
    *
-   * Half of the "still looks like TcNo" tell was that Settings was one flat scrolling column
-   * of `<h2 class="SettingsHeader">` followed by loose controls, with nothing tying a heading
-   * to the rows beneath it. A card draws that boundary, so "which of these belong together"
-   * is answered by the layout instead of by reading.
+   * A card ties a heading to the rows beneath it, so "which of these belong together" is
+   * answered by the layout instead of by reading.
    */
   export let title = "";
   /** One line under the title. Explains what the group is *for*, not what each row does. */

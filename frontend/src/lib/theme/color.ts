@@ -1,4 +1,4 @@
-import { DEFAULT_THEME_OPTION } from "./types";
+import { BASE_THEME_OPTION } from "./types";
 
 export function normalizeHexColor(value: unknown): string | null {
   if (typeof value !== "string") {
@@ -21,7 +21,7 @@ export function normalizeHexColor(value: unknown): string | null {
 }
 
 export function hexToRgb(hex: string): { r: number; g: number; b: number } {
-  const normalized = normalizeHexColor(hex) ?? DEFAULT_THEME_OPTION.defaultAccentColor;
+  const normalized = normalizeHexColor(hex) ?? BASE_THEME_OPTION.defaultAccentColor;
   return {
     r: Number.parseInt(normalized.slice(1, 3), 16),
     g: Number.parseInt(normalized.slice(3, 5), 16),
@@ -88,7 +88,7 @@ function textColorForAccent(rgb: { r: number; g: number; b: number }): string {
 }
 
 export function buildAccentOverlayCss(color: string): string {
-  const normalized = normalizeHexColor(color) ?? DEFAULT_THEME_OPTION.defaultAccentColor;
+  const normalized = normalizeHexColor(color) ?? BASE_THEME_OPTION.defaultAccentColor;
   const rgb = hexToRgb(normalized);
   const hsl = rgbToHsl(rgb);
   const textOnBrightBg = textColorForAccent(rgb);

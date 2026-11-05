@@ -10,7 +10,7 @@ info:
   productIdentifier: "io.faeton.steamswitch" # The unique product identifier
   description: "A Steam-only account switcher with Dota 2 config management." # The application description
   copyright: "(c) 2026 Ivan Faeton Danishevskyi. Based on TcNo Account Switcher, (c) TroubleChute (Wesley Pyburn). GPL-3.0." # Copyright text
-  comments: "Steam-only fork of TcNo Account Switcher with Dota 2 config management." # Comments
+  comments: "Steam account switcher with game config management." # Comments
   version: "0.1.0" # The application version (semver). Below 1.0 until the Windows switch path has actually been run on Windows.
   # cfBundleIconName: "appicon" # The macOS icon name in Assets.car icon bundles (optional)
   #                               # Should match the name of your .icon file without the extension

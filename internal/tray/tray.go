@@ -30,6 +30,8 @@ import (
 type Deps struct {
 	SwapBasic func(platformKey, uniqueID string) error
 	SwapSteam func(steamID64 string, personaState int) error
+	// CurrentSteamID names the account Steam is set to sign in to, or "" if unknown.
+	CurrentSteamID func() string
 }
 
 // Manager owns the Wails system tray and menu rebuilds.
@@ -134,9 +136,10 @@ func (m *Manager) Start(iconPNG, templatePNG []byte) {
 	m.systray.SetTooltip("SteamSwitch")
 	m.rebuildMenuLocked()
 
-	m.systray.OnDoubleClick(func() {
-		m.showHome()
-	})
+	// The menu is on the right button. Measured on macOS 27, a left click never reaches this
+	// handler, so there the menu's "SteamSwitch" entry is the way to the window.
+	m.systray.OnClick(m.showHome)
+	m.systray.OnDoubleClick(m.showHome)
 
 	m.app.OnShutdown(func() {
 		if m.systray != nil {
@@ -183,6 +186,10 @@ func (m *Manager) rebuildMenuLocked() {
 		slog.Default().Warn("tray: load users", slog.Any("err", err))
 		users = map[string][]TrayUser{}
 	}
+	current := ""
+	if m.deps.CurrentSteamID != nil {
+		current = m.deps.CurrentSteamID()
+	}
 	keys := make([]string, 0, len(users))
 	for k := range users {
 		keys = append(keys, k)
@@ -205,7 +212,11 @@ func (m *Manager) rebuildMenuLocked() {
 		for _, u := range list {
 			u := u
 			plat := plat
-			item := sub.Add(tr("Tray_Switch", map[string]string{"account": u.Name}))
+			labelKey := "Tray_Switch"
+			if isCurrentSteamArg(u.Arg, current) {
+				labelKey = "Tray_Current"
+			}
+			item := sub.Add(tr(labelKey, map[string]string{"account": u.Name}))
 			if b := menuBitmapForAccount(plat, u.Arg); len(b) > 0 {
 				item.SetBitmap(b)
 			}
@@ -236,6 +247,12 @@ func (m *Manager) rebuildMenuLocked() {
 	m.systray.SetMenu(menu)
 }
 
+// isCurrentSteamArg reports whether a tray entry's "+s:<id>" argument is the current account.
+func isCurrentSteamArg(arg, current string) bool {
+	current = strings.TrimSpace(current)
+	return current != "" && strings.EqualFold(strings.TrimSpace(arg), "+s:"+current)
+}
+
 func (m *Manager) trayTranslator() func(string, map[string]string) string {
 	exeDir, err := platform.ResolveExeDir()
 	if err != nil {
@@ -255,7 +272,14 @@ func (m *Manager) trayTranslator() func(string, map[string]string) string {
 
 func (m *Manager) showHome() {
 	if m.win != nil {
-		m.win.Show().Focus()
+		m.win.Show()
+		// macOS can refuse to activate an app on request, which leaves its window behind others.
+		// A moment at the floating level raises it either way.
+		if runtime.GOOS == "darwin" {
+			m.win.SetAlwaysOnTop(true)
+			m.win.SetAlwaysOnTop(false)
+		}
+		m.win.Focus()
 	}
 	if m.app != nil {
 		_ = m.app.Event.Emit("navigate", `{"page":"home"}`)

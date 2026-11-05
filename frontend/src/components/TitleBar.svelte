@@ -101,8 +101,6 @@
                 return "SteamSwitch"
             case "game-configs":
                 return $t("Title_GameConfigs")
-            case "preview-css":
-                return $t("Title_Settings_TestCss")
             case "settings":
                 return $t("Title_Settings")
             case "vault":

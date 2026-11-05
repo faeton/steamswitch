@@ -7,6 +7,7 @@
    * does on hover; this is where the full set lives.
    */
   import { t } from "../stores/i18n";
+  import { isApplePlatform } from "../stores/commandPalette";
   import { modalFocus } from "../lib/modalFocus";
   import { createEventDispatcher } from "svelte";
 
@@ -39,7 +40,7 @@
     {
       titleKey: "Shortcuts_Group_Finding",
       rows: [
-        { keys: ["Ctrl", "K"], descKey: "Shortcuts_CommandPalette" },
+        { keys: [isApplePlatform() ? "Cmd" : "Ctrl", "K"], descKey: "Shortcuts_CommandPalette" },
         { keys: ["A", "…", "Z"], descKey: "Shortcuts_TypeToSearch" },
         { keys: ["Menu"], descKey: "Shortcuts_ContextMenu" },
       ],

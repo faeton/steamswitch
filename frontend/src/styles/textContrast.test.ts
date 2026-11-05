@@ -4,9 +4,7 @@
  * tokens.scss states the rule ("every role must clear WCAG AA against its own surface on every
  * shipped theme") but nothing enforced it, and the light theme shipped accent-on-accent text at
  * about 2:1 before anyone measured. This resolves each role and each surface through the same
- * `var()` fallback chains the components use, per variant: the base theme in light and dark,
- * and every classic pack (which drops `data-base-theme`, so the base palette's rules do not
- * apply to it).
+ * `var()` fallback chains the components use, in light and in dark.
  */
 import { describe, expect, it } from "vitest";
 import { collectVars, contrast, resolve, variants, type RGB, type Variant } from "./contrastFixtures";
@@ -26,11 +24,7 @@ const ROLES: Record<string, string> = {
   "--fg-muted": "var(--fg-muted)",
 };
 
-/**
- * Status text ("Needs attention", "Banned", "Live"). Checked on the base theme only: classic
- * packs predate the tone roles and fall through to their own `--orange` / `--red` / `--green`,
- * which are accents, not text colours. Those packs are reported, not failed — see below.
- */
+/** Status text ("Needs attention", "Banned", "Live"). */
 const TONES: Record<string, string> = {
   "--fg-ok": "var(--fg-ok)",
   "--fg-warn": "var(--fg-warn)",
@@ -40,7 +34,7 @@ const TONES: Record<string, string> = {
 function varsFor(v: Variant): Record<string, string> {
   return Object.assign(
     {},
-    ...v.sheets.map((css) => collectVars(css, v.appearance, v.classic)),
+    ...v.sheets.map((css) => collectVars(css, v.appearance)),
   ) as Record<string, string>;
 }
 
@@ -52,12 +46,11 @@ function ratio(fgExpr: string, bgExpr: string, vars: Record<string, string>): nu
   return contrast(fg as RGB, bg as RGB);
 }
 
-const baseVariants = variants.filter((v) => !v.classic);
+const baseVariants = variants;
 
 describe("text contrast", () => {
-  it("checks both base appearances and at least one classic pack", () => {
+  it("checks both appearances", () => {
     expect(baseVariants.map((v) => v.name)).toEqual(["base (light)", "base (dark)"]);
-    expect(variants.some((v) => v.classic)).toBe(true);
   });
 
   describe.each(baseVariants.map((v) => [v.name, v] as const))("%s", (_name, variant) => {
@@ -74,24 +67,4 @@ describe("text contrast", () => {
     });
   });
 
-  /*
-    Classic packs: primary and secondary text must stay readable — that is the floor for a
-    theme the app ships. Muted text is held to the large-text floor (3:1); several packs were
-    designed with a dimmer comment colour and redrawing their palettes is not this test's job.
-  */
-  describe.each(variants.filter((v) => v.classic).map((v) => [v.name, v] as const))(
-    "classic pack %s",
-    (_name, variant) => {
-      const vars = varsFor(variant);
-
-      it("keeps primary and secondary text readable on its page", () => {
-        expect(ratio(ROLES["--fg-primary"], SURFACES.page, vars)).toBeGreaterThanOrEqual(BODY);
-        expect(ratio(ROLES["--fg-secondary"], SURFACES.page, vars)).toBeGreaterThanOrEqual(BODY);
-      });
-
-      it("keeps muted text at least at the large-text floor", () => {
-        expect(ratio(ROLES["--fg-muted"], SURFACES.page, vars)).toBeGreaterThanOrEqual(3);
-      });
-    },
-  );
 });

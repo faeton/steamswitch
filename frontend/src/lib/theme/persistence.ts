@@ -1,7 +1,5 @@
 import { get } from "svelte/store";
 import * as PlatformService from "../../../bindings/steamswitch/internal/platform/platformservice.js";
-import { offlineMode } from "../../stores/offlineMode";
-import { setUserOverride } from "../../stores/backgroundImage";
 import { scheduleUpdaterThemeSync } from "../updaterTheme";
 import {
   BASE_THEME_ID,
@@ -9,13 +7,7 @@ import {
   WINDOWS_THEME_ACCENT_KEY,
 } from "./types";
 import type { ResolvedThemeAccent } from "./types";
-import {
-  getThemeOptionById,
-  isBaseThemeId,
-  isKnownThemeId,
-  styleLoaderPathForId,
-  themeStyles,
-} from "./catalog";
+import { getThemeOptionById } from "./catalog";
 import {
   appearanceMode,
   applyAppearanceToDom,
@@ -28,30 +20,16 @@ import {
 } from "./appearance";
 import { normalizeHexColor } from "./color";
 import {
-  syncThemeGoogleFonts,
-  removeThemeOverlay,
-  removeAccentOverlay,
-  removeThemeGoogleFontLinks,
-  applyAccentOverlay,
   applyResolvedAccent,
   defaultAccentColorFor,
   validateAccentKey,
-  clearThemeAccentState,
   ensureWindowsAccentSubscription,
 } from "./dom";
 import { supportsWindowsThemeAccent } from "./dom";
-import { currentThemeId, currentThemeBgUrl, currentThemeAccentKey, currentThemeCustomAccentColor, currentWindowsThemeAccentColor } from "./stores";
+import { currentThemeId, currentThemeAccentKey, currentThemeCustomAccentColor, currentWindowsThemeAccentColor } from "./stores";
 
-const THEME_STORAGE_KEY = "steamswitch:theme";
 const THEME_ACCENT_STORAGE_KEY = "steamswitch:theme-accent";
 const THEME_ACCENT_CUSTOM_STORAGE_KEY = "steamswitch:theme-accent-custom";
-
-// Pre-rename builds stored these under "tcno:*"; fall back once so users keep their theme.
-function getStoredWithLegacy(key: string): string | null {
-  return localStorage.getItem(key) ?? localStorage.getItem(key.replace(/^steamswitch:/, "tcno:"));
-}
-
-let activeThemeRequestId = 0;
 
 export function resolveThemeAccent(
   themeId: string,
@@ -97,15 +75,6 @@ async function refreshWindowsThemeAccentColor(): Promise<string> {
   return get(currentWindowsThemeAccentColor);
 }
 
-async function loadStoredThemeId(): Promise<string> {
-  // An empty persisted value means "no classic pack" — the built-in base (BASE_THEME_ID).
-  try {
-    return String((await PlatformService.GetTheme()) ?? "").trim();
-  } catch {
-    return getStoredWithLegacy(THEME_STORAGE_KEY)?.trim() || BASE_THEME_ID;
-  }
-}
-
 async function loadStoredAppearanceMode(): Promise<AppearanceMode> {
   try {
     return normalizeAppearanceMode(await PlatformService.GetAppearanceMode());
@@ -126,8 +95,8 @@ async function loadStoredAccentState(): Promise<{ accentKey: string; customColor
     };
   } catch {
     return {
-      accentKey: getStoredWithLegacy(THEME_ACCENT_STORAGE_KEY)?.trim() || "",
-      customColor: getStoredWithLegacy(THEME_ACCENT_CUSTOM_STORAGE_KEY)?.trim() || "",
+      accentKey: localStorage.getItem(THEME_ACCENT_STORAGE_KEY)?.trim() || "",
+      customColor: localStorage.getItem(THEME_ACCENT_CUSTOM_STORAGE_KEY)?.trim() || "",
     };
   }
 }
@@ -155,75 +124,22 @@ async function persistAccentState(accentKey: string, customColor: string): Promi
   }
 }
 
-/** Re-stamp `<html>` for the current scheme + whether a classic pack is loaded. */
 function syncAppearanceDom(): void {
-  applyAppearanceToDom(get(resolvedAppearance), isBaseThemeId(get(currentThemeId)));
-}
-
-function applyBaseTheme(): void {
-  currentThemeId.set(BASE_THEME_ID);
-  currentThemeBgUrl.set("");
-  syncThemeGoogleFonts(BASE_THEME_ID);
-  syncAppearanceDom();
-  scheduleUpdaterThemeSync();
-}
-
-async function applyTheme(id: string): Promise<void> {
-  const requestId = ++activeThemeRequestId;
-  removeThemeOverlay();
-  removeAccentOverlay();
-  removeThemeGoogleFontLinks();
-
-  if (isBaseThemeId(id)) {
-    applyBaseTheme();
-    return;
-  }
-
-  const key = styleLoaderPathForId(id);
-  if (!key) {
-    console.warn("[themes] Unknown or missing style for theme:", id);
-    applyBaseTheme();
-    return;
-  }
-
-  const load = themeStyles[key];
-  const css = await load();
-  if (requestId !== activeThemeRequestId) {
-    return;
-  }
-
-  removeThemeOverlay();
-  const style = document.createElement("style");
-  style.id = "steamswitch-theme-overlay";
-  style.setAttribute("data-steamswitch-theme-overlay", "");
-  style.textContent = css;
-  document.head.appendChild(style);
-  currentThemeId.set(id);
-  currentThemeBgUrl.set(getThemeOptionById(id).backgroundUrl ?? "");
-  syncThemeGoogleFonts(id);
-  // Drops `data-base-theme`, which is what lets the pack's `:root` overlay win. Leaving it
-  // set would keep the higher-specificity rules in `appearance.scss` on top of the pack.
-  syncAppearanceDom();
-  scheduleUpdaterThemeSync();
+  applyAppearanceToDom(get(resolvedAppearance), true);
 }
 
 export async function initTheme(): Promise<void> {
-  let [id, storedAccent, mode] = await Promise.all([
-    loadStoredThemeId(),
-    loadStoredAccentState(),
-    loadStoredAppearanceMode(),
-  ]);
-  if (!isKnownThemeId(id)) {
-    id = BASE_THEME_ID;
-  }
+  const [storedAccent, mode] = await Promise.all([loadStoredAccentState(), loadStoredAppearanceMode()]);
 
   appearanceMode.set(mode);
   ensureSystemSchemeSubscription();
 
   ensureWindowsAccentSubscription();
   await refreshWindowsThemeAccentColor();
-  await applyTheme(id);
-  applyResolvedAccent(id, storedAccent.accentKey, storedAccent.customColor);
+  currentThemeId.set(BASE_THEME_ID);
+  syncAppearanceDom();
+  scheduleUpdaterThemeSync();
+  applyResolvedAccent(BASE_THEME_ID, storedAccent.accentKey, storedAccent.customColor);
 
   /*
     From here on, an OS scheme flip (or a mode change) re-stamps the attributes *and*
@@ -232,7 +148,7 @@ export async function initTheme(): Promise<void> {
     Ledger's paper surfaces but keep Instrument's blue.
 
     Subscribed after the initial apply on purpose — Svelte stores emit immediately, and doing
-    this before `applyTheme` would run the accent path against half-initialised state. A user
+    this before the first apply would run the accent path against half-initialised state. A user
     who *has* picked an accent keeps it: `applyResolvedAccent` only falls through to the
     scheme default when the stored key is empty.
   */
@@ -246,7 +162,7 @@ export async function initTheme(): Promise<void> {
   });
 }
 
-/** Switch between System / Light / Dark. No-op for the palette while a classic pack is active. */
+/** Switch between System / Light / Dark. */
 export async function setUserAppearanceMode(mode: AppearanceMode): Promise<void> {
   const next = normalizeAppearanceMode(mode);
   appearanceMode.set(next);
@@ -257,33 +173,6 @@ export async function setUserAppearanceMode(mode: AppearanceMode): Promise<void>
     /* older backend / early boot: localStorage still carries it */
   }
   syncAppearanceDom();
-}
-
-export async function setUserTheme(id: string): Promise<void> {
-  const next = isKnownThemeId(id) ? id : BASE_THEME_ID;
-  const previous = get(currentThemeId);
-
-  try {
-    await PlatformService.SetTheme(next);
-  } catch {
-    /* offline / early boot */
-  }
-
-  localStorage.setItem(THEME_STORAGE_KEY, next);
-
-  if (next === previous) {
-    return;
-  }
-
-  await persistAccentState("", "");
-  clearThemeAccentState();
-  await applyTheme(next);
-  await setUserOverride(false);
-}
-
-/** Leave the classic-theme section and return to the built-in base. */
-export async function clearUserTheme(): Promise<void> {
-  await setUserTheme(BASE_THEME_ID);
 }
 
 export async function setUserThemeAccentPreset(accentKey: string): Promise<void> {
@@ -299,9 +188,7 @@ export async function setUserThemeAccentPreset(accentKey: string): Promise<void>
   // default key: the base theme's default differs by scheme, so comparing keys made Instrument
   // Blue impossible to pick in light mode — the click cleared the choice back to Ledger Green.
   const preset = theme.accents.find((option) => option.id === validAccentKey);
-  const isSchemeDefault = theme.isBase
-    ? preset?.color === defaultAccentColorFor(theme)
-    : validAccentKey === theme.defaultAccentKey;
+  const isSchemeDefault = preset?.color === defaultAccentColorFor(theme);
   if (!validAccentKey || isSchemeDefault) {
     await persistAccentState("", customColor);
     applyResolvedAccent(theme.id, "", customColor);
@@ -319,7 +206,3 @@ export async function setUserThemeAccentCustom(color: string): Promise<void> {
   await persistAccentState(CUSTOM_THEME_ACCENT_KEY, normalized);
   applyResolvedAccent(theme.id, CUSTOM_THEME_ACCENT_KEY, normalized);
 }
-
-offlineMode.subscribe(() => {
-  syncThemeGoogleFonts(get(currentThemeId));
-});

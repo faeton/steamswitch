@@ -156,15 +156,25 @@ export function formatCommandPaletteHotkeyEvent(e: KeyboardEvent): CommandPalett
   });
 }
 
-export function eventMatchesCommandPaletteHotkey(e: KeyboardEvent, hotkey: CommandPaletteHotkey): boolean {
+/** True on a Mac, where Cmd does what Ctrl does elsewhere. */
+export function isApplePlatform(): boolean {
+  return typeof navigator !== "undefined" && /mac/i.test(navigator.platform ?? "");
+}
+
+export function eventMatchesCommandPaletteHotkey(
+  e: KeyboardEvent,
+  hotkey: CommandPaletteHotkey,
+  apple = isApplePlatform(),
+): boolean {
   const parsed = parseCommandPaletteHotkey(hotkey);
   if (!parsed) {
     return false;
   }
-  return e.ctrlKey === parsed.ctrl
+  // A saved "Ctrl+K" also answers to Cmd+K on a Mac, and to Ctrl+K itself.
+  const cmdForCtrl = apple && parsed.ctrl && !parsed.meta && e.metaKey && !e.ctrlKey;
+  return (cmdForCtrl || (e.ctrlKey === parsed.ctrl && e.metaKey === parsed.meta))
     && e.altKey === parsed.alt
     && e.shiftKey === parsed.shift
-    && e.metaKey === parsed.meta
     && normalizeCommandPaletteKey(e.key) === parsed.key;
 }
 

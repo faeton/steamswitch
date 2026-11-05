@@ -175,15 +175,15 @@ describe("Windows accent live updates", () => {
     const { resolveThemeAccent } = persistence;
     const { currentThemeAccentKey, currentThemeCustomAccentColor, currentThemeId, currentWindowsThemeAccentColor } =
       stores;
-    const { DEFAULT_THEME_ID, WINDOWS_THEME_ACCENT_KEY } = types;
+    const { BASE_THEME_ID, WINDOWS_THEME_ACCENT_KEY } = types;
 
-    currentThemeId.set(DEFAULT_THEME_ID);
+    currentThemeId.set(BASE_THEME_ID);
     currentThemeAccentKey.set("");
     currentThemeCustomAccentColor.set("");
     currentWindowsThemeAccentColor.set("");
 
-    applyResolvedAccent(DEFAULT_THEME_ID, WINDOWS_THEME_ACCENT_KEY, "");
-    expect(cssVar(getAccentOverlayCss(), "--accent")).toBe("#80ffea");
+    applyResolvedAccent(BASE_THEME_ID, WINDOWS_THEME_ACCENT_KEY, "");
+    expect(cssVar(getAccentOverlayCss(), "--accent")).toBe("#3f9bf5");
 
     ensureWindowsAccentSubscription();
     ensureWindowsAccentSubscription();
@@ -195,8 +195,8 @@ describe("Windows accent live updates", () => {
     expect(get(currentWindowsThemeAccentColor)).toBe("#123456");
     expect(cssVar(overlayCss, "--accent")).toBe("#123456");
     expect(cssVar(overlayCss, "--text-on-bright-bg")).toBe("#f8f8f2");
-    expect(resolveThemeAccent(DEFAULT_THEME_ID).color).toBe("#123456");
-    expect(resolveThemeAccent(DEFAULT_THEME_ID).id).toBe(WINDOWS_THEME_ACCENT_KEY);
+    expect(resolveThemeAccent(BASE_THEME_ID).color).toBe("#123456");
+    expect(resolveThemeAccent(BASE_THEME_ID).id).toBe(WINDOWS_THEME_ACCENT_KEY);
 
     emitWindowsAccent("#f5d76e");
 
@@ -204,8 +204,8 @@ describe("Windows accent live updates", () => {
     expect(get(currentWindowsThemeAccentColor)).toBe("#f5d76e");
     expect(cssVar(overlayCss, "--accent")).toBe("#f5d76e");
     expect(cssVar(overlayCss, "--text-on-bright-bg")).toBe("#111111");
-    expect(resolveThemeAccent(DEFAULT_THEME_ID).color).toBe("#f5d76e");
-    expect(resolveThemeAccent(DEFAULT_THEME_ID).id).toBe(WINDOWS_THEME_ACCENT_KEY);
+    expect(resolveThemeAccent(BASE_THEME_ID).color).toBe("#f5d76e");
+    expect(resolveThemeAccent(BASE_THEME_ID).id).toBe(WINDOWS_THEME_ACCENT_KEY);
   });
 });
 

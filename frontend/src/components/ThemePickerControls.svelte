@@ -6,46 +6,24 @@
     currentThemeAccentKey,
     currentThemeCustomAccentColor,
     currentThemeId,
+    getThemeOptionById,
     currentWindowsThemeAccentColor,
-    listThemes,
     resolveThemeAccent,
-    setUserTheme,
     setUserThemeAccentCustom,
     setUserThemeAccentPreset,
     supportsWindowsThemeAccent,
     WINDOWS_THEME_ACCENT_KEY,
   } from "../lib/themes";
 
-  /**
-   * Which controls to render. The redesign splits these across two places: the accent row
-   * sits in the primary Appearance block, while the theme-pack dropdown is demoted into the
-   * collapsed "Classic themes" section (REDESIGN.md §6).
-   */
-  export let section: "all" | "accent" | "theme" = "all";
-
-  const themes = listThemes();
   const showWindowsAccent = supportsWindowsThemeAccent();
 
-  $: showThemePicker = section === "all" || section === "theme";
-  $: showAccentPicker = section === "all" || section === "accent";
-
-  let themeOpen = false;
   let accentOpen = false;
   let customAccentInput: HTMLInputElement | null = null;
 
-  $: currentTheme = themes.find((theme) => theme.id === $currentThemeId) ?? themes[0];
-  $: currentThemeLabel = currentTheme?.label ?? "";
-  $: currentAccent = currentTheme
-    ? resolveThemeAccent(currentTheme.id, $currentThemeAccentKey, $currentThemeCustomAccentColor)
-    : null;
+  $: currentTheme = getThemeOptionById($currentThemeId);
+  $: currentAccent = resolveThemeAccent(currentTheme.id, $currentThemeAccentKey, $currentThemeCustomAccentColor);
   $: customAccentPreviewColor = $currentThemeCustomAccentColor || currentAccent?.color || "#ffffff";
   $: windowsAccentPreviewColor = $currentWindowsThemeAccentColor || "#0078d4";
-
-  async function pickTheme(id: string): Promise<void> {
-    await setUserTheme(id);
-    themeOpen = false;
-    accentOpen = false;
-  }
 
   async function pickPresetAccent(id: string): Promise<void> {
     await setUserThemeAccentPreset(id);
@@ -79,39 +57,7 @@
 </script>
 
 <div class="theme-control-group">
-  {#if showThemePicker}
-  <div class="rowDropdown">
-    <span>{$t("Settings_CurrentStyle")}</span>
-    <div class="dropdown" class:show={themeOpen}>
-      <button
-        type="button"
-        class="dropdown-toggle"
-        on:click={() => {
-          themeOpen = !themeOpen;
-          if (themeOpen) {
-            accentOpen = false;
-          }
-        }}
-      >
-        {currentThemeLabel}
-        <span class="caret" aria-hidden="true"></span>
-      </button>
-      {#if themeOpen}
-        <ul class="custom-dropdown-menu dropdown-menu" use:viewportDropdown>
-          {#each themes as theme}
-            <li role="none">
-              <button type="button" class="dropdown-item" on:click={() => void pickTheme(theme.id)}>
-                {theme.label}
-              </button>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-    </div>
-  </div>
-  {/if}
-
-  {#if showAccentPicker && currentTheme && currentAccent}
+  {#if currentAccent}
     <div class="rowDropdown">
       <span>{$t("Settings_AccentColor")}</span>
       <div class="dropdown accent-dropdown" class:show={accentOpen}>
@@ -120,9 +66,6 @@
           class="dropdown-toggle accent-toggle"
           on:click={() => {
             accentOpen = !accentOpen;
-            if (accentOpen) {
-              themeOpen = false;
-            }
           }}
         >
           <span class="theme-accent-chip" style={`--accent-chip-color: ${currentAccent.color}`}></span>
@@ -194,7 +137,7 @@
     </div>
   {/if}
 
-  {#if showAccentPicker && currentAccent?.isCustom}
+  {#if currentAccent?.isCustom}
     <div class="accent-custom-picker-row">
       <span>{$t("Settings_AccentColor_CustomPicker")}</span>
       <input

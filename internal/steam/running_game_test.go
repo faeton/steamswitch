@@ -69,6 +69,20 @@ func TestExitGraceFor(t *testing.T) {
 	}
 }
 
+func TestLaunchForCurrentAccount(t *testing.T) {
+	cases := []struct{ running, autoStart, want bool }{
+		{false, true, true},
+		{true, true, false},
+		{false, false, false},
+		{true, false, false},
+	}
+	for _, c := range cases {
+		if got := launchForCurrentAccount(c.running, c.autoStart); got != c.want {
+			t.Errorf("running=%v autoStart=%v: got %v", c.running, c.autoStart, got)
+		}
+	}
+}
+
 func TestSwapRefusal(t *testing.T) {
 	if err := swapRefusal(""); err != nil {
 		t.Fatalf("no game: %v", err)

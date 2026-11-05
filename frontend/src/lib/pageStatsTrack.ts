@@ -16,8 +16,6 @@ function routeToStatsPath(r: Route): string {
       return "/vault";
     case "about":
       return "/about";
-    case "preview-css":
-      return "/preview-css";
     case "game-configs":
       return "/game-configs";
     case "tools":
