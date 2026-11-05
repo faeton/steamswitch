@@ -100,6 +100,8 @@ func TestDropForeignFolderPath(t *testing.T) {
 	// Windows it is absolute and kept; on Unix it is not absolute and is dropped, which is
 	// what makes one rule enough for both.
 	windowsLiteral := `C:\Program Files (x86)\Steam\`
+	// A rooted path such as \opt\steam is not absolute on Windows, which needs a drive letter.
+	thisOS := t.TempDir()
 
 	cases := []struct {
 		name string
@@ -107,7 +109,7 @@ func TestDropForeignFolderPath(t *testing.T) {
 		want string
 	}{
 		{"empty stays empty", "", ""},
-		{"a path for this OS is kept", filepath.Join(string(filepath.Separator), "opt", "steam"), filepath.Join(string(filepath.Separator), "opt", "steam")},
+		{"a path for this OS is kept", thisOS, thisOS},
 		{"a relative path is dropped", filepath.Join("relative", "steam"), ""},
 	}
 	for _, tc := range cases {

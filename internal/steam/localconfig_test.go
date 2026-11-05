@@ -111,6 +111,7 @@ func TestSetPersonaStateLocalConfig_BadSteamID(t *testing.T) {
 }
 
 func TestWriteLoginUsersAndRegistry_FieldSwapping(t *testing.T) {
+	protectSteamAutoLogin(t)
 	dir := t.TempDir()
 	configDir := filepath.Join(dir, "config")
 	os.MkdirAll(configDir, 0o755)

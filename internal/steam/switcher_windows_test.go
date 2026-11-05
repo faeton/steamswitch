@@ -12,13 +12,23 @@ import (
 
 const steamTestRegBase = `HKCU\Software\Valve\Steam`
 
-func setAndRecordSteamReg(t *testing.T, valueName, data string) {
+// protectSteamAutoLogin puts the machine's real values back afterwards. On Windows a switch writes
+// the live HKCU key, so without this `go test` signs the developer's own Steam out of auto-login.
+func protectSteamAutoLogin(t *testing.T) {
 	t.Helper()
-	k := steamTestRegBase + ":" + valueName
-	if err := winutil.RegistryWrite(k, data); err != nil {
-		t.Fatalf("RegistryWrite %s: %v", valueName, err)
+	for _, name := range []string{"AutoLoginUser", "RememberPassword"} {
+		k := steamTestRegBase + ":" + name
+		val, typ, err := winutil.RegistryRead(k)
+		t.Cleanup(func() {
+			if err != nil {
+				_ = winutil.RegistryDelete(k)
+				return
+			}
+			if werr := winutil.RegistryWriteHint(k, val, typ); werr != nil {
+				t.Errorf("restore %s: %v", name, werr)
+			}
+		})
 	}
-	t.Cleanup(func() { _ = winutil.RegistryDelete(k) })
 }
 
 // ---------------------------------------------------------------------------
@@ -26,6 +36,7 @@ func setAndRecordSteamReg(t *testing.T, valueName, data string) {
 // ---------------------------------------------------------------------------
 
 func TestWriteLoginUsersAndRegistry(t *testing.T) {
+	protectSteamAutoLogin(t)
 	dir := t.TempDir()
 	configDir := filepath.Join(dir, "config")
 	os.MkdirAll(configDir, 0o755)
@@ -77,8 +88,9 @@ func TestWriteLoginUsersAndRegistry(t *testing.T) {
 			if u.MostRecent != "0" {
 				t.Error("old account should have MostRecent=0")
 			}
-			if u.RememberPassword != "0" {
-				t.Error("old account should have RememberPassword=0")
+			// A switch owns the target's flag and nobody else's; see applyLoginSelection.
+			if u.RememberPassword != "1" {
+				t.Error("old account should keep RememberPassword=1")
 			}
 		}
 	}
@@ -110,10 +122,6 @@ func TestWriteLoginUsersAndRegistry(t *testing.T) {
 	} else if regRemPass != uint32(1) {
 		t.Errorf("RememberPassword = %v, want 1", regRemPass)
 	}
-
-	// Clean up registry values
-	_ = winutil.RegistryDelete(steamTestRegBase + ":AutoLoginUser")
-	_ = winutil.RegistryDelete(steamTestRegBase + ":RememberPassword")
 }
 
 // ---------------------------------------------------------------------------
@@ -121,6 +129,7 @@ func TestWriteLoginUsersAndRegistry(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 func TestWriteLoginUsersAndRegistry_AddNew(t *testing.T) {
+	protectSteamAutoLogin(t)
 	dir := t.TempDir()
 	configDir := filepath.Join(dir, "config")
 	os.MkdirAll(configDir, 0o755)
@@ -150,11 +159,12 @@ func TestWriteLoginUsersAndRegistry_AddNew(t *testing.T) {
 		if u.MostRecent != "0" {
 			t.Errorf("all MostRecent should be 0, got %s=%s", u.SteamID64, u.MostRecent)
 		}
-		if u.AutoLogin != "0" {
-			t.Errorf("all AutoLogin should be 0, got %s=%s", u.SteamID64, u.AutoLogin)
+		// The file never carried AutoLogin, and a switch does not invent the field.
+		if u.AutoLogin == "1" {
+			t.Errorf("no account should have AutoLogin=1, got %s", u.SteamID64)
 		}
-		if u.RememberPassword != "0" {
-			t.Errorf("all RememberPassword should be 0, got %s=%s", u.SteamID64, u.RememberPassword)
+		if u.RememberPassword != "1" {
+			t.Errorf("RememberPassword should be kept, got %s=%s", u.SteamID64, u.RememberPassword)
 		}
 	}
 
@@ -164,9 +174,6 @@ func TestWriteLoginUsersAndRegistry_AddNew(t *testing.T) {
 	if err == nil {
 		t.Error("AutoLoginUser should not exist after AddNew (empty string write deletes)")
 	}
-
-	_ = winutil.RegistryDelete(steamTestRegBase + ":AutoLoginUser")
-	_ = winutil.RegistryDelete(steamTestRegBase + ":RememberPassword")
 }
 
 // ---------------------------------------------------------------------------
