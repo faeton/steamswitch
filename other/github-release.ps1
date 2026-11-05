@@ -79,40 +79,6 @@ function Set-ReleaseVersion {
   Write-Host "NSIS VIProductVersion: $nsisVersion"
 }
 
-function Write-UpdaterSignature {
-  param([Parameter(Mandatory = $true)][string]$ExePath)
-
-  if (-not $env:UPDATER_KEY) {
-    throw 'UPDATER_KEY is not set. Add the updater private key as a GitHub Actions secret.'
-  }
-
-  $keyPath = Join-Path ([System.IO.Path]::GetTempPath()) 'steamswitch-updater-key'
-  $sigPath = Join-Path $root 'bin\SteamSwitch.exe.sig'
-  $keyMaterial = $env:UPDATER_KEY.Trim().Trim('"').Trim("'")
-
-  try {
-    if ($keyMaterial -match 'BEGIN OPENSSH PRIVATE KEY') {
-      [System.IO.File]::WriteAllText($keyPath, $keyMaterial, [System.Text.UTF8Encoding]::new($false))
-    } else {
-      $normalized = ($keyMaterial -replace '\s', '')
-      [System.IO.File]::WriteAllBytes($keyPath, [System.Convert]::FromBase64String($normalized))
-    }
-
-    $sigOutput = & go run (Join-Path $root 'other\sign-release\main.go') $keyPath $ExePath
-    if ($LASTEXITCODE -ne 0) {
-      throw "Ed25519 signing failed with exit code $LASTEXITCODE."
-    }
-    if (-not $sigOutput) {
-      throw 'Ed25519 signing failed: no signature output.'
-    }
-
-    $sigOutput | Out-File -Encoding ascii $sigPath
-    Write-Host "Ed25519 signature created at $sigPath."
-  } finally {
-    Remove-Item -Force $keyPath -ErrorAction SilentlyContinue
-  }
-}
-
 function New-InstallerPackage {
   param([Parameter(Mandatory = $true)][string]$SourceExePath)
 
@@ -124,8 +90,6 @@ function New-InstallerPackage {
   New-Item -ItemType Directory -Force -Path $binDir | Out-Null
   $exePath = Join-Path $binDir 'SteamSwitch.exe'
   Copy-Item -Force $SourceExePath $exePath
-
-  Write-UpdaterSignature -ExePath $exePath
 
   $nsisDir = Join-Path $root 'build\windows\nsis'
   $imgDest = Join-Path $nsisDir 'img'
@@ -189,7 +153,6 @@ function Test-ReleaseArtifacts {
   $required = @(
     $InstallerPath,
     (Join-Path $root 'bin\SteamSwitch.exe'),
-    (Join-Path $root 'bin\SteamSwitch.exe.sig'),
     (Join-Path $root 'bin\SteamSwitch.7z'),
     (Join-Path $root 'bin\SHA256SUMS')
   )

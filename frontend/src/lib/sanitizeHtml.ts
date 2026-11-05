@@ -1,46 +1,12 @@
-type HtmlPolicyName = "inline" | "gameStats" | "miniProfile";
+type HtmlPolicyName = "inline" | "miniProfile";
 
 const policies: Record<HtmlPolicyName, Set<string>> = {
   inline: new Set(["a", "b", "br", "code", "em", "i", "li", "ol", "p", "span", "strong", "sub", "sup", "ul"]),
-  gameStats: new Set([
-    "b",
-    "br",
-    "defs",
-    "div",
-    "em",
-    "g",
-    "h6",
-    "i",
-    "img",
-    "path",
-    "span",
-    "strong",
-    "sup",
-    "svg",
-    "use",
-  ]),
   miniProfile: new Set(["b", "br", "div", "em", "i", "img", "p", "source", "span", "strong", "video"]),
 };
 
 const svgTags = new Set(["defs", "g", "path", "svg", "use"]);
 const globalAttrs = new Set(["aria-hidden", "aria-label", "class", "role", "title"]);
-const gameStatsAttrs = new Set([
-  "alt",
-  "d",
-  "draggable",
-  "fill",
-  "fill-opacity",
-  "fill-rule",
-  "height",
-  "id",
-  "stroke-linejoin",
-  "stroke-miterlimit",
-  "style",
-  "viewBox",
-  "viewbox",
-  "width",
-  "xmlns",
-]);
 const miniProfileAttrs = new Set(["alt", "autoplay", "loop", "muted", "playsinline", "src", "srcset", "type"]);
 
 function safeClass(value: string): string {
@@ -126,12 +92,6 @@ function allowAttr(policy: HtmlPolicyName, tag: string, attr: Attr): string | nu
   }
   if (policy === "miniProfile" && miniProfileAttrs.has(key)) {
     return attr.value.trim();
-  }
-  if (policy === "gameStats" && gameStatsAttrs.has(name)) {
-    return key === "style" ? safeStyle(attr.value) : attr.value.trim();
-  }
-  if (policy === "gameStats" && gameStatsAttrs.has(key)) {
-    return key === "style" ? safeStyle(attr.value) : attr.value.trim();
   }
   return null;
 }

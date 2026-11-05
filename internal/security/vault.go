@@ -665,15 +665,6 @@ func readIDsLite(path string) (map[string]string, error) {
 	return f.IDs, nil
 }
 
-func writeIDsLite(path string, ids map[string]string) error {
-	f := idsFileLite{IDs: ids}
-	data, err := json.MarshalIndent(f, "", "  ")
-	if err != nil {
-		return err
-	}
-	return writeFileAtomicDurable(path, append(data, '\n'), 0o644)
-}
-
 func removeAccountFromIDs(platformKey, uniqueID string) error {
 	root, err := loginCacheRoot()
 	if err != nil {

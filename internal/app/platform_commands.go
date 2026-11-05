@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"strings"
 
 	"steamswitch/internal/steam"
@@ -40,6 +41,15 @@ func (a steamCommandAdapter) Logout() error {
 	return a.svc.SteamAddNew()
 }
 
-func (d *Dispatch) commandAdapter(string) platformCommandAdapter {
+func (d *Dispatch) commandAdapter() platformCommandAdapter {
 	return steamCommandAdapter{svc: d.SteamSvc}
+}
+
+// requireSteamPlatform stops a command naming another platform from acting on Steam. An old
+// Platforms.json can still list those platforms, and a link can name anything.
+func requireSteamPlatform(platformKey string) error {
+	if strings.EqualFold(strings.TrimSpace(platformKey), steam.PlatformKey) {
+		return nil
+	}
+	return fmt.Errorf("unsupported platform %q: SteamSwitch only handles Steam", strings.TrimSpace(platformKey))
 }

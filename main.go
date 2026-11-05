@@ -155,7 +155,6 @@ func main() {
 
 	disp := &app.Dispatch{
 		SteamSvc:    steamSvc,
-		BasicSvc:    basicSvc,
 		PlatformSvc: platformSvc,
 	}
 

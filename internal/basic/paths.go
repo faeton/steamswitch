@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
-	"time"
 
 	"steamswitch/internal/fsutil"
 	"steamswitch/internal/paths"
@@ -101,23 +99,5 @@ func writeIDs(platformKey string, m map[string]string) error {
 		return err
 	}
 	f.IDs = m
-	return writeIdsFile(platformKey, f)
-}
-
-// touchLastUsed records RFC3339 UTC for the account switched to (ids unique id key).
-func touchLastUsed(platformKey, uniqueID string) error {
-	platformKey = strings.TrimSpace(platformKey)
-	uniqueID = strings.TrimSpace(uniqueID)
-	if platformKey == "" || uniqueID == "" {
-		return nil
-	}
-	f, err := readIdsFile(platformKey)
-	if err != nil {
-		return err
-	}
-	if f.LastUsed == nil {
-		f.LastUsed = map[string]string{}
-	}
-	f.LastUsed[uniqueID] = time.Now().UTC().Format(time.RFC3339)
 	return writeIdsFile(platformKey, f)
 }

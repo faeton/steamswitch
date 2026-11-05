@@ -204,7 +204,8 @@ func (m *Manager) rebuildMenuLocked() {
 
 	for _, plat := range keys {
 		list := users[plat]
-		if len(list) == 0 {
+		// An old tray list can hold other platforms, which could only fail when clicked.
+		if len(list) == 0 || !strings.EqualFold(plat, "Steam") {
 			continue
 		}
 		sub := menu.AddSubmenu(plat)

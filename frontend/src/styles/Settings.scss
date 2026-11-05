@@ -210,27 +210,6 @@ label:where(:not(.field):not(.row__label):not(.add-login__choice):not(.toggle-ro
   margin-bottom: 4em;
 }
 
-.preview_element {
-  margin: 1em 2.5%;
-  border: var(--accent) 1px solid;
-  position: relative;
-
-  .notification-container {
-    position: relative;
-    z-index: 10;
-  }
-
-  .SettingsHeader {
-    padding-top: 1em;
-  }
-}
-
-.preview-css-page {
-  .modalTestPlaceholder {
-    color: var(--modal-placeholder-fg, var(--whiteSecondary));
-  }
-}
-
 .theme-control-group {
   display: flex;
   flex-wrap: wrap;

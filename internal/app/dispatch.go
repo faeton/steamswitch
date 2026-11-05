@@ -10,7 +10,6 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"steamswitch/internal/basic"
 	"steamswitch/internal/cli"
 	"steamswitch/internal/i18n"
 	"steamswitch/internal/platform"
@@ -23,7 +22,6 @@ import (
 
 type Dispatch struct {
 	SteamSvc    *steam.SteamService
-	BasicSvc    *basic.BasicService
 	PlatformSvc *platform.PlatformService
 }
 
@@ -94,6 +92,9 @@ func (d *Dispatch) RunList(p cli.Parsed, idx *cli.PlatformIndex) error {
 		}
 		rows := make([]ListPlatformRow, 0, len(idx.OrderedNames))
 		for _, name := range idx.OrderedNames {
+			if requireSteamPlatform(name) != nil {
+				continue
+			}
 			code := cli.ShortTokenForPlatform(idx, name)
 			if code == "" {
 				code = "?"
@@ -126,10 +127,7 @@ func (d *Dispatch) RunList(p cli.Parsed, idx *cli.PlatformIndex) error {
 		if strings.TrimSpace(p.ListAccountsPlatform) != "" {
 			platNames = []string{p.ListAccountsPlatform}
 		} else {
-			if idx == nil {
-				return fmt.Errorf("platforms file not loaded")
-			}
-			platNames = append([]string(nil), idx.OrderedNames...)
+			platNames = []string{steam.PlatformKey}
 		}
 
 		if p.OutputJSON {
@@ -201,7 +199,10 @@ func (d *Dispatch) RunList(p cli.Parsed, idx *cli.PlatformIndex) error {
 }
 
 func (d *Dispatch) accountRowsForPlatform(platformKey string) ([]ListAccountRow, error) {
-	return d.commandAdapter(platformKey).AccountRows()
+	if err := requireSteamPlatform(platformKey); err != nil {
+		return nil, err
+	}
+	return d.commandAdapter().AccountRows()
 }
 
 func (d *Dispatch) RunHeadless(p cli.Parsed) error {
@@ -210,7 +211,7 @@ func (d *Dispatch) RunHeadless(p cli.Parsed) error {
 	}
 	switch p.Kind {
 	case cli.KindSwapSteam:
-		if err := d.commandAdapter(steam.PlatformKey).Swap(p.SteamID64, p.PersonaState, p.PassthroughLaunchArgs); err != nil {
+		if err := d.commandAdapter().Swap(p.SteamID64, p.PersonaState, p.PassthroughLaunchArgs); err != nil {
 			return err
 		}
 		return d.LaunchAfterSwap(p)
@@ -245,5 +246,8 @@ func (d *Dispatch) RunLogout(p cli.Parsed) error {
 	if plat == "" {
 		plat = steam.PlatformKey
 	}
-	return d.commandAdapter(plat).Logout()
+	if err := requireSteamPlatform(plat); err != nil {
+		return err
+	}
+	return d.commandAdapter().Logout()
 }
