@@ -141,11 +141,17 @@ For anyone keeping more than a couple of accounts around. Everything here is sea
 your app-lock password — set one first, or the vault stays unavailable.
 
 - **Stores what an account is**: login name, password, authenticator seed and the email
-  address bound to it. One encrypted blob, no plaintext metadata beside it.
+  address bound to it. One encrypted blob, no plaintext metadata beside it. A login and
+  password are enough to save an entry; the SteamID fills itself in the first time the
+  password is verified.
 - **Steam Guard codes** from a stored authenticator seed, or read out of a bound inbox over
   IMAP — read-only, and never marking your mail as read.
-- **Health checks** for bans, profile visibility, account age and idle time. The everyday
-  check never logs in; only an explicit "verify password" does.
+- **Email checks** sign in to a saved inbox, one account or all of them, and say whether the
+  password works, or that the provider needs an app password or doesn't allow IMAP at all.
+- **Health checks** for bans, profile visibility, account age and idle time, with a log of
+  every step. The everyday check never logs in; only "Check session" and "Verify password" do,
+  and an account reads **Live** only for 7 days after one of those succeeds. An API key adds
+  game bans; without one the check reads the public profile.
 - **Optional scheduled password checks**, off by default and clearly labelled — this is the
   only setting that makes the app log in to a Steam account on its own. One account at a
   time, never at startup, and it stops for good if Steam ever rate-limits it.

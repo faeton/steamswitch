@@ -102,28 +102,34 @@ Copy account → account.
 Newest and least proven. An encrypted store for what an account *is* — its password,
 authenticator seed, email binding and health — sealed under the app-lock password.
 
-**All five phases are built.** None of the network-facing half has run for real yet — see the
-confidence column.
+**All five phases are built.** Parts of the network-facing half have now run for real and parts
+have not — see the confidence column.
 
 | Feature | Status | Where | Test |
 |---|---|---|---|
 | Sealed single-blob store, AES-256-GCM under an HKDF subkey of the app-lock master key | Built | `internal/vault/store.go`, `internal/security/subkey.go` | V1c, V1d |
 | No plaintext metadata — no account name, email or SteamID64 outside the ciphertext | Built | one blob, no per-entry framing | V1c |
 | Presence flags, never values, everywhere except an explicit Reveal | Built | `Summary`, `Reveal` | V1e, V5j |
-| Reveal one field at a time, self-hiding after ~20s | Built | vault modals | V1g, V1h |
+| Reveal one field at a time, self-hiding after 8s by default (a setting) | Built | vault modals, `revealMs` | V1g, V1h |
+| Login-only entries — a login and password are enough; a stand-in key holds the entry until Verify finds its SteamID. Export is refused until then | Live-proven | `IsPendingID`, `LinkSteamID` | V9a–V9e |
 | Saving a form that never displayed a secret does not erase it | Built | pointer-field `Draft` | V1f |
 | Locked by default; a locked vault never blocks switching | Built | `RequireUnlocked` + `DropCache` | V2a–V2c, V6c |
 | Corruption reported as corruption, never as "empty" | Built | `ErrCorrupt` | V1k |
 | **Steam Guard codes — TOTP** from a stored seed | Built | `internal/vault/totp` | V3a–V3d |
 | **Guard codes — IMAP inbox**, read-only, never marks mail read | Live-proven | `internal/vault/mail/imap.go` | V3g, V3h |
 | — works against a non-compliant provider (frozen mailbox view, broken SEARCH, zero envelope dates): reconnect per poll, no SEARCH, header-date freshness | Live-proven | notletters.com end-to-end | V3g2 |
-| IMAP host detection, including vanity domains served by another host | Live-proven | cert-SAN probe | V3e, V3e2 |
+| IMAP host detection, including vanity domains served by another host. Sends no credentials | Live-proven | `mail.Detect`, cert-SAN probe | V3e, V3e2 |
+| — known providers answered from a table, including which need an app password and which refuse IMAP; mail records as a fallback, with a warning when the server is outside the address's domain | Built | `internal/vault/mail/provider.go` | V3e3, V3e4 |
+| **Email check** — signs in to the saved inbox and counts messages; reads and marks nothing. One entry or all, with the result kept against the settings it tested | Live-proven | firstmail.ltd only; `internal/vault/email_check.go` | V3f, V9f–V9i |
 | Code extraction that rejects stale, misaddressed and lookalike-sender mail | Built | `internal/vault/mail/code.go` | V3j, V3k, `FromSteam` tests |
 | Mailbox-service source, HTTPS-only | Built | `internal/vault/mail/mailbox.go` | V3m |
 | **Guard codes — manual entry** for an inbox that can't be IMAP-checked: the login prompts the user, blocks, and takes a typed code | Live-proven | `internal/vault/manualcode.go`, `VaultGuardCodePrompt` | §V4-manual |
 | — gated on an *emailed* Guard step (no prompt for mobile-approval), one-shot `RequestID` so a stale prompt can't feed a later login | Built | `guardCodeForLogin`, `SubmitManualGuardCode` | V4m3, V4m5 |
 | Pre-warm — the code fetch starts when the switch starts, not when you ask | Built | `vault.Prewarm` in the swap gate | V3n, V3o |
 | **Cheap health check** — bans, profile, account age, idle days. Never logs in. | Built | `internal/vault/health.go`, `probe/` | V5a–V5g |
+| — with no API key, reads the public profile: VAC and trade bans plus the limited flag, but not game bans. A profile missing any of those fields is not read as clean | Live-proven | `probe/public.go` | V5a, V5k |
+| **Live** means a real sign-in within the last 7 days, then **Re-check due**. A lookup alone reads **No bans found** or **No VAC ban**. A limited account is a neutral flag, not a warning | Built | `frontend/src/lib/vault/health.ts` | V5c, V5e, V5l, V5n |
+| Activity log of each check's steps, kept in memory, with Copy log | Live-proven | `internal/vault/activity.go`, health modal | V5m |
 | Check every stored account, serialised | Built | Tools → Account vault | V5h, V5i |
 | **Deep check — a real Steam login** to prove the password | Live-proven | `internal/vault/steamauth` | §V4 |
 | Distinguishing wrong password / no such account / Steam unreachable | Live-proven | `classifyLoginError` | V4b, V4b2 |
@@ -138,7 +144,7 @@ confidence column.
 | Inspect before accept; inspect writes nothing | Built | `Inspect` / `Accept` | V8l, V8m |
 | Advisory expiry and single-use, labelled as advisory | Built | recipient-side ledger | V8s–V8v |
 | Local export audit log, never uploaded | Built | `Doc.Exports` | V8x |
-| Login-details panel — audience, expiry, IP claims, read-only | Built | `TokenDetails` | V4f–V4h |
+| Login-details panel — token status and warning first, audience, expiry and IP claims folded under Technical details, read-only. Also on the Vault row menu | Built | `TokenDetails` | V4f–V4h |
 | Health dot on the tile, warn/fail only, never colour alone | Built | `AccountTile.svelte` | V5c, V5d, V5g |
 | Vault values kept out of `actionlog` and `slog` | Built | call sites | V6f, V6g |
 | Email addresses masked in crash reports, by shape rather than by value | Built | `internal/logsanitize/redact.go` | V6h, V6i |
@@ -149,7 +155,7 @@ confidence column.
 |---|---|
 | **Revocation of a handoff** | Impossible without a server, and there is no server. A client-audience refresh token *is* full account access; once someone has the bundle and the passphrase, the only real levers are changing the password and Steam's Sign out of all devices, both outside this app. The UI states this rather than offering a button that would lie. Expiry and single-use exist, and are labelled as enforced by the recipient's copy of SteamSwitch rather than by cryptography. |
 | **Key exchange, recipient keys, a directory, a revocation list** | Each needs either a server or a PKI. A passphrase sent by a second channel is the whole trust model, stated plainly. |
-| **Token injection** ("log in for me") | Research-only, unproven, and `VAULT.md` §6.2 says so. Verification proves a password works; it does not sign you in. |
+| **Token injection** ("log in for me") | Research only, and not in the app. One manual experiment in a CrossOver bottle signed the Steam client in with a stored token (2026-11-04, same computer and IP that issued it). Real Windows, another machine and macOS are untested, so nothing is built on it. Verification proves a password works; it does not sign you in. |
 | **Decoding Steam's `ConnectCache` / `MachineAuth`** | The panel reports presence, size and mtime and stops. On macOS the Keychain-derived key has not been reversed at all. |
 
 ## 7. Platform support

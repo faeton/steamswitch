@@ -281,7 +281,7 @@ surprise. V7 puts that same login on a timer and is only worth running once V4 p
 | V1f | Press **Save** without touching anything, then Reveal the password | Still the original. Saving a form that never displayed a secret must not erase it. |
 | V1g | Click **Reveal** on the password | It appears once, with a Copy button, and **hides itself after about 8 seconds** without being touched. |
 | V1h | Reveal, then close the dialog immediately | Nothing is left on screen anywhere, and reopening does not show it again. |
-| V1i | Edit the entry, tick **Store and check only**, Save. Look at the account list | The tile is unchanged (it is still a real Steam account); the entry is marked *store only* in Tools → Stored accounts. |
+| V1i | On the Vault page, **Add vault entry** for an account Steam has never signed into on this computer. Look at the account list | No tile appears. There is no setting for this: where Steam has signed in decides the switcher. The entry shows on the Vault page. |
 | V1j | Delete the entry, then look at the blob again | The file still exists but is smaller. Reopening the vault shows the entry gone. |
 | V1k | Corrupt the blob: change one character inside `"ciphertext"` and relaunch | The Vault page says the vault could not be read, with no Add or Import buttons. It must **not** silently start empty — that would look like your data vanished. |
 | V1l | Restore the good file, restart, and unlock | Entries are back. |
@@ -304,8 +304,9 @@ surprise. V7 puts that same login on a timer and is only worth running once V4 p
 | V3d | Paste a code into a real Steam login | Steam accepts it. |
 | V3e | Set the code source to **an inbox (IMAP)**, enter the address and password, press **Detect** | It finds the IMAP host without you knowing its name. If your provider is unusual it may fail — enter the host by hand and continue. |
 | V3e2 | Detect against a **vanity domain** whose mail is served by another host (e.g. a bought-account provider) | It still finds it, and the host it fills in is the one the certificate names, not `imap.<your-domain>`. This is the case detection exists for; if it only ever works on Gmail-shaped addresses, it is not doing its job. |
-| V3e3 | Detect with the **right address and a wrong password** | It reports that the mailbox rejected the credentials, not "no server found". Finding the host and failing to log in are different answers. |
-| V3f | Press **Test the connection** | Confirms it connected. With a deliberately wrong password it says the mailbox rejected the credentials, distinct from "could not connect". |
+| V3e3 | Type a Gmail or Yahoo address and leave the field | It says that provider needs an app password here. An Outlook or Proton address says it can't be checked with a password. |
+| V3e4 | Detect an address whose mail is handled under another domain | It warns which server handles the mail, and asks you to make sure you recognise it. Detection sends no password either way. |
+| V3f | Press **Check email** | "Signed in", with a message count. With a deliberately wrong password it says the mailbox rejected the username or password, distinct from "could not reach the mail server". |
 | V3g | Remove the authenticator seed so the inbox is the only source. Trigger a real Steam login that sends a code, then **Get Steam Guard code** | The code from that mail, marked "From your inbox". |
 | V3h | Check that mail in your normal mail client | It is **still unread**. Reading a code must never mark mail as read. |
 | V3i | Ask for a code when no new mail is coming | It polls with a visible wait and then gives up cleanly, telling you that you can still type the code yourself. It must not hang forever. |
@@ -333,8 +334,8 @@ obtained), so V4a is confirmation, not a first run. Watch for regressions rather
 | V4c | Verify twice in a row | The second run does **not** send a second Guard email: the first stored a trusted-device token. |
 | V4d | Verify a third and fourth time in quick succession | If Steam rate-limits, the app says so, disables Verify for the session, and does **not** retry. Retrying is what turns a warning into a block. |
 | V4e | Start a verify on one account, then immediately on another | The second is refused with "a verification is already running". They are serialised on purpose. |
-| V4f | After a successful verify, open Advanced → **Login details…** | Audience, issue and expiry dates, token ID and IP claims are shown. If the audience includes `client`, the panel warns that anyone holding the token can sign in from any machine. |
-| V4g | Press **Reveal the raw token** | The token appears and hides itself after about 20 seconds. |
+| V4f | After a successful verify, open Advanced → **Login details…**, or the row's ⋯ menu on the Vault page | "Session token stored" comes first. If the audience includes `client`, the panel warns that anyone holding the token can sign in from any machine. Audience, issue and expiry dates, token ID and IP claims are under **Technical details**. |
+| V4g | Press **Reveal the raw token**, then **Copy** | The token appears, can be selected by hand, copies, and hides itself after the reveal time (8 seconds by default). |
 | V4h | Confirm the panel is read-only | Nothing on it writes. Compare `loginusers.vdf` before and after opening it — byte-identical. |
 | V4i | Remove the stored password, open the health screen | **Verify password** is disabled. There is nothing to verify. |
 
@@ -373,16 +374,20 @@ branches; these steps confirm the **UI surface**.
 
 | # | Steps | Expected |
 |---|---|---|
-| V5a | With **no** Web API key set, account menu → Advanced → **Account health…** | Bans and profile say they need an API key. The other results still work. The feature is degraded, not broken. |
-| V5b | Add the key in Settings → Account vault, run **Check** again | Bans and profile now report real values. |
-| V5c | Check a healthy account | Verdict "Looks fine"; **no dot appears on its tile**. |
+| V5a | With **no** Web API key set, account menu → Advanced → **Account health…** → **Check** | It reads the public profile and reports VAC and trade bans. A notice says game bans aren't checked without a key, with an **Add API key** button. The label reads **No VAC ban**. |
+| V5b | Add the key in Settings → Account vault, run **Check** again | Game bans are now reported too, and the label reads **No bans found**. |
+| V5c | Check a healthy account that hasn't signed in recently | It does **not** read Live, because a lookup proves nothing about the password. **No dot appears on its tile**. |
 | V5d | Check a VAC-banned account if you have one | Verdict "Something is wrong", the ban row is marked as a blocker, and a red dot appears on the tile. |
-| V5e | Check an account created under 30 days ago | Warned as probably still limited, and the wording says it is **inferred from the creation date** rather than reported by Steam. |
+| V5e | With an API key, check an account created under 30 days ago | A neutral note that it is probably still limited, and the wording says it is **inferred from the creation date** rather than reported by Steam. |
 | V5f | Check an account not signed into for months | Warned as idle, with the day count. |
 | V5g | Hover the tile dot | The tooltip says which state it is. Colour is never the only signal. |
 | V5h | Tools → Account vault → **Check every account** | Every stored account is checked, one after another, and the summary names how many. It must not fan out. |
 | V5i | Confirm no Guard email arrives from V5h | The cheap tier never logs in. If an email arrives, the tiers have been confused and that is a release blocker. |
 | V5j | Tools → **Stored accounts** | Every entry including store-only ones, each with its verdict. No secret values anywhere on this screen. |
+| V5k | With no API key, check an account whose community profile has never been set up | If Steam's reply lacks a ban or limited field, it says it could not tell, and does **not** report the account as clean. |
+| V5l | Check a limited account (one that hasn't spent $5) with no other problems | A small **Limited** flag on the row, not "Needs attention". The health label is unaffected. |
+| V5m | Open **Account health…** after any check and read **Activity** | Each step is listed with its time, including how long Steam took to answer. **Copy log** copies it. No password, token or code appears in it. |
+| V5n | With a password verified more than 7 days ago, look at the row, then press ⋯ → **Re-check sign-in** | The label reads **Re-check due**, then **Live** again if the check succeeds. |
 
 ### V6. Vault against the rest of the app
 
@@ -491,6 +496,20 @@ Use a throwaway account. A transfer is not reversible from inside this app.
 | V8x | On the exporting machine, check the export log | It lists what was exported, to which label and when. It does **not** contain the passphrase, and nothing in it would let that machine open the bundle. |
 | V8y | Search the whole data folder and the logs for the passphrase you typed | It appears nowhere. |
 | V8z | Import a grant, then on the *original* machine change the account's Steam password | The recipient's access stops working. This is the only revocation there is, and the app should never have implied otherwise. |
+
+### V9. The entry form and email checks
+
+| # | Steps | Expected |
+|---|---|---|
+| V9a | Vault page → **Add vault entry**, type a login, press Tab, type a password, press Enter | Tab goes from login straight to password. Enter saves and closes. No SteamID was asked for, and Email, Authenticator and Details stay folded. |
+| V9b | Open a new entry and press **Save** with no login | It says to enter the Steam login and stays open. It must never do nothing. |
+| V9c | Open the saved entry's **Account health…** → **Check** | It says bans can't be checked until the SteamID is known. It does not claim the account is clean. |
+| V9d | Run **Verify password** on that entry | The entry takes its real SteamID, and its Activity log and sign-in result carry over. No blank or duplicate row appears. |
+| V9e | Before verifying, look at the ⋯ menu of a login-only entry | **Export** isn't offered. |
+| V9f | Add an email and inbox password to an unsaved entry, press **Check email**, then Save | The result shows on the form and is still on the row after saving, as **Mail OK** with a count. |
+| V9g | Change the mail server, username or password on an entry that reads **Mail OK**, and save | The old result is gone. A check of different settings says nothing about these. |
+| V9h | On a saved entry, type a different mail server and press **Check email** without retyping the password | The saved password is **not** sent to the typed server. It asks for the password to be filled in. |
+| V9i | Vault page → **Check all emails** with several inboxes saved | A visible count while it runs, and a flag on every row afterwards. Entries with no inbox are skipped. |
 
 ## G. Regression sweep
 
