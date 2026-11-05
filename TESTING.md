@@ -201,6 +201,7 @@ Only meaningful if you can arrange it, but please do arrange it.
 | F6d | Turn on **Note preview under username**, add a note with two paragraphs via the account menu | The preview shows on one line with the newlines collapsed; the tile does not grow to fit it. |
 | F6e | Settings → Steam → **Set method to close Steam** | The dropdown reads in your language, including "TaskKill". It used to be English in every locale. |
 | F6f | Change any Steam setting, quit and relaunch | It stuck. Then open `Settings\SteamSettings.json` and confirm `SteamWebApiKey`, `ForgetAccountEnabled` and `AlwaysSwapOnShortcut` are gone — they had no reader. |
+| F6g | Right-click an account → Advanced → **Rename in SteamSwitch**, enter a name | The row, the tray and the current-account bar show it, and it survives a relaunch. `loginusers.vdf` is unchanged. Rename again with an empty name: the Steam name returns. |
 | F7 | Tray → quick switch | Switches without opening the window. The current account reads "(current)"; with Steam closed, clicking it starts Steam. The menu's **SteamSwitch** entry brings the window in front of other apps. On Windows, a left click on the icon does too; on macOS it currently does nothing. |
 | F8 | Tray while a kit is active | The tooltip reflects it. |
 

@@ -92,9 +92,6 @@ func (d *Dispatch) RunList(p cli.Parsed, idx *cli.PlatformIndex) error {
 		}
 		rows := make([]ListPlatformRow, 0, len(idx.OrderedNames))
 		for _, name := range idx.OrderedNames {
-			if requireSteamPlatform(name) != nil {
-				continue
-			}
 			code := cli.ShortTokenForPlatform(idx, name)
 			if code == "" {
 				code = "?"

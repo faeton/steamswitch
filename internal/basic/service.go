@@ -2,12 +2,10 @@ package basic
 
 import (
 	"fmt"
-	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"steamswitch/internal/paths"
 	"steamswitch/internal/platform"
 	"steamswitch/internal/profileimage"
 	"steamswitch/internal/security"
@@ -60,45 +58,6 @@ func (b *BasicService) SetAccountNote(platformKey, uniqueID, note string) error 
 	return platform.SavePlatformSettings(strings.TrimSpace(platformKey), ps)
 }
 
-func (b *BasicService) RenameAccount(platformKey, uniqueID, newName string) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if err := security.RequireUnlocked(); err != nil {
-		return err
-	}
-	platformKey = strings.TrimSpace(platformKey)
-	uniqueID = strings.TrimSpace(uniqueID)
-	newName = paths.WindowsFileName(strings.TrimSpace(newName), 200)
-	if platformKey == "" || uniqueID == "" || newName == "" {
-		return fmt.Errorf("invalid rename parameters")
-	}
-	ids, err := readIDs(platformKey)
-	if err != nil {
-		return err
-	}
-	oldName, ok := ids[uniqueID]
-	if !ok {
-		return fmt.Errorf("unknown account")
-	}
-	if oldName == newName {
-		return nil
-	}
-	ids[uniqueID] = newName
-	if err := writeIDs(platformKey, ids); err != nil {
-		return err
-	}
-	if !security.SavedAccountDataEncrypted() && strings.TrimSpace(oldName) != "" {
-		oldDir, err := accountCacheDir(platformKey, oldName)
-		if err == nil {
-			newDir, err2 := accountCacheDir(platformKey, newName)
-			if err2 == nil && oldDir != newDir {
-				_ = os.Rename(oldDir, newDir)
-			}
-		}
-	}
-	return nil
-}
-
 func (b *BasicService) ChangeAccountImage(platformKey, uniqueID, sourcePath string) error {
 	b.mu.Lock()
 	defer b.mu.Unlock()
@@ -111,8 +70,8 @@ func (b *BasicService) ChangeAccountImage(platformKey, uniqueID, sourcePath stri
 	if platformKey == "" || uniqueID == "" || sourcePath == "" {
 		return fmt.Errorf("invalid change image parameters")
 	}
-	// Lock manual marker before writing bytes so concurrent basic profile refresh cannot download/copy
-	// over the avatar during the gap where DeleteCached (old behavior) stripped the sentinel (Rockstar/EA/Ubisoft).
+	// Lock manual marker before writing bytes so a concurrent profile refresh cannot download/copy
+	// over the avatar during the gap where DeleteCached (old behavior) stripped the sentinel.
 	if err := profileimage.WriteManualProfileMarker(platformKey, uniqueID); err != nil {
 		return err
 	}

@@ -91,7 +91,7 @@ func embeddedPathIsUnderPlatformArt(path string) bool {
 }
 
 // normalizePlatformArtKey folds case and strips non-alphanumeric characters so
-// e.g. "Battle.net" (Platforms.json) matches "BattleNet.svg" on disk.
+// a name in Platforms.json matches its file on disk whatever the punctuation.
 func normalizePlatformArtKey(s string) string {
 	var b strings.Builder
 	for _, r := range strings.ToLower(s) {

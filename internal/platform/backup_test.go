@@ -53,8 +53,8 @@ func TestSafeJoinZipPathRejectsTraversal(t *testing.T) {
 
 func TestLatestBackupZipSelectsNewest(t *testing.T) {
 	dir := t.TempDir()
-	oldPath := filepath.Join(dir, "Backup_EpicGames_2000-01-01_00-00-00.zip")
-	newPath := filepath.Join(dir, "Backup_EpicGames_2001-01-01_00-00-00.zip")
+	oldPath := filepath.Join(dir, "Backup_OtherGame_2000-01-01_00-00-00.zip")
+	newPath := filepath.Join(dir, "Backup_OtherGame_2001-01-01_00-00-00.zip")
 	if err := os.WriteFile(oldPath, []byte("old"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -70,7 +70,7 @@ func TestLatestBackupZipSelectsNewest(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	got, err := latestBackupZip(dir, "EpicGames")
+	got, err := latestBackupZip(dir, "OtherGame")
 	if err != nil {
 		t.Fatal(err)
 	}

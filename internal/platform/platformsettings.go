@@ -87,15 +87,17 @@ func settingsDirUnderExe() (string, error) {
 // no code consults is not a setting, it is a promise the app does not keep — and the UI
 // control for it looks, to the user, exactly like one that works.
 type PlatformSettings struct {
-	RunAsAdmin                bool                `json:"RunAsAdmin"`
-	TrayAccNumber             int                 `json:"TrayAccNumber"`
-	ClosingMethod             string              `json:"ClosingMethod"`
-	ClosingMethodForced       bool                `json:"ClosingMethodForced,omitempty"`
-	StartingMethod            string              `json:"StartingMethod"`
-	AutoStart                 bool                `json:"AutoStart"`
-	ShowShortNotes            bool                `json:"ShowShortNotes"`
-	ShowLastUsed              bool                `json:"ShowLastUsed"`
-	AccountNotes              map[string]string   `json:"AccountNotes"`
+	RunAsAdmin          bool              `json:"RunAsAdmin"`
+	TrayAccNumber       int               `json:"TrayAccNumber"`
+	ClosingMethod       string            `json:"ClosingMethod"`
+	ClosingMethodForced bool              `json:"ClosingMethodForced,omitempty"`
+	StartingMethod      string            `json:"StartingMethod"`
+	AutoStart           bool              `json:"AutoStart"`
+	ShowShortNotes      bool              `json:"ShowShortNotes"`
+	ShowLastUsed        bool              `json:"ShowLastUsed"`
+	AccountNotes        map[string]string `json:"AccountNotes"`
+	// AccountLabels are names the user gave accounts in SteamSwitch, by unique ID.
+	AccountLabels             map[string]string   `json:"AccountLabels,omitempty"`
 	Shortcuts                 []GameShortcutEntry `json:"Shortcuts,omitempty"`
 	LaunchArguments           string              `json:"LaunchArguments,omitempty"`
 	ProfileImageExpiryDays    int                 `json:"ProfileImageExpiryDays,omitempty"`

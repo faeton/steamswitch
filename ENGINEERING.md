@@ -29,7 +29,11 @@ grid when one platform is enabled (`applySinglePlatformStartupRoute`, `stores/ro
 
 The generic multi-platform engine and the game-stats scraper are gone. `internal/basic` is now only
 the account metadata Steam uses: tags, notes, names and images (`internal/steam/accounts_list.go`,
-`internal/steam/service.go`). A `+<token>:` argument for any platform other than Steam is an error.
+`internal/steam/service.go`). Steam is the only platform: a command or link naming anything else is
+an error.
+
+The `tcno-` labels aside, the one piece that still mentions other platforms is the migration walker
+in `internal/security/vault.go`, which skips Steam.
 
 ### No outbound reporting, no auto-update
 
@@ -44,6 +48,12 @@ the account metadata Steam uses: tags, notes, names and images (`internal/steam/
 One built-in palette (`styles/appearance.scss`) with System, Light and Dark, plus one accent colour.
 
 ## How it behaves
+
+### Account names
+
+The row, the tray and every dialog show the name from **Rename in SteamSwitch** when there is one
+(`AccountLabels` in the Steam settings), then Steam's profile name. It is local: Steam is not changed,
+and an empty name goes back to Steam's.
 
 ### A switch only touches the target account
 

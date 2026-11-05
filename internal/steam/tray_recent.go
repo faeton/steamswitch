@@ -88,6 +88,9 @@ func SyncTrayKnownAccounts() {
 }
 
 func trayLabelForUser(st Settings, u LoginUser) string {
+	if label := labelOr(st.AccountLabels, u.SteamID64, ""); label != "" {
+		return label
+	}
 	if st.SteamTrayAccountName && strings.TrimSpace(u.AccountName) != "" {
 		return strings.TrimSpace(u.AccountName)
 	}

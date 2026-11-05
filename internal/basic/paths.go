@@ -84,20 +84,3 @@ func writeIdsFile(platformKey string, f idsFile) error {
 	}
 	return nil
 }
-
-func readIDs(platformKey string) (map[string]string, error) {
-	f, err := readIdsFile(platformKey)
-	if err != nil {
-		return nil, err
-	}
-	return f.IDs, nil
-}
-
-func writeIDs(platformKey string, m map[string]string) error {
-	f, err := readIdsFile(platformKey)
-	if err != nil {
-		return err
-	}
-	f.IDs = m
-	return writeIdsFile(platformKey, f)
-}

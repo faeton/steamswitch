@@ -938,24 +938,8 @@ button .caret, .button .caret {
 .modalIco {
   &GitHub,
   &Networking,
-  &Doc,
-  &Discord,
-  &Patreon,
-  &Kofi {
+  &Doc {
       fill: var(--whiteSecondary);
-  }
-}
-
-/* BattleNet icons */
-.battlenet {
-  &IcoOWTank,
-  &IcoOWDamage,
-  &IcoOWSupport {
-      fill: var(--whiteSecondary);
-  }
-
-  &Level sup {
-      top: -.1em;
   }
 }
 

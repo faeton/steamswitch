@@ -181,7 +181,7 @@ func (s *SteamService) GetSteamAccountsList() (SteamAccountListDTO, error) {
 		out = append(out, SteamAccountListItemDTO{
 			SteamID64:      u.SteamID64,
 			PersonaName:    persona,
-			DisplayName:    persona,
+			DisplayName:    labelOr(ctx.st.AccountLabels, u.SteamID64, persona),
 			AccountName:    strings.TrimSpace(u.AccountName),
 			CurrentSession: ctx.activeSteamID != "" && u.SteamID64 == ctx.activeSteamID,
 			NoStoredLogin:  ctx.noStoredLogin[strings.ToLower(strings.TrimSpace(u.AccountName))],
@@ -232,6 +232,7 @@ func (s *SteamService) GetSteamAccountsEnrichment() ([]SteamAccountEnrichmentDTO
 		if displayName == "" {
 			displayName = displayPersona(u)
 		}
+		displayName = labelOr(ctx.st.AccountLabels, u.SteamID64, displayName)
 
 		out = append(out, SteamAccountEnrichmentDTO{
 			SteamID64:          u.SteamID64,

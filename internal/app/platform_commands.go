@@ -45,8 +45,7 @@ func (d *Dispatch) commandAdapter() platformCommandAdapter {
 	return steamCommandAdapter{svc: d.SteamSvc}
 }
 
-// requireSteamPlatform stops a command naming another platform from acting on Steam. An old
-// Platforms.json can still list those platforms, and a link can name anything.
+// requireSteamPlatform stops a mistyped platform in a command or link from acting on Steam.
 func requireSteamPlatform(platformKey string) error {
 	if strings.EqualFold(strings.TrimSpace(platformKey), steam.PlatformKey) {
 		return nil

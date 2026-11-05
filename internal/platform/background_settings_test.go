@@ -45,7 +45,7 @@ func TestNormalizeAppSettingsDefaultsSanitizesBackgroundLayout(t *testing.T) {
 		AppBgFit:       "stretch-more",
 		PlatformBgs: map[string]PlatformBgSettings{
 			"Steam": {Alignment: " diagonal ", Fit: "crop"},
-			"Epic":  {Alignment: " RIGHT ", Fit: " SCALE-DOWN "},
+			"Other": {Alignment: " RIGHT ", Fit: " SCALE-DOWN "},
 		},
 	}
 
@@ -58,9 +58,9 @@ func TestNormalizeAppSettingsDefaultsSanitizesBackgroundLayout(t *testing.T) {
 	if steam.Alignment != defaultBgAlignment || steam.Fit != defaultBgFit {
 		t.Fatalf("invalid platform layout normalized to %q/%q, want %q/%q", steam.Alignment, steam.Fit, defaultBgAlignment, defaultBgFit)
 	}
-	epic := settings.PlatformBgs["Epic"]
-	if epic.Alignment != "right" || epic.Fit != "scale-down" {
-		t.Fatalf("valid platform layout normalized to %q/%q, want right/scale-down", epic.Alignment, epic.Fit)
+	other := settings.PlatformBgs["Other"]
+	if other.Alignment != "right" || other.Fit != "scale-down" {
+		t.Fatalf("valid platform layout normalized to %q/%q, want right/scale-down", other.Alignment, other.Fit)
 	}
 }
 

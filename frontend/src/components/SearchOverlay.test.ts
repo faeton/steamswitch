@@ -5,10 +5,6 @@ import {
   searchOverlayOptionId,
 } from "./SearchOverlay.svelte";
 
-vi.mock("../lib/platformIcon", () => ({
-  platformIconFgHref: (name: string) => `#${name}`,
-}));
-
 vi.mock("../stores/i18n", () => ({
   t: {
     subscribe(run: (translator: (key: string) => string) => void) {

@@ -61,16 +61,6 @@ func LoadPlatformsJSON(exeDir string) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", basePath, err)
 	}
-	if s.PlatformsJSONPath == "" {
-		if merged, changed, err := addEmbeddedSteamPlatform(base, embeddedPlatformsJSON); err != nil {
-			return nil, fmt.Errorf("restore embedded Steam platform: %w", err)
-		} else if changed {
-			if err := atomicWriteBytes(basePath, merged, 0o644); err != nil {
-				return nil, fmt.Errorf("write %s: %w", basePath, err)
-			}
-			base = merged
-		}
-	}
 	customPath := filepath.Join(UserDataDir(exeDir), "Platforms.custom.json")
 	custom, err := os.ReadFile(customPath)
 	if err != nil {

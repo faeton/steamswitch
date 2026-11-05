@@ -748,6 +748,10 @@ func (s *SteamService) runProfileRefresh() {
 }
 
 func (s *SteamService) emit(p AccountPatch) {
+	// A refresh reports the Steam name, which must not replace the user's own label on screen.
+	if st, err := LoadSettings(); err == nil && p.DisplayName != "" {
+		p.DisplayName = labelOr(st.AccountLabels, p.SteamID64, p.DisplayName)
+	}
 	app := application.Get()
 	if app == nil {
 		steamLog.Warn("emit steam-account-updated skipped: application not ready",
@@ -836,6 +840,12 @@ func (s *SteamService) ForgetSteamAccount(steamID64 string) error {
 	_ = profileimage.DeleteCached(PlatformKey, steamID64+"_featuredbadge")
 	deleteMiniprofileCache(steamID64)
 	_ = basic.ForgetAccountTagAssignments(PlatformKey, steamID64)
+	if st, err := LoadSettings(); err == nil && st.AccountLabels[steamID64] != "" {
+		if labels, err := withAccountLabel(st.AccountLabels, steamID64, ""); err == nil {
+			st.AccountLabels = labels
+			_ = SaveSettings(st)
+		}
+	}
 	s.StartSteamProfileRefresh()
 	return nil
 }

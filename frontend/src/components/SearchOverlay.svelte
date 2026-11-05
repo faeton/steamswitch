@@ -4,8 +4,7 @@
     title: string;
     badge: string;
     accountIconUrl?: string;
-    platformIconName?: string;
-    /** Category-style row (e.g. disabled platform, game). */
+    /** Category-style row (e.g. a game). */
     isCategory?: boolean;
     categoryChecked?: boolean;
   };
@@ -64,7 +63,6 @@
 <script lang="ts">
   import { createEventDispatcher, onDestroy, onMount, tick } from "svelte";
   import { get } from "svelte/store";
-  import { platformIconFgHref } from "../lib/platformIcon";
   import { searchOverlayCtrl, searchOverlayPendingAppend } from "../stores/searchOverlay";
   import { t } from "../stores/i18n";
   import "../styles/SearchOverlay.scss";
@@ -283,10 +281,6 @@
               <span class="searchOverlay_resultTitleWithIcon">
                 {#if row.accountIconUrl}
                   <img src={row.accountIconUrl} alt="" class="searchOverlay_categoryIcon" />
-                {:else if row.platformIconName}
-                  <svg class="searchOverlay_platformIcon" viewBox="0 0 500 500" aria-hidden="true">
-                    <use href={platformIconFgHref(row.platformIconName)} />
-                  </svg>
                 {/if}
                 <span class="searchOverlay_resultTitle">{row.title}</span>
               </span>
@@ -316,10 +310,6 @@
                   <span class="searchOverlay_resultTitleWithIcon">
                     {#if row.accountIconUrl}
                       <img src={row.accountIconUrl} alt="" class="searchOverlay_categoryIcon" />
-                    {:else if row.platformIconName}
-                      <svg class="searchOverlay_platformIcon" viewBox="0 0 500 500" aria-hidden="true">
-                        <use href={platformIconFgHref(row.platformIconName)} />
-                      </svg>
                     {/if}
                     <span class="searchOverlay_resultTitle">{row.title}</span>
                   </span>

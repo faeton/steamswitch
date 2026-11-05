@@ -8,7 +8,7 @@ func TestRequireSteamPlatform(t *testing.T) {
 			t.Errorf("%q: %v", name, err)
 		}
 	}
-	for _, name := range []string{"Epic", "Epic Games", "s", ""} {
+	for _, name := range []string{"Other", "Stem", "s", ""} {
 		if err := requireSteamPlatform(name); err == nil {
 			t.Errorf("%q should be refused: it would otherwise act on Steam", name)
 		}

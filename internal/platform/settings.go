@@ -266,11 +266,6 @@ func loadSettingsFromDisk(exeDir string) (AppSettings, error) {
 func loadSettingsFromDiskAt(exeDir string) (AppSettings, string, error) {
 	path, found := settingsfile.Discover(exeDir)
 	if !found {
-		if migrated, migratedPath, ok, err := migrateLegacyWindowSettings(exeDir); err != nil {
-			return AppSettings{}, "", err
-		} else if ok {
-			return migrated, migratedPath, nil
-		}
 		return defaultSettings(), "", nil
 	}
 	data, err := os.ReadFile(path)

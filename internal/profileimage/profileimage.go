@@ -192,7 +192,7 @@ func CachedFilePath(platformKey, accountID string) (string, bool) {
 
 // CacheLocalFile copies src into the profile image cache for automated pipelines (saved-account cache, etc.).
 // If the user locked a manual avatar for this account, returns nil without reading src or changing disk — avoids
-// a queued goroutine overwriting a user-chosen image (Rockstar/EA and similar).
+// a queued goroutine overwriting a user-chosen image.
 func CacheLocalFile(platformKey, accountID, src string) error {
 	return writeLocalProfileCache(platformKey, accountID, src, false)
 }
@@ -244,7 +244,7 @@ func writeLocalProfileCache(platformKey, accountID, src string, userPick bool) e
 
 // DeleteCachedImageFilesOnly removes on-disk avatar variants for stem; does not remove .manual_profile.
 // Used before writing a user-picked avatar so concurrent refresh cannot treat the account as non-manual
-// during a DeleteCached()+write window (Rockstar/Ubisoft/etc. aggressively re-copy launcher avatars).
+// during a DeleteCached()+write window.
 func DeleteCachedImageFilesOnly(platformKey, accountID string) error {
 	platformKey = strings.TrimSpace(platformKey)
 	accountID = strings.TrimSpace(accountID)

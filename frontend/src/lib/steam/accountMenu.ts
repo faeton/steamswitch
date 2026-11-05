@@ -427,9 +427,9 @@ async function renameAccount(deps: AccountMenuDeps): Promise<void> {
   });
   if (next == null) return;
   const trimmed = next.trim();
-  if (!trimmed || trimmed === deps.label) return;
+  if (trimmed === deps.label) return;
   try {
-    await BasicService.RenameAccount("Steam", deps.account.steamId64, trimmed);
+    await SteamService.SetAccountLabel(deps.account.steamId64, trimmed);
     deps.onAccountsChanged();
   } catch (e) {
     deps.onError(deps.t("Toast_RenameAccountFail"), e);
