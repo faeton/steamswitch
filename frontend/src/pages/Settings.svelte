@@ -19,7 +19,6 @@
   import { activeModal } from "../stores/modal";
   import { t } from "../stores/i18n";
   import { SETTINGS_CATEGORIES, type SettingsCategory } from "../stores/routeCodec";
-  import { controllerSpatialNavigation } from "../lib/actions/controllerSpatialNavigation";
   import PageHeader from "../components/PageHeader.svelte";
   import "../styles/Settings.scss";
 
@@ -98,7 +97,7 @@
       </ul>
     </nav>
 
-    <div class="settings__pane" use:controllerSpatialNavigation>
+    <div class="settings__pane">
       <!-- Keyed on the category so switching tabs remounts rather than leaving the previous
            page's reactive state hanging around under a new heading. -->
       {#key category}

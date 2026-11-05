@@ -38,7 +38,6 @@ the account metadata Steam uses: tags, notes, names and images (`internal/steam/
 - Steam's app-name list comes from Valve's own `ISteamApps/GetAppList/v2`. `parseAppNameMapJSON`
   accepts that shape and the flat `{"appid":"name"}` shape of the on-disk cache.
 - There is no updater, and nothing downloads a replacement `Platforms.json`.
-- Discord Rich Presence talks only to the local Discord client.
 
 ### Appearance
 

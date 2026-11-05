@@ -10,7 +10,6 @@ require (
 	github.com/gg-cr/go-steam v0.0.0-20260727130748-f3f8feeb80ae
 	github.com/go-ole/go-ole v1.3.0
 	github.com/google/uuid v1.6.0
-	github.com/hugolgst/rich-go v0.0.0-20240715122152-74618cc1ace2
 	github.com/nfnt/resize v0.0.0-20180221191011-83c6a9932646
 	github.com/srwiley/oksvg v0.0.0-20221011165216-be6e8873101c
 	github.com/srwiley/rasterx v0.0.0-20220730225603-2ab79fcdd4ef
@@ -40,7 +39,6 @@ require (
 	github.com/tidwall/match v1.2.0 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
 	google.golang.org/protobuf v1.34.1 // indirect
-	gopkg.in/natefinch/npipe.v2 v2.0.0-20160621034901-c1b8fa8bdcce // indirect
 )
 
 replace github.com/Jleagle/unmarshal-go v0.0.0-20210227002040-694f544f9265 => github.com/Jleagle/unmarshal-go v0.0.0-20260702203424-38325863b365

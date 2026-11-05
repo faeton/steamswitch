@@ -6,11 +6,9 @@ import (
 )
 
 type settingsBatchEffects struct {
-	dirty                  bool
-	statsEnabled           *bool
-	offlineMode            *bool
-	controllerSupport      *bool
-	discordPresenceRefresh bool
+	dirty        bool
+	statsEnabled *bool
+	offlineMode  *bool
 }
 
 func applySettingsBatchUpdate(s *AppSettings, req SettingsBatchUpdate) settingsBatchEffects {
@@ -24,45 +22,15 @@ func applySettingsBatchUpdate(s *AppSettings, req SettingsBatchUpdate) settingsB
 	}
 	if req.OfflineMode != nil {
 		s.OfflineMode = *req.OfflineMode
-		if s.OfflineMode {
-			s.DiscordRpc = false
-			s.DiscordRpcShare = false
-		}
 		effects.offlineMode = req.OfflineMode
-		effects.discordPresenceRefresh = true
 		effects.dirty = true
 	}
 	applyBool(&s.ProtocolEnabled, req.ProtocolEnabled)
 	applyBool(&s.ExitToTray, req.ExitToTray)
-	if req.DiscordRpc != nil {
-		next := *req.DiscordRpc
-		if s.OfflineMode {
-			next = false
-		}
-		s.DiscordRpc = next
-		if !next {
-			s.DiscordRpcShare = false
-		}
-		effects.discordPresenceRefresh = true
-		effects.dirty = true
-	}
-	if req.DiscordRpcShare != nil {
-		next := *req.DiscordRpcShare
-		if s.OfflineMode || !s.DiscordRpc {
-			next = false
-		}
-		s.DiscordRpcShare = next
-		effects.discordPresenceRefresh = true
-		effects.dirty = true
-	}
 	applyBool(&s.MinimizeOnSwitch, req.MinimizeOnSwitch)
 	applyBool(&s.StartTrayWithWindows, req.StartTrayWithWindows)
 	applyBool(&s.StartProgramCentered, req.StartProgramCentered)
 	applyBool(&s.AnimationsEnabled, req.AnimationsEnabled)
-	applyBool(&s.ControllerSupportEnabled, req.ControllerSupportEnabled)
-	if req.ControllerSupportEnabled != nil {
-		effects.controllerSupport = req.ControllerSupportEnabled
-	}
 	if req.StatsEnabled != nil {
 		s.StatsEnabled = *req.StatsEnabled
 		effects.statsEnabled = req.StatsEnabled

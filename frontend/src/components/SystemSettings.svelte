@@ -32,11 +32,6 @@
     normalizeCommandPaletteHotkey,
     setCommandPaletteHotkey,
   } from "../stores/commandPalette";
-  import {
-    applyControllerSupportEnabled,
-    loadControllerSupportEnabled,
-    setControllerSupportEnabled,
-  } from "../stores/controllerSupport";
   import { createToggle } from "../lib/useToggleSetting";
   import { openMoveUserDataModal, openUserDataFolder, openStatsModal } from "../lib/settingsOperations";
 
@@ -154,12 +149,6 @@
     }
   };
 
-  const controllerSupport = createToggle(
-    () => loadControllerSupportEnabled(),
-    (v) => setControllerSupportEnabled(v),
-    get(t)("Settings_ControllerSupport"),
-  );
-
   const desktopHomeShortcut = createToggle(
     () => PlatformService.GetDesktopHomeShortcutExists(),
     (v) => PlatformService.SetDesktopHomeShortcut(v),
@@ -186,34 +175,6 @@
     }
   };
 
-  const discordRpc = createToggle(
-    () => PlatformService.GetDiscordRpc(),
-    (v) => PlatformService.SetDiscordRpc(v),
-    get(t)("Settings_DiscordRpc"),
-    () => !get(offlineMode),
-  );
-  discordRpc.toggle = async () => {
-    if (get(discordRpc.loading) || get(offlineMode)) return;
-    const next = !get(discordRpc.value);
-    discordRpc.loading.set(true);
-    try {
-      await PlatformService.SetDiscordRpc(next);
-      discordRpc.value.set(next);
-      if (!next) discordRpcShare.value.set(false);
-    } catch (e) {
-      pushToast({ type: "error", message: formatToastWithError($t("Toast_SaveFailed"), e), duration: 8000 });
-    } finally {
-      discordRpc.loading.set(false);
-    }
-  };
-
-  const discordRpcShare = createToggle(
-    () => PlatformService.GetDiscordRpcShare(),
-    (v) => PlatformService.SetDiscordRpcShare(v),
-    get(t)("Settings_DiscordRpcShare"),
-    () => !get(offlineMode) && get(discordRpc.value),
-  );
-
   type SettingsSnapshot = Awaited<ReturnType<typeof PlatformService.ReadSettings>>;
 
   function applySettingsSnapshot(settings: SettingsSnapshot): void {
@@ -221,14 +182,11 @@
     protocol.value.set(settings.protocolEnabled);
     exitToTray.value.set(settings.exitToTray);
     statsEnabled.value.set(settings.statsEnabled);
-    discordRpc.value.set(settings.discordRpc);
-    discordRpcShare.value.set(settings.discordRpcShare);
     minimizeOnSwitch.value.set(settings.minimizeOnSwitch);
     startTrayWithWindows.value.set(settings.startTrayWithWindows);
     startProgramCentered.value.set(settings.startProgramCentered);
     animationsEnabled.set(settings.animationsEnabled);
     animations.value.set(settings.animationsEnabled);
-    controllerSupport.value.set(applyControllerSupportEnabled(settings.controllerSupportEnabled));
     commandPaletteHotkey.set(normalizeCommandPaletteHotkey(settings.commandPaletteHotkey));
     currentVersion = settings.appVersion || "";
   }
@@ -237,12 +195,9 @@
     void protocol.init();
     void exitToTray.init();
     void statsEnabled.init();
-    void discordRpc.init();
-    void discordRpcShare.init();
     void minimizeOnSwitch.init();
     void startProgramCentered.init();
     void animations.init();
-    void controllerSupport.init();
     void loadCommandPaletteHotkey();
     void PlatformService.GetAppVersion()
       .then((v) => { currentVersion = v || ""; })
@@ -267,8 +222,6 @@
     try {
       await setUserOfflineMode(next);
       if (next) {
-        discordRpc.value.set(false);
-        discordRpcShare.value.set(false);
       }
     } catch (e) {
       pushToast({ type: "error", message: formatToastWithError($t("Toast_SaveFailed"), e), duration: 8000 });
@@ -578,13 +531,6 @@
     disabled={$animations.loading}
     on:change={() => void animations.toggle()}
   />
-  <SharedSettingCheckbox
-    id="settings-controller-support"
-    label={$t("Settings_ControllerSupport")}
-    checked={$controllerSupport.value}
-    disabled={$controllerSupport.loading}
-    on:change={() => void controllerSupport.toggle()}
-  />
 
   {#if isWindows}
     <SharedSettingCheckbox
@@ -623,20 +569,6 @@
       {$t("Settings_ViewStats")}
     </button>
   </div>
-  <SharedSettingCheckbox
-    id="gs-discord-rpc"
-    label={$t("Settings_DiscordRpc")}
-    checked={$discordRpc.value}
-    disabled={$discordRpc.loading || $offlineMode}
-    on:change={() => void discordRpc.toggle()}
-  />
-  <SharedSettingCheckbox
-    id="gs-discord-rpc-share"
-    label={$t("Settings_DiscordRpcShare")}
-    checked={$discordRpcShare.value}
-    disabled={$discordRpcShare.loading || $offlineMode || !$discordRpc.value}
-    on:change={() => void discordRpcShare.toggle()}
-  />
   </SettingsCard>
 
   <p class="sys__version">v{(currentVersion || "0.0.0").replace(/^v/, "")}</p>

@@ -13,7 +13,6 @@ import (
 	"steamswitch/internal/buildmode"
 	"steamswitch/internal/cli"
 	"steamswitch/internal/crashlog"
-	"steamswitch/internal/discordrpc"
 	"steamswitch/internal/ipc"
 	"steamswitch/internal/paths"
 	"steamswitch/internal/platform"
@@ -34,7 +33,6 @@ type RunGUIParams struct {
 	GuiSettings     platform.AppSettings
 	Services        []application.Service
 	Dispatch        *Dispatch
-	DiscordRPC      *discordrpc.Manager
 	StartupToast    string
 	EmbeddedAssets  fs.FS
 	TrayIconPNG     []byte
@@ -126,7 +124,6 @@ func RunGUI(params RunGUIParams) {
 	if err := stats.IncrementLaunchCount(); err != nil {
 		log.Printf("stats launch count: %v", err)
 	}
-	params.DiscordRPC.Start()
 
 	wailsLvl := ResolvedLogLevel(parsed)
 	if !parsed.LogLevelSet && wailsLvl < slog.LevelInfo {
@@ -181,7 +178,6 @@ func RunGUI(params RunGUIParams) {
 	var ipcStop func()
 	wailsApp.OnShutdown(func() {
 		wailsLogHandler.markShuttingDown()
-		params.DiscordRPC.Stop()
 		if ipcStop != nil {
 			ipcStop()
 		}

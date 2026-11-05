@@ -218,50 +218,12 @@ func (p *PlatformService) SetStatsEnabled(enabled bool) error {
 func (p *PlatformService) SetOfflineMode(enabled bool) error {
 	err := p.withSettingsWrite(func(s *AppSettings) error {
 		s.OfflineMode = enabled
-		if enabled {
-			s.DiscordRpc = false
-			s.DiscordRpcShare = false
-		}
 		return nil
 	})
 	if err != nil {
 		return err
 	}
 	appclient.SetOfflineMode(enabled)
-	TriggerDiscordPresenceRefresh()
-	return nil
-}
-
-func (p *PlatformService) SetDiscordRpc(enabled bool) error {
-	err := p.withSettingsWrite(func(s *AppSettings) error {
-		if s.OfflineMode {
-			enabled = false
-		}
-		s.DiscordRpc = enabled
-		if !enabled {
-			s.DiscordRpcShare = false
-		}
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	TriggerDiscordPresenceRefresh()
-	return nil
-}
-
-func (p *PlatformService) SetDiscordRpcShare(enabled bool) error {
-	err := p.withSettingsWrite(func(s *AppSettings) error {
-		if s.OfflineMode || !s.DiscordRpc {
-			enabled = false
-		}
-		s.DiscordRpcShare = enabled
-		return nil
-	})
-	if err != nil {
-		return err
-	}
-	TriggerDiscordPresenceRefresh()
 	return nil
 }
 

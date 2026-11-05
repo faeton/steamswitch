@@ -23,7 +23,6 @@
   import { formatToastWithError } from "../lib/formatWailsError";
   import type { Route } from "../stores/routeCodec";
   import { prefetchPage } from "../lib/pageLoaders";
-  import { controllerSpatialNavigation } from "../lib/actions/controllerSpatialNavigation";
   import PageHeader from "../components/PageHeader.svelte";
   import Icon from "../components/Icon.svelte";
   import HelpAboutModalBody from "../components/modals/HelpAboutModalBody.svelte";
@@ -251,7 +250,7 @@
   }
 </script>
 
-<div class="tools-page" use:controllerSpatialNavigation>
+<div class="tools-page">
   <PageHeader title={$t("Nav_Tools")} />
 
   <div class="tools-page__scroll">

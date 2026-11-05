@@ -167,6 +167,5 @@ func (Lifecycle) OnSwitchSucceeded(account sessionkit.AccountRef) {
 	if err := stats.IncrementSwitches("Steam"); err != nil {
 		steamLog.Warn("increment switch statistics", slog.Any("err", err))
 	}
-	platform.TriggerDiscordPresenceRefresh()
 	tray.MaybeHideMainWindow()
 }

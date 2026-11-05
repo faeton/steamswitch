@@ -2,7 +2,6 @@
  * Keyboard navigation for `.ctx-menu-root` menus (arrow keys, Enter/Space, Escape handled elsewhere).
  */
 
-import { getInputModality } from "./inputModality";
 
 const SEL_ROW = ":scope > li:not(.row-hidden):not(.ctx-sep)";
 
@@ -132,7 +131,7 @@ function firstNavigableInMenu(menuRoot: HTMLElement): HTMLElement | null {
   if (!rootUl) {
     return null;
   }
-  const col = navigableTargetsInColumn(rootUl, getInputModality() !== "controller");
+  const col = navigableTargetsInColumn(rootUl, true);
   return col[0] ?? null;
 }
 
@@ -155,7 +154,7 @@ function firstNavigableInSubmenu(liHasSubmenu: HTMLElement): HTMLElement | null 
   if (!sub) {
     return null;
   }
-  const items = navigableTargetsInColumn(sub, getInputModality() !== "controller");
+  const items = navigableTargetsInColumn(sub, true);
   return items[0] ?? null;
 }
 

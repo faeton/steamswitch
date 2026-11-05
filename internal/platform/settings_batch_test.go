@@ -1,37 +1,8 @@
 package platform
 
 import (
-	"encoding/json"
 	"testing"
 )
-
-func TestApplySettingsBatchUpdateOfflineDisablesDiscord(t *testing.T) {
-	on := true
-	settings := AppSettings{DiscordRpc: true, DiscordRpcShare: true}
-
-	effects := applySettingsBatchUpdate(&settings, SettingsBatchUpdate{OfflineMode: &on})
-
-	if !settings.OfflineMode || settings.DiscordRpc || settings.DiscordRpcShare {
-		t.Fatalf("offline update left settings inconsistent: %#v", settings)
-	}
-	if effects.offlineMode == nil || !*effects.offlineMode || !effects.discordPresenceRefresh || !effects.dirty {
-		t.Fatalf("offline update effects = %#v", effects)
-	}
-}
-
-func TestApplySettingsBatchUpdateGuardsDiscordShare(t *testing.T) {
-	on := true
-	settings := AppSettings{DiscordRpc: false}
-
-	effects := applySettingsBatchUpdate(&settings, SettingsBatchUpdate{DiscordRpcShare: &on})
-
-	if settings.DiscordRpcShare {
-		t.Fatal("discord share should stay disabled when Discord RPC is disabled")
-	}
-	if !effects.discordPresenceRefresh || !effects.dirty {
-		t.Fatalf("discord share effects = %#v", effects)
-	}
-}
 
 func TestApplySettingsBatchUpdateSanitizesThemeAndAccent(t *testing.T) {
 	theme := "New_Theme"
@@ -66,45 +37,6 @@ func TestApplySettingsBatchUpdateStatsEffect(t *testing.T) {
 	}
 	if effects.statsEnabled == nil || *effects.statsEnabled {
 		t.Fatalf("stats effect = %#v", effects.statsEnabled)
-	}
-}
-
-func TestControllerSupportDefaultsOnWhenMissing(t *testing.T) {
-	settings := AppSettings{}
-
-	normalizeAppSettingsDefaults(&settings, map[string]json.RawMessage{})
-
-	if !settings.ControllerSupportEnabled {
-		t.Fatal("ControllerSupportEnabled should default to true when the key is absent")
-	}
-}
-
-func TestControllerSupportPreservesExplicitFalse(t *testing.T) {
-	settings := AppSettings{ControllerSupportEnabled: false}
-
-	normalizeAppSettingsDefaults(&settings, map[string]json.RawMessage{
-		"controllerSupportEnabled": json.RawMessage("false"),
-	})
-
-	if settings.ControllerSupportEnabled {
-		t.Fatal("ControllerSupportEnabled should preserve explicit false")
-	}
-}
-
-func TestApplySettingsBatchUpdateControllerSupport(t *testing.T) {
-	off := false
-	settings := AppSettings{ControllerSupportEnabled: true}
-
-	effects := applySettingsBatchUpdate(&settings, SettingsBatchUpdate{ControllerSupportEnabled: &off})
-
-	if settings.ControllerSupportEnabled {
-		t.Fatal("ControllerSupportEnabled should be false")
-	}
-	if !effects.dirty {
-		t.Fatal("controller support update should mark settings dirty")
-	}
-	if effects.controllerSupport == nil || *effects.controllerSupport {
-		t.Fatalf("controller support effect = %#v, want explicit false", effects.controllerSupport)
 	}
 }
 

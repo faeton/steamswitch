@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   setInputModality,
-  markControllerInput,
-  getInputModality,
 } from "./inputModality";
 import {
   focusFirstNavigable,
@@ -288,20 +286,6 @@ describe("context menu keyboard navigation", () => {
     expect(document.activeElement).toBe(menu.search);
   });
 
-  it("skips the search field when controller focus first enters a menu", () => {
-    const menu = buildMenu();
-    setupGlobals();
-    markControllerInput("xbox");
-
-    focusFirstNavigable(menu.root as unknown as HTMLElement);
-    expect(document.activeElement).toBe(menu.alpha);
-
-    const up = keyboardEvent("ArrowUp");
-    expect(handleContextMenuKeydown(up, menu.root as unknown as HTMLElement, navDeps())).toBe(true);
-    expect(document.activeElement).toBe(menu.search);
-    expect(getInputModality()).toBe("controller");
-  });
-
   it("wraps ArrowUp from search to the last row in the menu column", () => {
     const menu = buildMenu();
     setupGlobals(menu.search);
@@ -336,20 +320,6 @@ describe("context menu keyboard navigation", () => {
     expect(deps.expandSubmenuForLi).toHaveBeenCalledWith(menu.parentLi);
     expect(document.activeElement).toBe(menu.submenuSearch);
     expect(event.preventDefault).toHaveBeenCalled();
-  });
-
-  it("skips submenu search when controller focus expands a submenu", () => {
-    const menu = buildMenu();
-    const deps = navDeps();
-    setupGlobals(menu.parentAction);
-    markControllerInput("xbox");
-    menu.parentAction.focus();
-
-    const event = keyboardEvent("ArrowRight");
-    expect(handleContextMenuKeydown(event, menu.root as unknown as HTMLElement, deps)).toBe(true);
-
-    expect(deps.expandSubmenuForLi).toHaveBeenCalledWith(menu.parentLi);
-    expect(document.activeElement).toBe(menu.submenuLeaf);
   });
 
   it("returns focus to the parent row with ArrowLeft from a submenu", () => {

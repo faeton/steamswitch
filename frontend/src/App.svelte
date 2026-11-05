@@ -59,8 +59,6 @@
     normalizeBackgroundFit,
   } from "./lib/backgroundDisplay";
   import { applyUserDataMoveProgress } from "./stores/userDataMove";
-  import { createControllerInputController } from "./lib/controllerInput";
-  import { controllerSupportEnabled, loadControllerSupportEnabled } from "./stores/controllerSupport";
   import { preventUnmodifiedBrowserContextMenu } from "./lib/actions/contextMenu";
   import { installAutoLock, loadVaultSecurityPrefs } from "./stores/autoLock";
 
@@ -286,11 +284,6 @@
       cleanupAnimationsClass();
       cleanupAnimationsClass = applyAnimationClass(enabled);
     });
-    const controllerInput = createControllerInputController();
-    const offControllerSupport = controllerSupportEnabled.subscribe((enabled) => {
-      controllerInput.setEnabled(enabled);
-    });
-    void loadControllerSupportEnabled();
     const offNav = Events.On("navigate", (ev) => {
       const raw = typeof ev.data === "string" ? ev.data : "";
       applyNavigateJSON(raw);
@@ -367,8 +360,6 @@
       offAutoLock();
       offAnimationsClass();
       cleanupAnimationsClass();
-      offControllerSupport();
-      controllerInput.destroy();
     };
   });
 </script>

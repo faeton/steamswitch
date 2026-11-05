@@ -45,10 +45,6 @@ type AppSettings struct {
 	// Stored without omitempty so false round-trips: omitted key plus normalize defaults would otherwise force true on load.
 	AnimationsEnabled bool `json:"animationsEnabled"`
 
-	// ControllerSupportEnabled controls app-wide gamepad polling.
-	// Stored without omitempty so false round-trips: omitted key plus normalize defaults would otherwise force true on load.
-	ControllerSupportEnabled bool `json:"controllerSupportEnabled"`
-
 	CommandPaletteHotkey string `json:"commandPaletteHotkey,omitempty"`
 
 	PlatformOrder []string `json:"platformOrder"`
@@ -67,13 +63,6 @@ type AppSettings struct {
 
 	// OfflineMode blocks outbound HTTP (avatars, Steam APIs, etc.) when true.
 	OfflineMode bool `json:"offlineMode,omitempty"`
-
-	// DiscordRpc enables Discord rich presence integration.
-	// Stored without omitempty so false round-trips: omitted key plus normalize defaults would otherwise force true on load.
-	DiscordRpc bool `json:"discordRpc"`
-
-	// DiscordRpcShare controls whether total switch count is shown in Discord status.
-	DiscordRpcShare bool `json:"discordRpcShare,omitempty"`
 
 	// ExitToTray keeps the app running when the main window is closed; the window is hidden instead.
 	ExitToTray bool `json:"exitToTray,omitempty"`
@@ -137,22 +126,19 @@ type AppBackgroundInfo struct {
 
 func defaultSettings() AppSettings {
 	return AppSettings{
-		Version:                  1,
-		Language:                 "en-US",
-		PlatformExePaths:         map[string]string{},
-		PlatformOrder:            nil,
-		DisabledPlatforms:        nil,
-		StatsEnabled:             true,
-		DiscordRpc:               true,
-		DiscordRpcShare:          false,
-		AnimationsEnabled:        true,
-		ControllerSupportEnabled: true,
-		CommandPaletteHotkey:     "Ctrl+K",
-		AppBgAlignment:           defaultBgAlignment,
-		AppBgFit:                 defaultBgFit,
-		VaultAutoLockMinutes:     DefaultVaultAutoLockMinutes,
-		VaultRevealSeconds:       DefaultVaultRevealSeconds,
-		VaultClearClipboard:      true,
+		Version:              1,
+		Language:             "en-US",
+		PlatformExePaths:     map[string]string{},
+		PlatformOrder:        nil,
+		DisabledPlatforms:    nil,
+		StatsEnabled:         true,
+		AnimationsEnabled:    true,
+		CommandPaletteHotkey: "Ctrl+K",
+		AppBgAlignment:       defaultBgAlignment,
+		AppBgFit:             defaultBgFit,
+		VaultAutoLockMinutes: DefaultVaultAutoLockMinutes,
+		VaultRevealSeconds:   DefaultVaultRevealSeconds,
+		VaultClearClipboard:  true,
 	}
 }
 
@@ -217,14 +203,8 @@ func normalizeAppSettingsDefaults(s *AppSettings, raw map[string]json.RawMessage
 	if _, ok := raw["statsEnabled"]; !ok {
 		s.StatsEnabled = true
 	}
-	if _, ok := raw["discordRpc"]; !ok {
-		s.DiscordRpc = true
-	}
 	if _, ok := raw["animationsEnabled"]; !ok {
 		s.AnimationsEnabled = true
-	}
-	if _, ok := raw["controllerSupportEnabled"]; !ok {
-		s.ControllerSupportEnabled = true
 	}
 	if _, ok := raw["vaultAutoLockMinutes"]; !ok {
 		s.VaultAutoLockMinutes = DefaultVaultAutoLockMinutes
@@ -242,13 +222,6 @@ func normalizeAppSettingsDefaults(s *AppSettings, raw map[string]json.RawMessage
 		s.PlatformBgs[key] = background
 	}
 	s.CommandPaletteHotkey = normalizeCommandPaletteHotkey(s.CommandPaletteHotkey)
-	if !s.DiscordRpc {
-		s.DiscordRpcShare = false
-	}
-	if s.OfflineMode {
-		s.DiscordRpc = false
-		s.DiscordRpcShare = false
-	}
 }
 
 func resolveSettingsSavePath(exeDir string, s AppSettings) (string, error) {
@@ -361,10 +334,8 @@ func saveSettingsAtomic(exeDir string, s AppSettings) error {
 		s.PlatformExePaths = map[string]string{}
 	}
 	normalizeAppSettingsDefaults(&s, map[string]json.RawMessage{
-		"animationsEnabled":        {},
-		"statsEnabled":             {},
-		"discordRpc":               {},
-		"controllerSupportEnabled": {},
+		"animationsEnabled": {},
+		"statsEnabled":      {},
 	})
 	path, err := resolveSettingsSavePath(exeDir, s)
 	if err != nil {

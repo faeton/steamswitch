@@ -87,24 +87,6 @@ func (p *PlatformService) GetStatsEnabled() (bool, error) {
 	return val, err
 }
 
-func (p *PlatformService) GetDiscordRpc() (bool, error) {
-	var val bool
-	err := p.withSettingsRead(func(s *AppSettings) error {
-		val = s.DiscordRpc
-		return nil
-	})
-	return val, err
-}
-
-func (p *PlatformService) GetDiscordRpcShare() (bool, error) {
-	var val bool
-	err := p.withSettingsRead(func(s *AppSettings) error {
-		val = s.DiscordRpc && s.DiscordRpcShare
-		return nil
-	})
-	return val, err
-}
-
 func (p *PlatformService) GetExitToTray() (bool, error) {
 	var val bool
 	err := p.withSettingsRead(func(s *AppSettings) error {

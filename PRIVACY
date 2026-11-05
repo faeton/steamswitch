@@ -25,7 +25,6 @@ disabled with Offline Mode (a transport-level block inside the app):
 - Optional game-statistics providers listed in `GameStats.json` — used only if you
   explicitly enable a game's stats for an account; the data source is shown when you
   enable it.
-- Discord Rich Presence talks only to your local Discord client, never the network.
 
 ## What is not there
 

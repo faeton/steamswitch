@@ -137,7 +137,6 @@ func swapToAccountLocked(steamID64 string, personaState int, extraLaunchArgs []s
 	if err := stats.IncrementSwitches("Steam"); err != nil {
 		return err
 	}
-	platform.TriggerDiscordPresenceRefresh()
 
 	if !st.AutoStart {
 		tray.MaybeHideMainWindow()

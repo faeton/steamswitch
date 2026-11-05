@@ -13,9 +13,7 @@ import (
 	"steamswitch/internal/appclient"
 	"steamswitch/internal/basic"
 	"steamswitch/internal/cli"
-	"steamswitch/internal/controllerinput"
 	"steamswitch/internal/crashlog"
-	"steamswitch/internal/discordrpc"
 	"steamswitch/internal/i18n"
 	"steamswitch/internal/ipc"
 	"steamswitch/internal/logsanitize"
@@ -41,12 +39,10 @@ var trayIconPNG []byte
 var trayTemplatePNG []byte
 
 var (
-	platformSvc   = &platform.PlatformService{}
-	basicSvc      = basic.NewBasicService(platformSvc)
-	steamSvc      = steam.NewSteamService()
-	controllerSvc = controllerinput.NewService()
-	securitySvc   = security.NewService()
-	discordRPC    = discordrpc.NewManager()
+	platformSvc = &platform.PlatformService{}
+	basicSvc    = basic.NewBasicService(platformSvc)
+	steamSvc    = steam.NewSteamService()
+	securitySvc = security.NewService()
 	// Constructed with a nil engine: bindings are generated from the type, but the engine
 	// itself needs the data root, which is not resolved until main(). The service resolves
 	// the process-wide engine lazily on first use.
@@ -61,7 +57,6 @@ func init() {
 
 	application.RegisterEvent[app.ToastPayload]("toast")
 	application.RegisterEvent[steam.SignInStatus](steam.SignInStatusEvent)
-	application.RegisterEvent[string](controllerinput.EventName)
 	application.RegisterEvent[steam.AccountPatch](steam.AccountUpdatedEvent)
 	application.RegisterEvent[string](platform.ActionBarStatusEvent)
 	application.RegisterEvent[shortcuts.ListPayload](shortcuts.UpdatedEvent)
@@ -79,8 +74,6 @@ func init() {
 		}
 		return steam.RestorePermitted(restore)
 	})
-	platform.SetControllerSupportChangedHook(controllerSvc.SetEnabled)
-	platform.SetDiscordPresenceRefreshHook(discordRPC.RefreshAsync)
 	platform.SetPlatformLaunchers(func() error { return steam.LaunchSteamOnly(nil) }, func(platformKey string) error {
 		return fmt.Errorf("unsupported platform: %s", platformKey)
 	})
@@ -225,7 +218,6 @@ func main() {
 		GuiSettings:     startupSettings,
 		Services:        serviceList(),
 		Dispatch:        disp,
-		DiscordRPC:      discordRPC,
 		StartupToast:    parsed.StartupToast,
 		EmbeddedAssets:  assets,
 		TrayIconPNG:     trayIconPNG,
@@ -238,7 +230,6 @@ func serviceList() []application.Service {
 		application.NewService(&FilesystemService{}),
 		application.NewService(platformSvc),
 		application.NewService(steamSvc),
-		application.NewService(controllerSvc),
 		application.NewService(basicSvc),
 		application.NewService(securitySvc),
 		application.NewService(sessionKitSvc),

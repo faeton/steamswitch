@@ -29,21 +29,18 @@ type PlatformStartup struct {
 	Theme                 string                          `json:"theme,omitempty"`
 	CliNavigateHint       string                          `json:"cliNavigateHint,omitempty"`
 
-	OfflineMode              bool   `json:"offlineMode"`
-	ProtocolEnabled          bool   `json:"protocolEnabled"`
-	ExitToTray               bool   `json:"exitToTray"`
-	DiscordRpc               bool   `json:"discordRpc"`
-	DiscordRpcShare          bool   `json:"discordRpcShare"`
-	MinimizeOnSwitch         bool   `json:"minimizeOnSwitch"`
-	StartTrayWithWindows     bool   `json:"startTrayWithWindows"`
-	StartProgramCentered     bool   `json:"startProgramCentered"`
-	AnimationsEnabled        bool   `json:"animationsEnabled"`
-	ControllerSupportEnabled bool   `json:"controllerSupportEnabled"`
-	StatsEnabled             bool   `json:"statsEnabled"`
-	CommandPaletteHotkey     string `json:"commandPaletteHotkey"`
-	ThemeAccentPreset        string `json:"themeAccentPreset"`
-	ThemeAccentCustom        string `json:"themeAccentCustom"`
-	AppVersion               string `json:"appVersion"`
+	OfflineMode          bool   `json:"offlineMode"`
+	ProtocolEnabled      bool   `json:"protocolEnabled"`
+	ExitToTray           bool   `json:"exitToTray"`
+	MinimizeOnSwitch     bool   `json:"minimizeOnSwitch"`
+	StartTrayWithWindows bool   `json:"startTrayWithWindows"`
+	StartProgramCentered bool   `json:"startProgramCentered"`
+	AnimationsEnabled    bool   `json:"animationsEnabled"`
+	StatsEnabled         bool   `json:"statsEnabled"`
+	CommandPaletteHotkey string `json:"commandPaletteHotkey"`
+	ThemeAccentPreset    string `json:"themeAccentPreset"`
+	ThemeAccentCustom    string `json:"themeAccentCustom"`
+	AppVersion           string `json:"appVersion"`
 }
 
 // PlatformTagCountInfo is a per-platform tag statistic (used in startup skeleton hints).
@@ -104,27 +101,24 @@ func (p *PlatformService) GetStartup() (PlatformStartup, error) {
 	if err != nil {
 		if os.IsNotExist(err) {
 			return PlatformStartup{
-				Language:                 settings.Language,
-				Theme:                    sanitizeThemeID(settings.Theme),
-				PlatformsFileMissing:     true,
-				PlatformAccountCounts:    map[string]int{},
-				PlatformTagCounts:        map[string]PlatformTagCountInfo{},
-				CliNavigateHint:          ConsumeStartupNavigateHint(),
-				OfflineMode:              settings.OfflineMode,
-				ProtocolEnabled:          settings.ProtocolEnabled,
-				ExitToTray:               settings.ExitToTray,
-				DiscordRpc:               settings.DiscordRpc,
-				DiscordRpcShare:          settings.DiscordRpcShare,
-				MinimizeOnSwitch:         settings.MinimizeOnSwitch,
-				StartTrayWithWindows:     settings.StartTrayWithWindows,
-				StartProgramCentered:     settings.StartProgramCentered,
-				AnimationsEnabled:        settings.AnimationsEnabled,
-				ControllerSupportEnabled: settings.ControllerSupportEnabled,
-				StatsEnabled:             settings.StatsEnabled,
-				CommandPaletteHotkey:     settings.CommandPaletteHotkey,
-				ThemeAccentPreset:        settings.ThemeAccentPreset,
-				ThemeAccentCustom:        settings.ThemeAccentCustom,
-				AppVersion:               appVersionFromBuildConfig(),
+				Language:              settings.Language,
+				Theme:                 sanitizeThemeID(settings.Theme),
+				PlatformsFileMissing:  true,
+				PlatformAccountCounts: map[string]int{},
+				PlatformTagCounts:     map[string]PlatformTagCountInfo{},
+				CliNavigateHint:       ConsumeStartupNavigateHint(),
+				OfflineMode:           settings.OfflineMode,
+				ProtocolEnabled:       settings.ProtocolEnabled,
+				ExitToTray:            settings.ExitToTray,
+				MinimizeOnSwitch:      settings.MinimizeOnSwitch,
+				StartTrayWithWindows:  settings.StartTrayWithWindows,
+				StartProgramCentered:  settings.StartProgramCentered,
+				AnimationsEnabled:     settings.AnimationsEnabled,
+				StatsEnabled:          settings.StatsEnabled,
+				CommandPaletteHotkey:  settings.CommandPaletteHotkey,
+				ThemeAccentPreset:     settings.ThemeAccentPreset,
+				ThemeAccentCustom:     settings.ThemeAccentCustom,
+				AppVersion:            appVersionFromBuildConfig(),
 			}, nil
 		}
 		return PlatformStartup{}, err
@@ -152,30 +146,27 @@ func (p *PlatformService) GetStartup() (PlatformStartup, error) {
 	accountCounts := resolveStartupAccountCounts(names, settings.StatsEnabled)
 	tagCounts := resolveStartupTagCounts(names, settings.StatsEnabled)
 	return PlatformStartup{
-		HomePlatformOrder:        home,
-		AllPlatformNames:         names,
-		DisabledPlatformNames:    disList,
-		PlatformsFileMissing:     false,
-		PlatformAccountCounts:    accountCounts,
-		PlatformTagCounts:        tagCounts,
-		Language:                 settings.Language,
-		Theme:                    sanitizeThemeID(settings.Theme),
-		CliNavigateHint:          nav,
-		OfflineMode:              settings.OfflineMode,
-		ProtocolEnabled:          settings.ProtocolEnabled,
-		ExitToTray:               settings.ExitToTray,
-		DiscordRpc:               settings.DiscordRpc,
-		DiscordRpcShare:          settings.DiscordRpcShare,
-		MinimizeOnSwitch:         settings.MinimizeOnSwitch,
-		StartTrayWithWindows:     settings.StartTrayWithWindows,
-		StartProgramCentered:     settings.StartProgramCentered,
-		AnimationsEnabled:        settings.AnimationsEnabled,
-		ControllerSupportEnabled: settings.ControllerSupportEnabled,
-		StatsEnabled:             settings.StatsEnabled,
-		CommandPaletteHotkey:     settings.CommandPaletteHotkey,
-		ThemeAccentPreset:        settings.ThemeAccentPreset,
-		ThemeAccentCustom:        settings.ThemeAccentCustom,
-		AppVersion:               appVersionFromBuildConfig(),
+		HomePlatformOrder:     home,
+		AllPlatformNames:      names,
+		DisabledPlatformNames: disList,
+		PlatformsFileMissing:  false,
+		PlatformAccountCounts: accountCounts,
+		PlatformTagCounts:     tagCounts,
+		Language:              settings.Language,
+		Theme:                 sanitizeThemeID(settings.Theme),
+		CliNavigateHint:       nav,
+		OfflineMode:           settings.OfflineMode,
+		ProtocolEnabled:       settings.ProtocolEnabled,
+		ExitToTray:            settings.ExitToTray,
+		MinimizeOnSwitch:      settings.MinimizeOnSwitch,
+		StartTrayWithWindows:  settings.StartTrayWithWindows,
+		StartProgramCentered:  settings.StartProgramCentered,
+		AnimationsEnabled:     settings.AnimationsEnabled,
+		StatsEnabled:          settings.StatsEnabled,
+		CommandPaletteHotkey:  settings.CommandPaletteHotkey,
+		ThemeAccentPreset:     settings.ThemeAccentPreset,
+		ThemeAccentCustom:     settings.ThemeAccentCustom,
+		AppVersion:            appVersionFromBuildConfig(),
 	}, nil
 }
 
@@ -184,22 +175,19 @@ func (p *PlatformService) ReadSettings() (PlatformStartup, error) {
 }
 
 type SettingsBatchUpdate struct {
-	OfflineMode              *bool   `json:"offlineMode,omitempty"`
-	ProtocolEnabled          *bool   `json:"protocolEnabled,omitempty"`
-	ExitToTray               *bool   `json:"exitToTray,omitempty"`
-	DiscordRpc               *bool   `json:"discordRpc,omitempty"`
-	DiscordRpcShare          *bool   `json:"discordRpcShare,omitempty"`
-	MinimizeOnSwitch         *bool   `json:"minimizeOnSwitch,omitempty"`
-	StartTrayWithWindows     *bool   `json:"startTrayWithWindows,omitempty"`
-	StartProgramCentered     *bool   `json:"startProgramCentered,omitempty"`
-	AnimationsEnabled        *bool   `json:"animationsEnabled,omitempty"`
-	ControllerSupportEnabled *bool   `json:"controllerSupportEnabled,omitempty"`
-	StatsEnabled             *bool   `json:"statsEnabled,omitempty"`
-	Language                 *string `json:"language,omitempty"`
-	Theme                    *string `json:"theme,omitempty"`
-	ThemeAccentPreset        *string `json:"themeAccentPreset,omitempty"`
-	ThemeAccentCustom        *string `json:"themeAccentCustom,omitempty"`
-	CommandPaletteHotkey     *string `json:"commandPaletteHotkey,omitempty"`
+	OfflineMode          *bool   `json:"offlineMode,omitempty"`
+	ProtocolEnabled      *bool   `json:"protocolEnabled,omitempty"`
+	ExitToTray           *bool   `json:"exitToTray,omitempty"`
+	MinimizeOnSwitch     *bool   `json:"minimizeOnSwitch,omitempty"`
+	StartTrayWithWindows *bool   `json:"startTrayWithWindows,omitempty"`
+	StartProgramCentered *bool   `json:"startProgramCentered,omitempty"`
+	AnimationsEnabled    *bool   `json:"animationsEnabled,omitempty"`
+	StatsEnabled         *bool   `json:"statsEnabled,omitempty"`
+	Language             *string `json:"language,omitempty"`
+	Theme                *string `json:"theme,omitempty"`
+	ThemeAccentPreset    *string `json:"themeAccentPreset,omitempty"`
+	ThemeAccentCustom    *string `json:"themeAccentCustom,omitempty"`
+	CommandPaletteHotkey *string `json:"commandPaletteHotkey,omitempty"`
 }
 
 func (p *PlatformService) UpdateSettings(req SettingsBatchUpdate) error {
@@ -225,12 +213,6 @@ func (p *PlatformService) UpdateSettings(req SettingsBatchUpdate) error {
 	}
 	if effects.offlineMode != nil {
 		appclient.SetOfflineMode(*effects.offlineMode)
-	}
-	if effects.controllerSupport != nil {
-		TriggerControllerSupportChanged(*effects.controllerSupport)
-	}
-	if effects.discordPresenceRefresh {
-		TriggerDiscordPresenceRefresh()
 	}
 	return nil
 }
