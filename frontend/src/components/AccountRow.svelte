@@ -144,7 +144,11 @@
 
     <span class="row__text">
       <span class="row__name-line">
-        <span class="row__name" title={label}>{label}</span>
+        <span
+          class="row__name"
+          class:row__name--local={!!account.steamName}
+          title={account.steamName ? $t("Account_LocalName_Title", { name: account.steamName }) : label}
+        >{label}</span>
         {#if account.tags?.length}
           <AccountTagBubbles tags={account.tags} maxVisible={2} />
         {/if}
@@ -269,6 +273,10 @@
     align-items: center;
     gap: var(--space-3);
     min-width: 0;
+  }
+
+  .row__name.row__name--local {
+    color: var(--accent-text-bright, var(--accent));
   }
 
   .row__name {

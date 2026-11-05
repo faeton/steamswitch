@@ -34,6 +34,7 @@ type AccountDTO struct {
 	PersonaName    string `json:"personaName"`
 	AccountName    string `json:"accountName"`
 	DisplayName    string `json:"displayName"`
+	SteamName      string `json:"steamName"`
 	LastLogin      string `json:"lastLogin"`
 	Offline        bool   `json:"offline"`
 	ImageURL       string `json:"imageUrl"`

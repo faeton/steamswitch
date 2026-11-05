@@ -22,6 +22,27 @@ export function computeViewportDropdownLayout(
   };
 }
 
+/** True when a menu opening rightwards from its trigger would run past the edge it has to fit in. */
+export function dropdownNeedsRightAlign(
+  trigger: Pick<DOMRect, "left">,
+  menuWidth: number,
+  rightEdge: number,
+): boolean {
+  return trigger.left + menuWidth > rightEdge - VIEWPORT_MARGIN;
+}
+
+/** The right edge of whatever would scroll or clip this menu. */
+function clippingRightEdge(node: HTMLElement): number {
+  let edge = window.innerWidth || document.documentElement.clientWidth;
+  for (let el = node.parentElement; el; el = el.parentElement) {
+    const overflow = getComputedStyle(el);
+    if (overflow.overflowX !== "visible" || overflow.overflowY !== "visible") {
+      edge = Math.min(edge, el.getBoundingClientRect().right);
+    }
+  }
+  return edge;
+}
+
 export function applyViewportDropdownLayout(
   style: Pick<CSSStyleDeclaration, "setProperty">,
   layout: ViewportDropdownLayout,
@@ -46,6 +67,14 @@ export function viewportDropdown(node: HTMLElement) {
     });
 
     applyViewportDropdownLayout(node.style, layout);
+
+    const rightAlign = dropdownNeedsRightAlign(
+      trigger.getBoundingClientRect(),
+      node.getBoundingClientRect().width,
+      clippingRightEdge(node),
+    );
+    node.style.setProperty("left", rightAlign ? "auto" : "0", "important");
+    node.style.setProperty("right", rightAlign ? "0" : "auto", "important");
   }
 
   function schedule(): void {

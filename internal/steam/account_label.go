@@ -20,6 +20,15 @@ func labelOr(labels map[string]string, steamID64, fallback string) string {
 	return fallback
 }
 
+// steamNameBehindLabel gives the Steam name when a label hides it, so the UI can mark the label as
+// local and still say who the account is on Steam. Empty means no label.
+func steamNameBehindLabel(labels map[string]string, steamID64, steamName string) string {
+	if labelOr(labels, steamID64, "") == "" {
+		return ""
+	}
+	return steamName
+}
+
 // withAccountLabel returns the labels with this account's set, or cleared by an empty name.
 func withAccountLabel(labels map[string]string, steamID64, name string) (map[string]string, error) {
 	name = strings.TrimSpace(name)

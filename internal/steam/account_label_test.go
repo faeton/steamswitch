@@ -17,6 +17,16 @@ func TestLabelOr(t *testing.T) {
 	}
 }
 
+func TestSteamNameBehindLabel(t *testing.T) {
+	labels := map[string]string{"1": "Smurf 2"}
+	if got := steamNameBehindLabel(labels, "1", "Crybaby"); got != "Crybaby" {
+		t.Errorf("labelled: got %q", got)
+	}
+	if got := steamNameBehindLabel(labels, "2", "Akamai"); got != "" {
+		t.Errorf("no label: got %q", got)
+	}
+}
+
 func TestWithAccountLabel(t *testing.T) {
 	before := map[string]string{"1": "Old"}
 	set, err := withAccountLabel(before, "2", " New ")

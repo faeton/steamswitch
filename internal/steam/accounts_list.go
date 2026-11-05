@@ -18,6 +18,8 @@ type SteamAccountListItemDTO struct {
 	SteamID64      string `json:"steamId64"`
 	PersonaName    string `json:"personaName"`
 	DisplayName    string `json:"displayName"`
+	// SteamName is the Steam name behind a local label, and empty when there is no label.
+	SteamName      string `json:"steamName"`
 	AccountName    string `json:"accountName"`
 	CurrentSession bool   `json:"currentSession"`
 	// NoStoredLogin: Steam holds no login token for this account, so switching to it ends at a
@@ -30,6 +32,7 @@ type SteamAccountEnrichmentDTO struct {
 	SteamID64 string `json:"steamId64"`
 
 	DisplayName        string                `json:"displayName"`
+	SteamName          string                `json:"steamName"`
 	LastLogin          string                `json:"lastLogin"`
 	Offline            bool                  `json:"offline"`
 	ImageURL           string                `json:"imageUrl"`
@@ -182,6 +185,7 @@ func (s *SteamService) GetSteamAccountsList() (SteamAccountListDTO, error) {
 			SteamID64:      u.SteamID64,
 			PersonaName:    persona,
 			DisplayName:    labelOr(ctx.st.AccountLabels, u.SteamID64, persona),
+			SteamName:      steamNameBehindLabel(ctx.st.AccountLabels, u.SteamID64, persona),
 			AccountName:    strings.TrimSpace(u.AccountName),
 			CurrentSession: ctx.activeSteamID != "" && u.SteamID64 == ctx.activeSteamID,
 			NoStoredLogin:  ctx.noStoredLogin[strings.ToLower(strings.TrimSpace(u.AccountName))],
@@ -232,11 +236,13 @@ func (s *SteamService) GetSteamAccountsEnrichment() ([]SteamAccountEnrichmentDTO
 		if displayName == "" {
 			displayName = displayPersona(u)
 		}
+		steamName := steamNameBehindLabel(ctx.st.AccountLabels, u.SteamID64, displayName)
 		displayName = labelOr(ctx.st.AccountLabels, u.SteamID64, displayName)
 
 		out = append(out, SteamAccountEnrichmentDTO{
 			SteamID64:          u.SteamID64,
 			DisplayName:        displayName,
+			SteamName:          steamName,
 			LastLogin:          formatLastLogin(u.Timestamp),
 			Offline:            strings.TrimSpace(u.WantsOffline) == "1",
 			ImageURL:           displayURL,
@@ -270,6 +276,7 @@ func mergeSteamAccountDTO(list SteamAccountListItemDTO, enrich SteamAccountEnric
 		PersonaName:        list.PersonaName,
 		AccountName:        list.AccountName,
 		DisplayName:        enrich.DisplayName,
+		SteamName:          enrich.SteamName,
 		LastLogin:          enrich.LastLogin,
 		Offline:            enrich.Offline,
 		ImageURL:           enrich.ImageURL,

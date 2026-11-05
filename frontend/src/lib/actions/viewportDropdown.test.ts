@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyViewportDropdownLayout, computeViewportDropdownLayout } from "./viewportDropdown";
+import { applyViewportDropdownLayout, computeViewportDropdownLayout, dropdownNeedsRightAlign } from "./viewportDropdown";
 
 describe("viewport dropdown layout", () => {
   it("opens above a trigger near the bottom of the viewport", () => {
@@ -53,5 +53,12 @@ describe("viewport dropdown layout", () => {
       ["bottom", "auto", "important"],
       ["max-height", "360px", ""],
     ]);
+  });
+});
+
+describe("dropdownNeedsRightAlign", () => {
+  it("flips only when the menu would pass the edge", () => {
+    expect(dropdownNeedsRightAlign({ left: 500 }, 200, 800)).toBe(false);
+    expect(dropdownNeedsRightAlign({ left: 700 }, 200, 800)).toBe(true);
   });
 });

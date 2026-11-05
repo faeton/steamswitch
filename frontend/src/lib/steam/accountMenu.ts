@@ -118,6 +118,10 @@ export function buildAccountMenu(deps: AccountMenuDeps): MenuItemDef[] {
     },
     { type: "separator" },
     {
+      label: t("Context_ChangeName"),
+      action: () => void renameAccount(deps),
+    },
+    {
       label: t("Context_CopyIds"),
       children: [
         { label: t("Context_CommunityUrl"), action: () => void copyCommunityUrl(deps) },
@@ -185,10 +189,6 @@ export function buildAccountMenu(deps: AccountMenuDeps): MenuItemDef[] {
           onSuccess: () => {},
           onError: (e) => deps.onError(t("Toast_SaveFailed"), e),
         }),
-        {
-          label: t("Context_ChangeName"),
-          action: () => void renameAccount(deps),
-        },
         {
           label: t("Context_AccountNote"),
           action: () => void editNote(deps),

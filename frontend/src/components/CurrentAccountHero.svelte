@@ -139,7 +139,11 @@
     <div class="hero__identity">
       <SteamAccountAvatar {account} epoch={avatarEpoch} fallback="/img/BasicDefault.webp" />
       <div class="hero__lead">
-        <div class="hero__name" title={label}>{label}</div>
+        <div
+          class="hero__name"
+          class:hero__name--local={!!account?.steamName}
+          title={account?.steamName ? $t("Account_LocalName_Title", { name: account.steamName }) : label}
+        >{label}</div>
         <div class="hero__meta">
           <span class="hero__login" class:hero__login--warn={loginCopy.warn}>
             {#if loginCopy.warn}<Icon name="warn" size={13} />{/if}
@@ -258,6 +262,10 @@
     flex-direction: column;
     gap: var(--space-1);
     min-width: 0;
+  }
+
+  .hero__name.hero__name--local {
+    color: var(--accent-text-bright, var(--accent));
   }
 
   .hero__name {

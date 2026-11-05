@@ -273,6 +273,7 @@
           steamId64: r.steamId64,
           personaName: r.personaName,
           displayName: r.displayName,
+          steamName: r.steamName,
           accountName: r.accountName,
           currentSession: r.currentSession ?? false,
           noStoredLogin: r.noStoredLogin ?? false,
