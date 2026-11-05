@@ -40,18 +40,6 @@ func TestParseRunAppIDSteam(t *testing.T) {
 	}
 }
 
-func TestParseRunAppIDRequiresSteam(t *testing.T) {
-	idx := &PlatformIndex{
-		Names:             map[string]string{"steam": "Steam", "epic": "Epic Games"},
-		FirstIdentifier:   map[string]string{"e": "Epic Games"},
-		IdentifierAliases: map[string]string{"e": "Epic Games", "epic": "Epic Games"},
-	}
-	_, err := Parse([]string{"+e:someid", "--run-appid=123"}, idx)
-	if err == nil || !strings.Contains(err.Error(), "--run-appid requires") {
-		t.Fatalf("want error, got %v", err)
-	}
-}
-
 func TestParsePlusTokenAcceptsAnyIdentifierAlias(t *testing.T) {
 	idx := &PlatformIndex{
 		Names:             map[string]string{"steam": "Steam"},

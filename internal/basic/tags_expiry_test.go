@@ -48,48 +48,8 @@ func TestPruneExpiredTagsInFileRemovesExpiredAssignments(t *testing.T) {
 	}
 }
 
-func TestBuildAccountListContextPrunesExpiredTagsOnLoad(t *testing.T) {
-	newFlowTestEnv(t)
-	now := time.Now().UTC()
-	if err := writeIdsFile("TestPlatform", idsFile{
-		IDs:      map[string]string{"u1": "One"},
-		LastUsed: map[string]string{},
-		Tags: map[string]tagFileEntry{
-			"expired": {Name: "Expired", Color: "#111111", ExpiresAt: now.Add(-time.Hour).Format(time.RFC3339)},
-		},
-		AccountTags: map[string][]string{
-			"u1": {"expired"},
-		},
-	}); err != nil {
-		t.Fatalf("write ids: %v", err)
-	}
-
-	svc := &BasicService{}
-	ctx, err := svc.buildAccountListContext("TestPlatform")
-	if err != nil {
-		t.Fatalf("buildAccountListContext: %v", err)
-	}
-	if ctx == nil {
-		t.Fatalf("buildAccountListContext returned nil context")
-	}
-	if got := resolveTagsForAccount(ctx.idf, "u1"); len(got) != 0 {
-		t.Fatalf("resolved tags = %#v, want empty after prune", got)
-	}
-
-	f, err := readIdsFile("TestPlatform")
-	if err != nil {
-		t.Fatalf("read ids: %v", err)
-	}
-	if len(f.Tags) != 0 {
-		t.Fatalf("Tags = %#v, want pruned on load", f.Tags)
-	}
-	if len(f.AccountTags) != 0 {
-		t.Fatalf("AccountTags = %#v, want pruned on load", f.AccountTags)
-	}
-}
-
 func TestBuildAccountTagMapPrunesExpiredGlobalTagFromAllAccounts(t *testing.T) {
-	newFlowTestEnv(t)
+	resetDataPathsForTest(t)
 	expired := time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)
 	if err := writeIdsFile("Steam", idsFile{
 		IDs:      map[string]string{},
@@ -126,7 +86,7 @@ func TestBuildAccountTagMapPrunesExpiredGlobalTagFromAllAccounts(t *testing.T) {
 }
 
 func TestSetTagExpiryStoresAccountAndGlobalExpiry(t *testing.T) {
-	newFlowTestEnv(t)
+	resetDataPathsForTest(t)
 	if err := writeIdsFile("TestPlatform", idsFile{
 		IDs:      map[string]string{"u1": "One"},
 		LastUsed: map[string]string{},
@@ -183,7 +143,7 @@ func TestSetTagExpiryStoresAccountAndGlobalExpiry(t *testing.T) {
 }
 
 func TestRemoveTagFromAllAccountsPrunesDefinitionAndExpiries(t *testing.T) {
-	newFlowTestEnv(t)
+	resetDataPathsForTest(t)
 	if err := writeIdsFile("TestPlatform", idsFile{
 		IDs:      map[string]string{"u1": "One", "u2": "Two"},
 		LastUsed: map[string]string{},
@@ -226,7 +186,7 @@ func TestRemoveTagFromAllAccountsPrunesDefinitionAndExpiries(t *testing.T) {
 }
 
 func TestApplySpecialTagCS2DropClaimedCreatesOrReusesTag(t *testing.T) {
-	newFlowTestEnv(t)
+	resetDataPathsForTest(t)
 	if err := writeIdsFile("TestPlatform", idsFile{
 		IDs:      map[string]string{"u1": "One", "u2": "Two"},
 		LastUsed: map[string]string{},
@@ -273,7 +233,7 @@ func TestApplySpecialTagCS2DropClaimedCreatesOrReusesTag(t *testing.T) {
 }
 
 func TestApplySpecialTagAllowsSteamIDAssignmentWithoutGenericIDEntry(t *testing.T) {
-	newFlowTestEnv(t)
+	resetDataPathsForTest(t)
 	if err := writeIdsFile("Steam", idsFile{
 		IDs:      map[string]string{},
 		LastUsed: map[string]string{},

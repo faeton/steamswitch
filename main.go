@@ -68,8 +68,6 @@ func init() {
 	application.RegisterEvent[steam.SignInStatus](steam.SignInStatusEvent)
 	application.RegisterEvent[string](controllerinput.EventName)
 	application.RegisterEvent[steam.AccountPatch](steam.AccountUpdatedEvent)
-	application.RegisterEvent[basic.AccountImagePatch](basic.AccountImageUpdatedEvent)
-	application.RegisterEvent[basic.GameStatsUpdatedPatch](basic.GameStatsUpdatedEvent)
 	application.RegisterEvent[string](platform.ActionBarStatusEvent)
 	application.RegisterEvent[shortcuts.ListPayload](shortcuts.UpdatedEvent)
 	application.RegisterEvent[shortcuts.FilesDroppedPayload](shortcuts.FilesDroppedEvent)
@@ -93,10 +91,10 @@ func init() {
 	platform.SetControllerSupportChangedHook(controllerSvc.SetEnabled)
 	platform.SetDiscordPresenceRefreshHook(discordRPC.RefreshAsync)
 	platform.SetPlatformLaunchers(func() error { return steam.LaunchSteamOnly(nil) }, func(platformKey string) error {
-		return basic.LaunchBasic(basic.FlowDeps{PS: platformSvc}, platformKey, nil)
+		return fmt.Errorf("unsupported platform: %s", platformKey)
 	})
 	platform.SetPlatformLaunchAs(func(forceAdmin bool) error { return steam.LaunchSteamOnlyAs(forceAdmin, nil) }, func(platformKey string, forceAdmin bool) error {
-		return basic.LaunchBasicAs(basic.FlowDeps{PS: platformSvc}, platformKey, forceAdmin, nil)
+		return fmt.Errorf("unsupported platform: %s", platformKey)
 	})
 	security.SetStatusChangedHook(func() {
 		if security.VaultLocked() {
@@ -105,7 +103,6 @@ func init() {
 			// Locking must remove the secrets, not merely refuse to render them.
 			vault.DropCache()
 		} else {
-			basic.SyncAllTrayKnownAccounts()
 			steam.SyncTrayKnownAccounts()
 			refreshVaultInputs()
 		}

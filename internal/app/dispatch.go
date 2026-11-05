@@ -214,11 +214,6 @@ func (d *Dispatch) RunHeadless(p cli.Parsed) error {
 			return err
 		}
 		return d.LaunchAfterSwap(p)
-	case cli.KindSwapBasic:
-		if err := d.commandAdapter(p.PlatformKey).Swap(p.UniqueID, -1, p.PassthroughLaunchArgs); err != nil {
-			return err
-		}
-		return d.LaunchAfterSwap(p)
 	case cli.KindLogout:
 		return d.RunLogout(p)
 	default:

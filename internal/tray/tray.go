@@ -26,9 +26,8 @@ import (
 	_ "image/jpeg"
 )
 
-// Deps wires the tray to swap backends without import cycles.
+// Deps wires the tray to the swap backend without an import cycle.
 type Deps struct {
-	SwapBasic func(platformKey, uniqueID string) error
 	SwapSteam func(steamID64 string, personaState int) error
 	// CurrentSteamID names the account Steam is set to sign in to, or "" if unknown.
 	CurrentSteamID func() string
@@ -300,18 +299,6 @@ func (m *Manager) handleAccountClick(platformKey, arg string) error {
 			return fmt.Errorf("steam swap not wired")
 		}
 		return m.deps.SwapSteam(id, -1)
-	}
-	if strings.HasPrefix(arg, "+") {
-		rest := strings.TrimPrefix(arg, "+")
-		i := strings.Index(rest, ":")
-		if i <= 0 || i >= len(rest)-1 {
-			return fmt.Errorf("bad tray arg")
-		}
-		uid := strings.TrimSpace(rest[i+1:])
-		if m.deps.SwapBasic == nil {
-			return fmt.Errorf("basic swap not wired")
-		}
-		return m.deps.SwapBasic(platformKey, uid)
 	}
 	return fmt.Errorf("unrecognized tray arg")
 }

@@ -3,7 +3,7 @@ package basic
 import "testing"
 
 func TestAddTagToAccountsCreatesOrReusesTag(t *testing.T) {
-	newFlowTestEnv(t)
+	resetDataPathsForTest(t)
 	if err := writeIdsFile("TestPlatform", idsFile{
 		IDs: map[string]string{
 			"u1": "One",
@@ -45,7 +45,7 @@ func TestAddTagToAccountsCreatesOrReusesTag(t *testing.T) {
 }
 
 func TestClearAccountTagsPrunesDefinitions(t *testing.T) {
-	newFlowTestEnv(t)
+	resetDataPathsForTest(t)
 	if err := writeIdsFile("TestPlatform", idsFile{
 		IDs:      map[string]string{"u1": "One", "u2": "Two"},
 		LastUsed: map[string]string{},

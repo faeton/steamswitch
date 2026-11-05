@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"steamswitch/internal/basic"
 	"steamswitch/internal/buildmode"
 	"steamswitch/internal/cli"
 	"steamswitch/internal/crashlog"
@@ -227,9 +226,6 @@ func RunGUI(params RunGUIParams) {
 	})
 
 	trayMgr := tray.NewManager(wailsApp, win, tray.Deps{
-		SwapBasic: func(platformKey, uniqueID string) error {
-			return disp.BasicSvc.SwapToAccount(platformKey, uniqueID, nil)
-		},
 		SwapSteam: func(steamID64 string, personaState int) error {
 			return disp.SteamSvc.SwapToSteamAccount(steamID64, personaState, nil)
 		},
@@ -244,22 +240,10 @@ func RunGUI(params RunGUIParams) {
 	trayMgr.RegisterCloseHook()
 	tray.SetMenuRefresh(trayMgr.RefreshMenu)
 	if !security.AppLocked() {
-		basic.SyncAllTrayKnownAccounts()
 		steam.SyncTrayKnownAccounts()
 	}
 	trayMgr.Start(params.TrayIconPNG, params.TrayTemplatePNG)
 
-	basic.SetLiveAccountIDResolver(func(platformKey string) (string, error) {
-		if strings.EqualFold(strings.TrimSpace(platformKey), "Steam") {
-			return steam.CurrentLiveSteamID64()
-		}
-		return basic.CurrentLiveUniqueID(basic.FlowDeps{PS: params.Dispatch.PlatformSvc}, platformKey)
-	})
-	// The game-stats monitor is deliberately not started. Its configuration UI went with the
-	// old account page, so nothing calls StartGameStatsRefresh any more and the platform it
-	// polls for is never set — the ticker woke every five minutes and returned immediately.
-	// Leaving it running was a standing invitation to re-arm a scraper by accident. See
-	// TODO.md for the keep-or-delete decision on the subsystem itself.
 	steam.StartSteamAppListMonitor()
 	params.Dispatch.SteamSvc.StartAutoRefreshScheduler()
 	// GUI only, and deliberately not in main(): the vault's scheduler logs in to Steam
@@ -360,14 +344,6 @@ func dispatchCLIInGUI(app *application.App, p cli.Parsed, disp *Dispatch) {
 	case cli.KindSwapSteam:
 		if err := disp.SteamSvc.SwapToSteamAccount(p.SteamID64, p.PersonaState, p.PassthroughLaunchArgs); err != nil {
 			EmitToast("error", "Steam", "i18n:"+err.Error(), 0)
-			return
-		}
-		if err := disp.LaunchAfterSwap(p); err != nil {
-			EmitToast("error", "i18n:Button_Launch", "i18n:"+err.Error(), 0)
-		}
-	case cli.KindSwapBasic:
-		if err := basic.SwapTo(basic.FlowDeps{PS: disp.PlatformSvc}, p.PlatformKey, p.UniqueID, p.PassthroughLaunchArgs); err != nil {
-			EmitToast("error", "i18n:CLI_Swap", "i18n:"+err.Error(), 0)
 			return
 		}
 		if err := disp.LaunchAfterSwap(p); err != nil {

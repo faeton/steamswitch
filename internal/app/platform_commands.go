@@ -3,8 +3,6 @@ package app
 import (
 	"strings"
 
-	"steamswitch/internal/basic"
-	"steamswitch/internal/platform"
 	"steamswitch/internal/steam"
 )
 
@@ -42,48 +40,6 @@ func (a steamCommandAdapter) Logout() error {
 	return a.svc.SteamAddNew()
 }
 
-type basicCommandAdapter struct {
-	platformKey string
-	basicSvc    *basic.BasicService
-	platformSvc *platform.PlatformService
-}
-
-func (a basicCommandAdapter) AccountRows() ([]ListAccountRow, error) {
-	accs, err := a.basicSvc.GetAccounts(a.platformKey)
-	if err != nil {
-		return nil, err
-	}
-	out := make([]ListAccountRow, 0, len(accs))
-	for _, account := range accs {
-		out = append(out, ListAccountRow{
-			UniqueID:     account.UniqueID,
-			DisplayName:  strings.TrimSpace(account.DisplayName),
-			LastLoggedIn: strings.TrimSpace(account.LastUsed),
-		})
-	}
-	return out, nil
-}
-
-func (a basicCommandAdapter) Swap(uniqueID string, _ int, extraLaunchArgs []string) error {
-	return basic.SwapTo(basic.FlowDeps{PS: a.platformSvc}, a.platformKey, uniqueID, extraLaunchArgs)
-}
-
-func (a basicCommandAdapter) Logout() error {
-	deps := basic.FlowDeps{PS: a.platformSvc}
-	fc, err := basic.PrepareFlow(deps, a.platformKey)
-	if err != nil {
-		return err
-	}
-	return basic.ClearCurrentLogin(deps, fc)
-}
-
-func (d *Dispatch) commandAdapter(platformKey string) platformCommandAdapter {
-	if strings.EqualFold(strings.TrimSpace(platformKey), steam.PlatformKey) {
-		return steamCommandAdapter{svc: d.SteamSvc}
-	}
-	return basicCommandAdapter{
-		platformKey: strings.TrimSpace(platformKey),
-		basicSvc:    d.BasicSvc,
-		platformSvc: d.PlatformSvc,
-	}
+func (d *Dispatch) commandAdapter(string) platformCommandAdapter {
+	return steamCommandAdapter{svc: d.SteamSvc}
 }

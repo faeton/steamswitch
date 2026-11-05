@@ -7,7 +7,6 @@ import (
 	"strings"
 	"sync"
 
-	"steamswitch/internal/basic"
 	"steamswitch/internal/crashlog"
 	"steamswitch/internal/paths"
 	"steamswitch/internal/platform"
@@ -121,23 +120,11 @@ func (s *Service) RunShortcut(platformKey, fileName string, admin bool, selected
 	}
 
 	needSwap := true
-	if strings.EqualFold(platformKey, "Steam") {
-		active, err := steam.CurrentLiveSteamID64()
-		if err != nil {
-			needSwap = true
-		} else {
-			needSwap = active == "" || !strings.EqualFold(strings.TrimSpace(active), selectedUniqueID)
-		}
-	} else {
-		active, err := basic.CurrentLiveUniqueID(basic.FlowDeps{PS: s.ps}, platformKey)
-		if err != nil {
-			needSwap = true
-		} else {
-			needSwap = active == "" || !strings.EqualFold(strings.TrimSpace(active), selectedUniqueID)
-		}
+	if active, err := steam.CurrentLiveSteamID64(); err == nil {
+		needSwap = active == "" || !strings.EqualFold(strings.TrimSpace(active), selectedUniqueID)
 	}
 
-	if !needSwap && strings.EqualFold(platformKey, "Steam") {
+	if !needSwap {
 		// Already signed in as the requested account, so no swap — but the Session Kit gate
 		// still applies. An interrupted transaction can coexist with a loginusers.vdf that
 		// names this account, and running the shortcut would launch Steam on top of files
@@ -151,14 +138,8 @@ func (s *Service) RunShortcut(platformKey, fileName string, admin bool, selected
 	}
 
 	if needSwap {
-		if strings.EqualFold(platformKey, "Steam") {
-			if err := steam.SwapToAccount(selectedUniqueID, -1, nil); err != nil {
-				return err
-			}
-		} else {
-			if err := basic.SwapTo(basic.FlowDeps{PS: s.ps}, platformKey, selectedUniqueID, nil); err != nil {
-				return err
-			}
+		if err := steam.SwapToAccount(selectedUniqueID, -1, nil); err != nil {
+			return err
 		}
 	}
 	return RunShortcut(platformKey, fileName, admin)

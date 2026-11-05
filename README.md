@@ -262,8 +262,8 @@ not reachable by process name from outside, so a Linux backend that only handled
 install would confidently report Steam as closed for a large share of users — and a
 cloud-synced Dota write made while Steam is up is reverted silently, with no error anywhere.
 
-`go test ./...` reports 15 failures on macOS and Linux, inherited from upstream, that assume
-Windows path and file-locking behaviour. See `ENGINEERING.md` for the exact list — that is the
+`go test ./...` reports 2 failures on macOS and Linux that assume Windows path and file-locking
+behaviour. See `ENGINEERING.md` for the exact list — that is the
 expected baseline, not a regression.
 
 [`FEATURES.md`](FEATURES.md) is the inventory of what is built and how confident each part is;

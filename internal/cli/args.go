@@ -15,7 +15,6 @@ type Kind int
 const (
 	KindNone Kind = iota
 	KindSwapSteam
-	KindSwapBasic
 	KindLogout
 	KindHelp
 	KindOpenPage
@@ -295,7 +294,7 @@ func Parse(argv []string, idx *PlatformIndex) (Parsed, error) {
 	if p.RunShortcutFile != "" && p.RunAppID != "" {
 		return Parsed{}, fmt.Errorf("cannot combine --run-shortcut and --run-appid")
 	}
-	if p.RunShortcutFile != "" && p.Kind != KindSwapSteam && p.Kind != KindSwapBasic {
+	if p.RunShortcutFile != "" && p.Kind != KindSwapSteam {
 		return Parsed{}, fmt.Errorf("--run-shortcut requires a swap token (+s: or +<platform>:)")
 	}
 
@@ -525,11 +524,7 @@ func parsePlusToken(a string, idx *PlatformIndex) (Parsed, error) {
 		return parseSteamSwap(val)
 	}
 
-	return Parsed{
-		Kind:        KindSwapBasic,
-		PlatformKey: platformName,
-		UniqueID:    val,
-	}, nil
+	return Parsed{}, fmt.Errorf("unsupported platform %q", platformName)
 }
 
 func resolvePlatformAlias(idx *PlatformIndex, token string) (string, bool) {
@@ -616,7 +611,7 @@ func parseLogLevelValue(s string) (slog.Level, error) {
 // NeedsHeadlessMutex returns true when this process might run swap/logout without the GUI first.
 func (p Parsed) NeedsHeadlessMutex() bool {
 	switch p.Kind {
-	case KindSwapSteam, KindSwapBasic, KindLogout:
+	case KindSwapSteam, KindLogout:
 		return true
 	default:
 		return false

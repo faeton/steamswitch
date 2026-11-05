@@ -24,14 +24,6 @@ func idsPath(platformKey string) (string, error) {
 	return filepath.Join(base, "ids.json"), nil
 }
 
-func orderPath(platformKey string) (string, error) {
-	base, err := loginCacheRoot(platformKey)
-	if err != nil {
-		return "", err
-	}
-	return filepath.Join(base, "order.json"), nil
-}
-
 type idsFile struct {
 	IDs                map[string]string            `json:"ids"`
 	LastUsed           map[string]string            `json:"lastused"`
@@ -128,38 +120,4 @@ func touchLastUsed(platformKey, uniqueID string) error {
 	}
 	f.LastUsed[uniqueID] = time.Now().UTC().Format(time.RFC3339)
 	return writeIdsFile(platformKey, f)
-}
-
-func readOrder(platformKey string) ([]string, error) {
-	p, err := orderPath(platformKey)
-	if err != nil {
-		return nil, err
-	}
-	data, err := os.ReadFile(p)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil, nil
-		}
-		return nil, err
-	}
-	var o []string
-	if err := json.Unmarshal(data, &o); err != nil {
-		return nil, nil
-	}
-	return o, nil
-}
-
-func writeOrder(platformKey string, order []string) error {
-	p, err := orderPath(platformKey)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
-		return err
-	}
-	data, err := json.MarshalIndent(order, "", "  ")
-	if err != nil {
-		return err
-	}
-	return fsutil.WriteFileAtomic(p, data, 0o644)
 }

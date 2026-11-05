@@ -27,8 +27,9 @@ blob, so changing them makes existing data undecryptable. They stay.
 `Platforms.json` holds only the `Steam` entry, and the frontend routes straight past the platform
 grid when one platform is enabled (`applySinglePlatformStartupRoute`, `stores/routeCodec.ts`).
 
-`internal/basic` stays because Steam depends on it for account tags, notes, renaming, ordering and
-game stats (`internal/steam/accounts_list.go`, `internal/steam/service.go`).
+The generic multi-platform engine and the game-stats scraper are gone. `internal/basic` is now only
+the account metadata Steam uses: tags, notes, names and images (`internal/steam/accounts_list.go`,
+`internal/steam/service.go`). A `+<token>:` argument for any platform other than Steam is an error.
 
 ### No outbound reporting, no auto-update
 
@@ -226,15 +227,14 @@ imports until bindings have been generated once.
 
 ### Test baseline
 
-`go test ./...` shows **15 failures on macOS and Linux**, caused by Windows path, registry and
-file-locking assumptions. Linux has a 16th, `TestWriteLoginUsersAndRegistry_FieldSwapping`, because
-switching is not enabled there:
+`go test ./...` shows **2 failures on macOS and Linux**, caused by Windows path and file-locking
+assumptions. Linux has a 3rd, `TestWriteLoginUsersAndRegistry_FieldSwapping`, because switching is
+not enabled there:
 
-- `internal/basic`: 13 (`TestFlow_*`, `TestResolveDescriptorVariables_WithTokens`)
-- `internal/platform`: 1 (`TestResolveSafeDeletePatternRejectsGlobAtPlaceholderBase`)
-- `internal/steam`: 1 (`TestWriteFileAtomic_LockedFile`)
+- `internal/platform`: `TestResolveSafeDeletePatternRejectsGlobAtPlaceholderBase`
+- `internal/steam`: `TestWriteFileAtomic_LockedFile`
 
-All of them pass on Windows. Under Wine, run them in a throwaway bottle rather than one holding a
+Both pass on Windows. Under Wine, run them in a throwaway bottle rather than one holding a
 real Steam, and expect `TestForwardArgsRoundTrip` to time out until that is settled on real Windows.
 The Steam tests write the live `HKCU\Software\Valve\Steam` values there and put them back afterwards.
 

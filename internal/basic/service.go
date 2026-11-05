@@ -2,49 +2,26 @@ package basic
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 	"strings"
 	"sync"
 	"time"
 
-	"steamswitch/internal/accountlist"
 	"steamswitch/internal/paths"
 	"steamswitch/internal/platform"
 	"steamswitch/internal/profileimage"
 	"steamswitch/internal/security"
 	"steamswitch/internal/stats"
-	"steamswitch/internal/tray"
-	"steamswitch/internal/winutil"
 )
 
+// BasicService is the account metadata bound to the frontend: tags, notes, names and images.
 type BasicService struct {
-	mu                      sync.Mutex
-	PS                      *platform.PlatformService
-	gameStatsActiveMu       sync.RWMutex
-	gameStatsActivePlatform string
-
-	imgRefreshCooldown  *perPlatformCooldown
-	imgRefreshCoalescer *perPlatformCoalescer
-	imgRefreshClock     func() time.Time
+	mu sync.Mutex
+	PS *platform.PlatformService
 }
-
-// imgRefreshMinInterval is the per-platform cooldown between background
-// profile-image refresh scans. State is in-memory only and resets on process
-// restart.
-const imgRefreshMinInterval = 30 * time.Second
 
 func NewBasicService(ps *platform.PlatformService) *BasicService {
-	return &BasicService{
-		PS:                  ps,
-		imgRefreshCooldown:  newPerPlatformCooldown(imgRefreshMinInterval, time.Now),
-		imgRefreshCoalescer: newPerPlatformCoalescer(),
-		imgRefreshClock:     time.Now,
-	}
-}
-
-func (b *BasicService) deps() FlowDeps {
-	return FlowDeps{PS: b.PS}
+	return &BasicService{PS: ps}
 }
 
 type AccountDTO struct {
@@ -60,161 +37,6 @@ type AccountDTO struct {
 	ShowLastUsed       bool            `json:"showLastUsed"`
 	Tags               []AccountTagDTO `json:"tags"`
 	SavedDataBroken    bool            `json:"savedDataBroken"`
-}
-
-func (b *BasicService) GetAccounts(platformKey string) ([]AccountDTO, error) {
-	if err := security.RequireUnlocked(); err != nil {
-		return nil, err
-	}
-	list, err := b.GetAccountsList(platformKey)
-	if err != nil {
-		return nil, err
-	}
-	enrich, err := b.GetAccountsEnrichment(platformKey)
-	if err != nil {
-		return nil, err
-	}
-	out := accountlist.Merge(
-		list,
-		enrich,
-		func(row AccountListItemDTO) string { return row.UniqueID },
-		func(row AccountEnrichmentDTO) string { return row.UniqueID },
-		mergeBasicAccountDTO,
-	)
-	if len(out) > 0 {
-		ps, perr := platform.LoadPlatformSettings(platformKey)
-		if perr == nil {
-			syncBasicPlatformCounts(platformKey, len(out), ps)
-		}
-	}
-	return out, nil
-}
-
-func (b *BasicService) SwapToAccount(platformKey, uniqueID string, extraLaunchArgs []string) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if err := security.RequireUnlocked(); err != nil {
-		return err
-	}
-	return SwapTo(b.deps(), strings.TrimSpace(platformKey), strings.TrimSpace(uniqueID), extraLaunchArgs)
-}
-
-func (b *BasicService) SaveCurrent(platformKey, accountName string) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if err := security.RequireUnlocked(); err != nil {
-		return err
-	}
-	platformKey = strings.TrimSpace(platformKey)
-	accountName = strings.TrimSpace(accountName)
-	err := SaveCurrent(b.deps(), platformKey, accountName)
-	if err != nil {
-		slog.Default().Error("SaveCurrent failed",
-			"platform", platformKey,
-			"account", accountName,
-			"err", err)
-	}
-	return err
-}
-
-// SuggestedSaveAccountName returns a platform-specific suggested display name for Save Current.
-func (b *BasicService) SuggestedSaveAccountName(platformKey string) (string, error) {
-	if err := security.RequireUnlocked(); err != nil {
-		return "", err
-	}
-	defer closeSharedLevelDBHandles("SuggestedSaveAccountName.end")
-	platformKey = strings.TrimSpace(platformKey)
-	if platformKey == "" {
-		slog.Debug("suggested save name skipped: empty platform")
-		return "", nil
-	}
-	if d, _, derr := readDescriptor(platformKey); derr == nil && d.ExitBeforeSave {
-		if ps, perr := platform.LoadPlatformSettings(platformKey); perr == nil {
-			if err := winutil.ErrIfCannotKill(d.ExesToEnd, winutil.ClosingMethod(ps.ClosingMethod)); err != nil {
-				slog.Debug("suggested save name pre-kill blocked", "platform", platformKey, "err", err)
-				return "", err
-			}
-			slog.Debug("suggested save name pre-kill", "platform", platformKey, "reason", "ExitBeforeSave")
-			_ = winutil.KillByName(d.ExesToEnd, winutil.ClosingMethod(ps.ClosingMethod), electronBeforeKillSynth(b.deps(), platformKey, d.ExesToEnd))
-		}
-	}
-	folder, _ := resolveExeFolder(b.deps(), platformKey)
-	slog.Debug("suggested save name collect begin", "platform", platformKey, "folder", folder)
-	ctx := platform.PathTokenContext{PlatformFolder: folder}
-	name, found, err := platformSuggestedSaveName(platformKey, folder, ctx)
-	if err != nil {
-		slog.Debug("suggested save name provider error", "platform", platformKey, "err", err)
-		return "", err
-	}
-	if !found {
-		slog.Debug("suggested save name provider missing", "platform", platformKey)
-		return "", nil
-	}
-	slog.Debug("suggested save name collected", "platform", platformKey, "name", strings.TrimSpace(name))
-	return strings.TrimSpace(name), nil
-}
-
-func (b *BasicService) AddNew(platformKey string) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if err := security.RequireUnlocked(); err != nil {
-		return err
-	}
-	return AddNew(b.deps(), strings.TrimSpace(platformKey))
-}
-
-func (b *BasicService) LaunchPlatform(platformKey string) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if err := security.RequireUnlocked(); err != nil {
-		return err
-	}
-	return LaunchBasic(b.deps(), strings.TrimSpace(platformKey), nil)
-}
-
-func (b *BasicService) ForgetAccount(platformKey, uniqueID string) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if err := security.RequireUnlocked(); err != nil {
-		return err
-	}
-	platformKey = strings.TrimSpace(platformKey)
-	uniqueID = strings.TrimSpace(uniqueID)
-	f, err := readIdsFile(platformKey)
-	if err != nil {
-		return err
-	}
-	name := f.IDs[uniqueID]
-	delete(f.IDs, uniqueID)
-	if f.LastUsed != nil {
-		delete(f.LastUsed, uniqueID)
-	}
-	normalizeTagMaps(&f)
-	delete(f.AccountTags, uniqueID)
-	delete(f.AccountTagExpiries, uniqueID)
-	pruneUnusedTagDefinitions(&f)
-	if err := writeIdsFile(platformKey, f); err != nil {
-		return err
-	}
-	syncBasicTrayKnownAccounts(platformKey, f.IDs)
-	tray.RefreshMenuIfSet()
-	if name != "" {
-		dir, err := accountCacheDir(platformKey, name)
-		if err == nil {
-			_ = security.RemoveAccountCache(platformKey, uniqueID, name, dir)
-		}
-	}
-	_ = profileimage.DeleteCached(platformKey, uniqueID)
-	return nil
-}
-
-func (b *BasicService) SaveAccountOrder(platformKey string, order []string) error {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if err := security.RequireUnlocked(); err != nil {
-		return err
-	}
-	return writeOrder(strings.TrimSpace(platformKey), order)
 }
 
 func (b *BasicService) SetAccountNote(platformKey, uniqueID, note string) error {
@@ -298,35 +120,6 @@ func (b *BasicService) ChangeAccountImage(platformKey, uniqueID, sourcePath stri
 		_ = profileimage.ClearManualProfileMarker(platformKey, uniqueID)
 		return err
 	}
-	return nil
-}
-
-// ClearManualAccountProfileImage removes a user-set avatar and allows automated images again for this account.
-func (b *BasicService) ClearManualAccountProfileImage(platformKey, uniqueID string) error {
-	platformKey = strings.TrimSpace(platformKey)
-	uniqueID = strings.TrimSpace(uniqueID)
-	b.mu.Lock()
-	if err := security.RequireUnlocked(); err != nil {
-		b.mu.Unlock()
-		return err
-	}
-	err := profileimage.DeleteCached(platformKey, uniqueID)
-	var accountName string
-	if err == nil {
-		if f, ferr := readIdsFile(platformKey); ferr == nil {
-			accountName = strings.TrimSpace(f.IDs[uniqueID])
-		}
-	}
-	d, _, derr := readDescriptor(platformKey)
-	folder, _ := resolveExeFolder(b.deps(), platformKey)
-	b.mu.Unlock()
-	if err != nil {
-		return err
-	}
-	if derr == nil {
-		_ = queueAutomatedProfileImage(platformKey, uniqueID, accountName, d, folder)
-	}
-	b.StartBasicProfileImageRefresh(platformKey)
 	return nil
 }
 

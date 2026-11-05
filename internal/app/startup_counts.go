@@ -34,8 +34,6 @@ func resolveStartupAccountCounts(platformNames []string, statsEnabled bool) map[
 		}
 		if strings.EqualFold(name, steam.PlatformKey) {
 			out[name] = steam.CountSavedAccounts()
-		} else {
-			out[name] = basic.CountSavedAccounts(name)
 		}
 	}
 	return out
