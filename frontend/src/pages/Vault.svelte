@@ -17,7 +17,7 @@
   import { appBarTitle, previousPage, route } from "../stores/nav";
   import { openAlert, openConfirm, activeModal } from "../stores/modal";
   import { pushToast } from "../stores/toast";
-  import { formatToastWithError } from "../lib/formatWailsError";
+  import { formatKeyedToast, formatToastWithError } from "../lib/formatWailsError";
   import { navigateBackLikeButton } from "../stores/nav";
   import {
     beginLoginAssist,
@@ -263,7 +263,7 @@
       void endLoginAssist(entry.steamId64);
       pushToast({
         type: "error",
-        message: formatToastWithError($t("Toast_Vault_SignInFailed"), e),
+        message: formatKeyedToast($t("Toast_Vault_SignInFailed"), e, $t),
         duration: 8000,
       });
       return;

@@ -41,7 +41,7 @@
   import { openConfirm } from "../stores/modal";
   import { gameRunningConfirm } from "../lib/steam/gameWarning";
   import { pushToast } from "../stores/toast";
-  import { formatToastWithError, keyedErrorMessage } from "../lib/formatWailsError";
+  import { formatKeyedToast, formatToastWithError } from "../lib/formatWailsError";
   import { offerRestartIfNeedsAdmin } from "../lib/adminFlow";
   import { openContextMenu } from "../stores/contextMenu";
   import {
@@ -527,9 +527,8 @@
     } catch (e) {
       // No success toast on the happy path any more: the strip is the narration channel.
       retryTarget.set(steamId64);
-      const keyed = keyedErrorMessage(e, get(t));
       setError(
-        keyed ? `${get(t)("Toast_SwitchFailed")} ${keyed}` : formatToastWithError(get(t)("Toast_SwitchFailed"), e),
+        formatKeyedToast(get(t)("Toast_SwitchFailed"), e, get(t)),
         { id: RETRY_SWITCH, labelKey: "Kit_Action_Retry" },
         "switch",
       );
@@ -602,7 +601,7 @@
       if (!sessionChanged(sessionBefore, session)) {
         pushToast({
           type: "error",
-          message: formatToastWithError(get(t)("Toast_SwitchFailed"), e),
+          message: formatKeyedToast(get(t)("Toast_SwitchFailed"), e, get(t)),
           duration: 8000,
         });
         addingAccount = false;

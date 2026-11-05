@@ -33,7 +33,7 @@
     <button type="button" class="ss-btn ss-btn--primary" class:ss-btn--destructive={destructive} on:click={positive}>
       {positiveLabel}
     </button>
-    {#if style === "yesno"}
+    {#if style === "yesno" || style === "okcancel"}
       <button type="button" class="ss-btn" on:click={negative}>
         {negativeLabel}
       </button>

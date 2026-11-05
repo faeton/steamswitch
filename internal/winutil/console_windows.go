@@ -4,6 +4,7 @@ package winutil
 
 import (
 	"syscall"
+	"unsafe"
 )
 
 var (
@@ -14,9 +15,28 @@ var (
 )
 
 // AttachParentConsole attaches to the parent process console (CLI from cmd).
-func AttachParentConsole() {
+//
+// It reports whether there is a console. False means the process was started by a double-click,
+// a link or a shortcut, and anything written to stderr goes nowhere.
+func AttachParentConsole() bool {
 	const attachParentProcess = ^uintptr(0) // (DWORD)-1
-	_, _, _ = procAttachConsole.Call(attachParentProcess)
+	r, _, _ := procAttachConsole.Call(attachParentProcess)
+	return r != 0
+}
+
+// ShowErrorBox shows a blocking warning dialog, for a process with no window or console of its own.
+func ShowErrorBox(title, text string) {
+	const mbOK, mbIconWarning, mbSetForeground = 0x0, 0x30, 0x10000
+	t, err := syscall.UTF16PtrFromString(title)
+	if err != nil {
+		return
+	}
+	m, err := syscall.UTF16PtrFromString(text)
+	if err != nil {
+		return
+	}
+	_, _, _ = syscall.NewLazyDLL("user32.dll").NewProc("MessageBoxW").Call(
+		0, uintptr(unsafe.Pointer(m)), uintptr(unsafe.Pointer(t)), mbOK|mbIconWarning|mbSetForeground)
 }
 
 // AllocConsole allocates a new console if none exists (optional for headless).

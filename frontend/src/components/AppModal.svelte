@@ -51,7 +51,7 @@
           component={m.bodyComponent}
           componentProps={m.bodyProps}
           positiveLabel={m.positiveLabel ?? (m.style === "yesno" ? $t("Yes") : $t("Ok"))}
-          negativeLabel={m.negativeLabel ?? $t("No")}
+          negativeLabel={m.negativeLabel ?? (m.style === "okcancel" ? $t("Button_Cancel") : $t("No"))}
           style={m.style}
           destructive={m.destructive ?? false}
           on:resolve={onResolve}

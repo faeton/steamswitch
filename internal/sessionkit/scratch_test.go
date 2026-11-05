@@ -225,9 +225,7 @@ func TestEnter_ScratchSpaceIsRemovedWhenTheTransactionFinishes(t *testing.T) {
 	leftover := filepath.Join(anchor, sharedID, scratchDirName)
 	if exists, _ := pathExists(leftover); exists {
 		entries, _ := filepath.Glob(filepath.Join(leftover, "*"))
-		if len(entries) > 0 {
-			t.Fatalf("scratch space survived the transaction: %v", entries)
-		}
+		t.Fatalf("scratch folder survived the transaction, containing %v", entries)
 	}
 }
 

@@ -1,6 +1,7 @@
 package steam
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -65,5 +66,14 @@ func TestExitGraceFor(t *testing.T) {
 	}
 	if long := time.Minute; exitGraceFor(long, true) != long {
 		t.Fatal("a game must never shorten the grace")
+	}
+}
+
+func TestSwapRefusal(t *testing.T) {
+	if err := swapRefusal(""); err != nil {
+		t.Fatalf("no game: %v", err)
+	}
+	if err := swapRefusal("Dota 2"); !errors.Is(err, errSwapGameRunning) {
+		t.Fatalf("game running: %v", err)
 	}
 }

@@ -1,6 +1,8 @@
 package steam
 
 import (
+	"errors"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
@@ -96,6 +98,28 @@ func exitGraceFor(base time.Duration, gameRunning bool) time.Duration {
 		return gameExitGrace
 	}
 	return base
+}
+
+// errSwapGameRunning is an i18n key, as the callers of a bare swap expect.
+var errSwapGameRunning = errors.New("Toast_Switch_CloseGameFirst")
+
+// refuseBareSwapWhileGameRuns stops the swap taken by the tray, shortcuts, links and the CLI. They
+// have no window to ask in, and closing Steam would close the game. The account tiles go through
+// the engine instead and ask first.
+func refuseBareSwapWhileGameRuns(steamRoot string) error {
+	name, err := runningGameName(steamRoot)
+	if err != nil {
+		return err
+	}
+	return swapRefusal(name)
+}
+
+func swapRefusal(runningGame string) error {
+	if runningGame == "" {
+		return nil
+	}
+	steamLog.Info("swap refused", slog.String("game", runningGame))
+	return errSwapGameRunning
 }
 
 // RunningGameName names a game that a switch would close, so the UI can ask first. Empty means

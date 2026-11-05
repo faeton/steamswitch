@@ -91,6 +91,10 @@ func swapToAccountLocked(steamID64 string, personaState int, extraLaunchArgs []s
 		}
 	}
 
+	if err := refuseBareSwapWhileGameRuns(root); err != nil {
+		return err
+	}
+
 	platform.EmitActionBarStatusI18nPlatform("Status_ClosingPlatform", "Steam")
 	names := backend.ProcessNames()
 	if err := backend.CanClose(names, st.ClosingMethod); err != nil {

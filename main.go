@@ -16,6 +16,7 @@ import (
 	"steamswitch/internal/controllerinput"
 	"steamswitch/internal/crashlog"
 	"steamswitch/internal/discordrpc"
+	"steamswitch/internal/i18n"
 	"steamswitch/internal/ipc"
 	"steamswitch/internal/logsanitize"
 	"steamswitch/internal/platform"
@@ -219,9 +220,16 @@ func main() {
 	platform.RunUserDataMoveCleanup(exeDir, parsed.UserDataMoveFrom, parsed.UserDataMoveTo)
 
 	if parsed.NeedsHeadlessMutex() {
-		winutil.AttachParentConsole()
+		hasConsole := winutil.AttachParentConsole()
 		if herr := disp.RunHeadless(parsed); herr != nil {
-			fmt.Fprintln(os.Stderr, herr)
+			// Errors out of the switch engines are i18n keys, and T returns anything else as is.
+			msg := i18n.T(exeDir, startupSettings.Language, herr.Error(), nil)
+			fmt.Fprintln(os.Stderr, msg)
+			// From a shortcut or a link there is no console, so stderr alone would look like
+			// nothing happened.
+			if !hasConsole {
+				winutil.ShowErrorBox("SteamSwitch", msg)
+			}
 			os.Exit(1)
 		}
 		os.Exit(0)

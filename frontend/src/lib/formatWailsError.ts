@@ -77,6 +77,12 @@ export function keyedErrorMessage(err: unknown, t: (key: string) => string): str
   return translated === key ? null : translated;
 }
 
+/** Like {@link formatToastWithError}, but says an error named by i18n key as a sentence. */
+export function formatKeyedToast(prefix: string, err: unknown, t: (key: string) => string): string {
+  const keyed = keyedErrorMessage(err, t);
+  return keyed ? `${prefix} ${keyed}` : formatToastWithError(prefix, err);
+}
+
 export function formatToastWithError(
   prefix: string,
   err: unknown,

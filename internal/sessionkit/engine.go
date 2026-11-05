@@ -853,6 +853,8 @@ func (e *Engine) releaseScratch(j *Journal) {
 			}
 			if anchor, ok := e.scratchAnchor(m, steamRoot, account); ok {
 				_ = os.RemoveAll(filepath.Join(anchor, scratchDirName, j.TransactionID))
+				// Remove, not RemoveAll: it only succeeds once no transaction is left inside.
+				_ = os.Remove(filepath.Join(anchor, scratchDirName))
 			}
 		}
 	}

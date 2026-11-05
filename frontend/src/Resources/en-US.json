@@ -1128,6 +1128,7 @@
   "Switch_SignIn_NoStored_Sub": "There is no saved login for this account on this computer. Sign in once as {login} in the Steam window, and it will switch without a password after that.",
   "Switch_SignIn_Rejected_Sub": "Steam rejected the saved login. Sign in again in the Steam window.",
   "Switch_SignIn_RejectedReason_Sub": "Steam rejected the saved login ({reason}). Sign in again in the Steam window.",
+  "Toast_Switch_CloseGameFirst": "Close the running game first. Switching from here closes it without asking, so this switch was stopped.",
   "Switch_GameRunning_Title": "{game} is running",
   "Switch_GameRunning_Body": "Switching accounts closes Steam, and {game} with it. Anything unsaved will be lost, and leaving a match can count as abandoning it.",
   "Switch_GameRunning_Confirm": "Close {game} and switch",
