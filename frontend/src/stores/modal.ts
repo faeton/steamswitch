@@ -63,16 +63,7 @@ type ActiveModal =
       soughtFilename?: string;
       showPortableButton?: boolean;
     } & ModalBodyOptions)
-  | (ModalBase & {
-      kind: "update";
-      message: string;
-      downloadUrl: string;
-    })
-  | (ModalBase & {
-      kind: "crashReport";
-    });
-
-export type CrashReportChoice = "no" | "yes" | "always";
+;
 
 let resolver: ((value: unknown) => void) | null = null;
 let nextModalId = 0;
@@ -245,33 +236,10 @@ export function openFolderPicker(
   });
 }
 
-export function openUpdateDialog(opts: { message: string; downloadUrl: string }): Promise<void> {
-  return new Promise((resolve) => {
-    resolver = () => resolve();
-    activeModal.set({
-      id: bumpId(),
-      kind: "update",
-      message: opts.message,
-      downloadUrl: opts.downloadUrl,
-    });
-  });
-}
-
-export function openCrashReportPrompt(): Promise<CrashReportChoice> {
-  return new Promise((resolve) => {
-    resolver = resolve as (value: unknown) => void;
-    activeModal.set({
-      id: bumpId(),
-      kind: "crashReport",
-    });
-  });
-}
-
 export function cancelActiveModal(): void {
   const m = get(activeModal);
   if (!m) return;
-  if (m.kind === "alert" || m.kind === "alertNoButton" || m.kind === "update") dismissModal();
+  if (m.kind === "alert" || m.kind === "alertNoButton") dismissModal();
   else if (m.kind === "confirm") dismissModal(false);
-  else if (m.kind === "crashReport") dismissModal("no" satisfies CrashReportChoice);
   else dismissModal(null);
 }

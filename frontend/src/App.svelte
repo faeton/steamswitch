@@ -10,7 +10,6 @@
   import { animationsEnabled, loadAnimationsEnabled } from "./stores/animationSettings";
   import TitleBar from './components/TitleBar.svelte'
   import AppSidebar from './components/AppSidebar.svelte'
-  import UpdateBar from './components/UpdateBar.svelte'
   import AppModal from './components/AppModal.svelte'
   import Toast from './components/Toast.svelte'
   import VaultGuardCodePrompt from './components/VaultGuardCodePrompt.svelte'
@@ -28,12 +27,10 @@
   import { applySignInStatus, narrate, statusStrip, statusStripAction, stripEarnsSpace } from './stores/statusStrip'
   import { initSignInStatus, signInStatus } from './stores/signInStatus'
   import { t } from "./stores/i18n";
-  import { NotifyLaunchUpdateCheck } from "../bindings/steamswitch/internal/platform/platformservice.js";
   import * as PlatformService from "../bindings/steamswitch/internal/platform/platformservice.js";
   import { pushToast } from "./stores/toast";
   import { formatToastWithError } from "./lib/formatWailsError";
   import { registerSvgRenderBridge } from "./lib/svgRenderBridge";
-  import { runCrashReportPromptIfNeeded } from "./lib/crashReportPrompt";
   import { activeModal, openConfirm } from "./stores/modal";
   import { contextMenu } from "./stores/contextMenu";
   import {
@@ -298,8 +295,6 @@
       const raw = typeof ev.data === "string" ? ev.data : "";
       applyNavigateJSON(raw);
     });
-    void NotifyLaunchUpdateCheck();
-    void runCrashReportPromptIfNeeded();
 
     const schedulePrefetch = (): void => {
       prefetchCommonPages();
@@ -309,39 +304,6 @@
     } else {
       setTimeout(schedulePrefetch, 1500);
     }
-
-    const offUpdateFail = Events.On("update-check-failed", () => {
-      pushToast({
-        type: "error",
-        title: "",
-        message: get(t)("Toast_UpdateCheckFail"),
-        duration: 15000,
-      });
-    });
-
-    const offPlatformsFound = Events.On("platforms-json-update-found", (ev) => {
-      const version = typeof ev.data === "object" && ev.data && "version" in ev.data
-        ? String((ev.data as { version?: string }).version ?? "")
-        : "";
-      pushToast({
-        type: "info",
-        title: "",
-        message: get(t)("Toast_PlatformsJsonUpdateFound", { version }),
-        duration: 8000,
-      });
-    });
-
-    const offPlatformsUpdated = Events.On("platforms-json-updated", (ev) => {
-      const version = typeof ev.data === "object" && ev.data && "version" in ev.data
-        ? String((ev.data as { version?: string }).version ?? "")
-        : "";
-      pushToast({
-        type: "success",
-        title: "",
-        message: get(t)("Toast_PlatformsJsonUpdated", { version }),
-        duration: 8000,
-      });
-    });
 
     const offUserDataMoveProgress = Events.On("userdata-move-progress", (ev) => {
       const data = ev.data;
@@ -399,9 +361,6 @@
       offPageStats();
       off?.();
       offNav?.();
-      offUpdateFail?.();
-      offPlatformsFound?.();
-      offPlatformsUpdated?.();
       offUserDataMoveProgress?.();
       offSvgBridge?.();
       offInputModality();
@@ -420,7 +379,6 @@
   <ContextMenu />
   <a class="skip-link" href="#app-main">Skip to content</a>
   <TitleBar />
-  <UpdateBar />
   <div class="page">
     {#key activeBg?.imageUrl}
       {#if activeBg}

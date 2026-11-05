@@ -1,11 +1,9 @@
 package crashlog
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -13,8 +11,6 @@ import (
 	"time"
 
 	buildinfo "steamswitch/build"
-	"steamswitch/internal/api"
-	"steamswitch/internal/appclient"
 	"steamswitch/internal/fsutil"
 	"steamswitch/internal/logsanitize"
 	"steamswitch/internal/paths"
@@ -163,57 +159,4 @@ func DiscardPending() error {
 		return nil
 	}
 	return err
-}
-
-// SubmitPending checks for a crash dump from a previous run and submits it.
-// Returns true if a crash dump was found and successfully submitted.
-func SubmitPending() bool {
-	if appclient.IsOfflineMode() {
-		return false
-	}
-
-	path, err := crashDumpPath()
-	if err != nil {
-		slog.Warn("crashlog: resolving dump path", "err", err)
-		return false
-	}
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return false
-		}
-		slog.Warn("crashlog: reading pending dump", "err", err)
-		return false
-	}
-
-	// Crash submission is disabled in this fork; the dump stays in the data folder.
-	if api.CrashURL() == "" {
-		return false
-	}
-	req, err := http.NewRequest(http.MethodPost, api.CrashURL(), bytes.NewReader(data))
-	if err != nil {
-		slog.Warn("crashlog: building submit request", "err", err)
-		return false
-	}
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("User-Agent", api.UserAgent(buildinfo.Version()))
-
-	resp, err := appclient.Shared.Do(req)
-	if err != nil {
-		slog.Warn("crashlog: submitting dump", "err", err)
-		return false
-	}
-	resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		slog.Warn("crashlog: submission rejected", "status", resp.StatusCode)
-		return false
-	}
-
-	if err := os.Remove(path); err != nil {
-		slog.Warn("crashlog: removing submitted dump", "err", err)
-	}
-
-	return true
 }

@@ -1,6 +1,5 @@
 import { Events } from "@wailsio/runtime";
 import { get } from "svelte/store";
-import { scheduleUpdaterThemeSync } from "../updaterTheme";
 import modalPrimaryCss from "../../styles/modal-primary.scss?inline";
 import {
   BASE_DEFAULT_ACCENT_BY_SCHEME,
@@ -45,7 +44,6 @@ export function applyAccentOverlay(color: string | null): void {
   removeAccentOverlay();
   if (typeof document === "undefined" || !color) {
     syncModalPrimaryStyles();
-    scheduleUpdaterThemeSync();
     return;
   }
   const style = document.createElement("style");
@@ -54,7 +52,6 @@ export function applyAccentOverlay(color: string | null): void {
   style.textContent = buildAccentOverlayCss(color);
   document.head.appendChild(style);
   syncModalPrimaryStyles();
-  scheduleUpdaterThemeSync();
 }
 
 function syncModalPrimaryStyles(): void {

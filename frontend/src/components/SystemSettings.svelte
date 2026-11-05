@@ -37,9 +37,8 @@
     loadControllerSupportEnabled,
     setControllerSupportEnabled,
   } from "../stores/controllerSupport";
-  import { formatAppVersion } from "../lib/checkForUpdates";
   import { createToggle } from "../lib/useToggleSetting";
-  import { openMoveUserDataModal, openUserDataFolder, onCheckForUpdates, openStatsModal } from "../lib/settingsOperations";
+  import { openMoveUserDataModal, openUserDataFolder, openStatsModal } from "../lib/settingsOperations";
 
   let isWindows = false;
   let currentVersion = "";
@@ -114,13 +113,6 @@
     () => PlatformService.GetStatsEnabled(),
     (v) => PlatformService.SetStatsEnabled(v),
     get(t)("Settings_CollectStats"),
-  );
-
-  const crashReportAutoSubmit = createToggle(
-    () => PlatformService.GetCrashReportAutoSubmit(),
-    (v) => PlatformService.SetCrashReportAutoSubmit(v),
-    get(t)("Settings_CrashReportAutoSubmit"),
-    () => !get(offlineMode),
   );
 
   const protocol = createToggle(
@@ -215,19 +207,6 @@
     }
   };
 
-  const statsShare = createToggle(
-    () => PlatformService.GetStatsShare(),
-    (v) => PlatformService.SetStatsShare(v),
-    get(t)("Settings_ShareStats"),
-    () => get(statsEnabled.value),
-  );
-
-  const prereleaseUpdates = createToggle(
-    () => PlatformService.GetPrereleaseUpdates(),
-    (v) => PlatformService.SetPrereleaseUpdates(v),
-    get(t)("Settings_PrereleaseUpdates"),
-  );
-
   const discordRpcShare = createToggle(
     () => PlatformService.GetDiscordRpcShare(),
     (v) => PlatformService.SetDiscordRpcShare(v),
@@ -242,9 +221,6 @@
     protocol.value.set(settings.protocolEnabled);
     exitToTray.value.set(settings.exitToTray);
     statsEnabled.value.set(settings.statsEnabled);
-    statsShare.value.set(settings.statsShare);
-    prereleaseUpdates.value.set(settings.prereleaseUpdates);
-    crashReportAutoSubmit.value.set(settings.crashReportAutoSubmit);
     discordRpc.value.set(settings.discordRpc);
     discordRpcShare.value.set(settings.discordRpcShare);
     minimizeOnSwitch.value.set(settings.minimizeOnSwitch);
@@ -261,9 +237,6 @@
     void protocol.init();
     void exitToTray.init();
     void statsEnabled.init();
-    void statsShare.init();
-    void prereleaseUpdates.init();
-    void crashReportAutoSubmit.init();
     void discordRpc.init();
     void discordRpcShare.init();
     void minimizeOnSwitch.init();
@@ -666,7 +639,7 @@
   />
   </SettingsCard>
 
-  <p class="sys__version">{formatAppVersion(currentVersion || "0.0.0")}</p>
+  <p class="sys__version">v{(currentVersion || "0.0.0").replace(/^v/, "")}</p>
 </div>
 
 <style lang="scss">

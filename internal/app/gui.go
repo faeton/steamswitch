@@ -30,18 +30,16 @@ import (
 )
 
 type RunGUIParams struct {
-	Parsed           cli.Parsed
-	GuiSettings      platform.AppSettings
-	Services         []application.Service
-	Dispatch         *Dispatch
-	DiscordRPC       *discordrpc.Manager
-	CrashSubmitted   bool
-	StartupToast     string
-	EmbeddedAssets   fs.FS
-	TrayIconPNG      []byte
-	TrayTemplatePNG  []byte
-	UpdaterPublicKey []byte
-	Done             chan struct{}
+	Parsed          cli.Parsed
+	GuiSettings     platform.AppSettings
+	Services        []application.Service
+	Dispatch        *Dispatch
+	DiscordRPC      *discordrpc.Manager
+	StartupToast    string
+	EmbeddedAssets  fs.FS
+	TrayIconPNG     []byte
+	TrayTemplatePNG []byte
+	Done            chan struct{}
 }
 
 func ResolvedLogLevel(p cli.Parsed) slog.Level {
@@ -128,7 +126,6 @@ func RunGUI(params RunGUIParams) {
 	if err := stats.IncrementLaunchCount(); err != nil {
 		log.Printf("stats launch count: %v", err)
 	}
-	go stats.MustTryUploadDaily(guiSettings.StatsEnabled, guiSettings.StatsShare, guiSettings.OfflineMode)
 	params.DiscordRPC.Start()
 
 	wailsLvl := ResolvedLogLevel(parsed)
@@ -178,11 +175,6 @@ func RunGUI(params RunGUIParams) {
 		wailsApp.Logger.Warn("autostart sync", "error", err)
 	}
 
-	// Auto-update is disabled: there is no release feed for this build.
-
-	if params.CrashSubmitted {
-		EmitToast("success", "i18n:Toast_CrashReported", "", 0)
-	}
 	if toast := strings.TrimSpace(params.StartupToast); toast != "" {
 		EmitToast("success", toast, "", 6000)
 	}

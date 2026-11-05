@@ -10,8 +10,7 @@ import (
 )
 
 const (
-	settingsFileName         = settingsfile.FileName
-	defaultPrereleaseUpdates = true
+	settingsFileName = settingsfile.FileName
 )
 
 // AppSettings is stored as indented JSON in the user data folder (default locations) or next to the executable when user data is custom.
@@ -69,10 +68,6 @@ type AppSettings struct {
 	// OfflineMode blocks outbound HTTP (avatars, Steam APIs, etc.) when true.
 	OfflineMode bool `json:"offlineMode,omitempty"`
 
-	// PrereleaseUpdates includes GitHub pre-releases in update checks.
-	// Stored without omitempty so an explicit opt-out survives a restart.
-	PrereleaseUpdates bool `json:"prereleaseUpdates"`
-
 	// DiscordRpc enables Discord rich presence integration.
 	// Stored without omitempty so false round-trips: omitted key plus normalize defaults would otherwise force true on load.
 	DiscordRpc bool `json:"discordRpc"`
@@ -95,14 +90,6 @@ type AppSettings struct {
 	// StatsEnabled toggles local anonymous statistics collection.
 	// Stored without omitempty so an explicit opt-out survives a restart.
 	StatsEnabled bool `json:"statsEnabled"`
-
-	// StatsShare toggles anonymous statistics submission.
-	// Stored without omitempty so an explicit opt-out survives a restart.
-	StatsShare bool `json:"statsShare"`
-
-	// CrashReportAutoSubmit uploads pending crash dumps on launch without prompting.
-	// Stored without omitempty so false round-trips: omitted key plus normalize defaults would otherwise force true on load.
-	CrashReportAutoSubmit bool `json:"crashReportAutoSubmit"`
 
 	// AppBgImage is the filename (under wwwroot/backgrounds/) of the app-wide background image.
 	AppBgImage string `json:"appBgImage,omitempty"`
@@ -156,9 +143,6 @@ func defaultSettings() AppSettings {
 		PlatformOrder:            nil,
 		DisabledPlatforms:        nil,
 		StatsEnabled:             true,
-		StatsShare:               true,
-		PrereleaseUpdates:        defaultPrereleaseUpdates,
-		CrashReportAutoSubmit:    true,
 		DiscordRpc:               true,
 		DiscordRpcShare:          false,
 		AnimationsEnabled:        true,
@@ -232,15 +216,6 @@ func normalizeAppSettingsDefaults(s *AppSettings, raw map[string]json.RawMessage
 	}
 	if _, ok := raw["statsEnabled"]; !ok {
 		s.StatsEnabled = true
-	}
-	if _, ok := raw["statsShare"]; !ok {
-		s.StatsShare = true
-	}
-	if _, ok := raw["prereleaseUpdates"]; !ok {
-		s.PrereleaseUpdates = defaultPrereleaseUpdates
-	}
-	if _, ok := raw["crashReportAutoSubmit"]; !ok {
-		s.CrashReportAutoSubmit = true
 	}
 	if _, ok := raw["discordRpc"]; !ok {
 		s.DiscordRpc = true
@@ -388,8 +363,6 @@ func saveSettingsAtomic(exeDir string, s AppSettings) error {
 	normalizeAppSettingsDefaults(&s, map[string]json.RawMessage{
 		"animationsEnabled":        {},
 		"statsEnabled":             {},
-		"statsShare":               {},
-		"prereleaseUpdates":        {},
 		"discordRpc":               {},
 		"controllerSupportEnabled": {},
 	})

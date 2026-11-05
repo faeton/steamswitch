@@ -31,7 +31,6 @@ type StatsPageRow struct {
 
 // StatsReport is returned to the SPA for the statistics modal.
 type StatsReport struct {
-	ShareEnabled        bool               `json:"shareEnabled"`
 	OsDisplay           string             `json:"osDisplay"`
 	FirstLaunch         string             `json:"firstLaunch"`
 	LaunchCount         int                `json:"launchCount"`
@@ -44,7 +43,6 @@ type StatsReport struct {
 	TotalTaggedAccounts int                `json:"totalTaggedAccounts"`
 	UniqueDaysSwitched  int                `json:"uniqueDaysSwitched"`
 	UUID                string             `json:"uuid"`
-	LastUpload          string             `json:"lastUpload"`
 	Switchers           []StatsSwitcherRow `json:"switchers"`
 	Pages               []StatsPageRow     `json:"pages"`
 }
@@ -56,7 +54,7 @@ func formatStatsDateTime(t time.Time) string {
 	return t.Local().Format("2006-01-02 15:04:05")
 }
 
-func assembleStatsReport(data stats.ReportData, shareEnabled bool) StatsReport {
+func assembleStatsReport(data stats.ReportData) StatsReport {
 	sw := make([]StatsSwitcherRow, 0, len(data.Switchers))
 	for _, r := range data.Switchers {
 		sw = append(sw, StatsSwitcherRow{
@@ -82,7 +80,6 @@ func assembleStatsReport(data stats.ReportData, shareEnabled bool) StatsReport {
 		})
 	}
 	return StatsReport{
-		ShareEnabled:        shareEnabled,
 		OsDisplay:           winutil.OSDisplayString(),
 		FirstLaunch:         formatStatsDateTime(data.FirstLaunch),
 		LaunchCount:         data.LaunchCount,
@@ -95,7 +92,6 @@ func assembleStatsReport(data stats.ReportData, shareEnabled bool) StatsReport {
 		TotalTaggedAccounts: data.TotalTaggedAccounts,
 		UniqueDaysSwitched:  data.UniqueDaysSwitched,
 		UUID:                data.UUID,
-		LastUpload:          formatStatsDateTime(data.LastUpload),
 		Switchers:           sw,
 		Pages:               pg,
 	}

@@ -33,13 +33,11 @@ the account metadata Steam uses: tags, notes, names and images (`internal/steam/
 
 ### No outbound reporting, no auto-update
 
-- `internal/api` returns empty URLs for statistics, crash reports, stability ratings, feedback and
-  version checks, and every caller treats an empty URL as disabled. Statistics and crash dumps are
-  written locally and never uploaded.
+- There is no code that uploads statistics, crash reports, ratings or feedback, or checks for
+  updates. Statistics and crash dumps are written locally and stay there.
 - Steam's app-name list comes from Valve's own `ISteamApps/GetAppList/v2`. `parseAppNameMapJSON`
   accepts that shape and the flat `{"appid":"name"}` shape of the on-disk cache.
-- Auto-update is off: `internal/app/gui.go` does not start the updater, and
-  `runLaunchPlatformsJSONCheck` is disabled so nothing can replace `Platforms.json`.
+- There is no updater, and nothing downloads a replacement `Platforms.json`.
 - Discord Rich Presence talks only to the local Discord client.
 
 ### Appearance

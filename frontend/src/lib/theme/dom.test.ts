@@ -14,9 +14,6 @@ const runtimeMock = vi.hoisted(() => {
   };
 });
 
-const updaterThemeMock = vi.hoisted(() => ({
-  scheduleUpdaterThemeSync: vi.fn(),
-}));
 
 const platformServiceMock = vi.hoisted(() => ({
   GetTheme: vi.fn(),
@@ -28,7 +25,6 @@ const platformServiceMock = vi.hoisted(() => ({
 }));
 
 vi.mock("@wailsio/runtime", () => runtimeMock);
-vi.mock("../updaterTheme", () => updaterThemeMock);
 vi.mock("../../styles/modal-primary.scss?inline", () => ({
   default: "/* modal primary */",
 }));
@@ -160,7 +156,6 @@ describe("Windows accent live updates", () => {
   beforeEach(() => {
     runtimeMock.handlers.clear();
     runtimeMock.Events.On.mockClear();
-    updaterThemeMock.scheduleUpdaterThemeSync.mockClear();
     Object.defineProperty(globalThis, "document", {
       value: undefined,
       configurable: true,
@@ -218,7 +213,6 @@ describe("base theme default accent follows the scheme", () => {
   beforeEach(() => {
     runtimeMock.handlers.clear();
     runtimeMock.Events.On.mockClear();
-    updaterThemeMock.scheduleUpdaterThemeSync.mockClear();
     Object.defineProperty(globalThis, "document", {
       value: undefined,
       configurable: true,

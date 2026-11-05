@@ -169,7 +169,7 @@ confidence column.
 | Portable install — data next to the exe | Built | G1 |
 | 30+ locales; all user-visible strings translated, including tray and native surfaces | Built | G7, G9, CB7 |
 | Themes: system/light/dark with one accent colour | Built | A5, A6 |
-| No outbound reporting of any kind | By construction | `internal/api` returns empty URLs; every caller early-returns |
+| No outbound reporting of any kind | By construction | no upload code exists |
 | Auto-update disabled | By construction | Upstream's feed would replace this build with the 24-platform app |
 
 ---

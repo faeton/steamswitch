@@ -1,6 +1,5 @@
 import { get } from "svelte/store";
 import * as PlatformService from "../../../bindings/steamswitch/internal/platform/platformservice.js";
-import { scheduleUpdaterThemeSync } from "../updaterTheme";
 import {
   BASE_THEME_ID,
   CUSTOM_THEME_ACCENT_KEY,
@@ -138,7 +137,6 @@ export async function initTheme(): Promise<void> {
   await refreshWindowsThemeAccentColor();
   currentThemeId.set(BASE_THEME_ID);
   syncAppearanceDom();
-  scheduleUpdaterThemeSync();
   applyResolvedAccent(BASE_THEME_ID, storedAccent.accentKey, storedAccent.customColor);
 
   /*

@@ -2,10 +2,6 @@ package stats
 
 import (
 	"encoding/json"
-	"fmt"
-	"log"
-	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -13,9 +9,6 @@ import (
 	"sync"
 	"time"
 
-	buildinfo "steamswitch/build"
-	"steamswitch/internal/api"
-	"steamswitch/internal/appclient"
 	"steamswitch/internal/crashlog"
 	"steamswitch/internal/fsutil"
 	"steamswitch/internal/paths"
@@ -45,7 +38,6 @@ type SwitcherStat struct {
 
 type AppStats struct {
 	Uuid             string                  `json:"Uuid"`
-	LastUpload       time.Time               `json:"LastUpload"`
 	OperatingSystem  string                  `json:"OperatingSystem"`
 	LaunchCount      int                     `json:"LaunchCount"`
 	CrashCount       int                     `json:"CrashCount"`
@@ -315,72 +307,6 @@ func IncrementSwitches(platformName string) error {
 	}
 	state.SwitcherStats[p] = row
 	return saveLocked()
-}
-
-func TryUploadDaily(statsEnabled, statsShare, offlineMode bool) error {
-	if !statsEnabled || !statsShare || offlineMode {
-		return nil
-	}
-
-	mu.Lock()
-	// Flush any pending dirty data before we compute totals for upload.
-	if dirty {
-		dirty = false
-		_ = flushLocked()
-	}
-	if err := ensureLoadedLocked(); err != nil {
-		mu.Unlock()
-		return err
-	}
-	if state.LastUpload.Year() == time.Now().Year() &&
-		state.LastUpload.Month() == time.Now().Month() &&
-		state.LastUpload.Day() == time.Now().Day() {
-		mu.Unlock()
-		return nil
-	}
-	generateTotalsLocked()
-	payloadBytes, err := json.Marshal(state)
-	if err != nil {
-		mu.Unlock()
-		return err
-	}
-	uuid := state.Uuid
-	mu.Unlock()
-
-	form := url.Values{
-		"uuid":      []string{uuid},
-		"statsData": []string{string(payloadBytes)},
-	}
-	// Anonymous statistics upload is disabled in this fork; stats stay on disk.
-	if api.AnonymousStatsUploadURL() == "" {
-		return nil
-	}
-	req, err := http.NewRequest(http.MethodPost, api.AnonymousStatsUploadURL(), strings.NewReader(form.Encode()))
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("User-Agent", api.UserAgent(buildinfo.Version()))
-
-	resp, err := appclient.Shared.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("stats upload failed with status: %d", resp.StatusCode)
-	}
-
-	mu.Lock()
-	defer mu.Unlock()
-	state.LastUpload = time.Now()
-	return saveLocked()
-}
-
-func MustTryUploadDaily(statsEnabled, statsShare, offlineMode bool) {
-	if err := TryUploadDaily(statsEnabled, statsShare, offlineMode); err != nil {
-		log.Printf("stats upload skipped/failed: %v", err)
-	}
 }
 
 // Narrow wrappers keep imports in one file and simplify test replacement.

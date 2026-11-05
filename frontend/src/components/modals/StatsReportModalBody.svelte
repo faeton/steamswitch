@@ -43,7 +43,6 @@
   function monoDetail(r: StatsReport, tr: (k: string, v?: Record<string, string | number>) => string): string {
     const parts: string[] = [];
     parts.push(`Uuid: ${r.uuid}`);
-    parts.push(`${tr("Stats_LastUpload")}${r.lastUpload}`);
     parts.push(`${tr("Stats_SwitcherStats")}`);
     for (const sw of r.switchers) {
       parts.push(`- ${sw.platform}:`);
@@ -105,11 +104,6 @@
 </script>
 
 <div class="stats-report">
-  {#if report.shareEnabled}
-    <p class="stats-report__share">{$t("Stats_ModalShareEnabled")}</p>
-  {:else}
-    <p class="stats-report__share">{$t("Stats_ModalShareDisabled")}</p>
-  {/if}
   <p class="stats-report__linkrow">
   </p>
 
@@ -132,10 +126,6 @@
     gap: 0.5rem;
     min-width: 0;
     max-width: 42rem;
-  }
-
-  .stats-report__share {
-    margin: 0;
   }
 
   .stats-report__linkrow {

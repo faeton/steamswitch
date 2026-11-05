@@ -40,9 +40,6 @@ var trayIconPNG []byte
 //go:embed build/trayicon-template.png
 var trayTemplatePNG []byte
 
-//go:embed updater-key.pub
-var updaterPublicKey []byte
-
 var (
 	platformSvc   = &platform.PlatformService{}
 	basicSvc      = basic.NewBasicService(platformSvc)
@@ -55,8 +52,6 @@ var (
 	// the process-wide engine lazily on first use.
 	sessionKitSvc = steam.NewSessionKitService(nil)
 	vaultSvc      = vault.NewService()
-
-	crashSubmitted bool
 )
 
 func init() {
@@ -72,10 +67,6 @@ func init() {
 	application.RegisterEvent[shortcuts.ListPayload](shortcuts.UpdatedEvent)
 	application.RegisterEvent[shortcuts.FilesDroppedPayload](shortcuts.FilesDroppedEvent)
 	application.RegisterEvent[vault.GuardCodeNeededPayload](vault.GuardCodeNeededEvent)
-	application.RegisterEvent[platform.UpdateAvailablePayload](platform.AppUpdateAvailableEvent)
-	application.RegisterEvent[bool](platform.UpdateCheckFailedEvent)
-	application.RegisterEvent[platform.PlatformsJSONUpdatePayload](platform.PlatformsJSONUpdateFoundEvent)
-	application.RegisterEvent[platform.PlatformsJSONUpdatePayload](platform.PlatformsJSONUpdatedEvent)
 	application.RegisterEvent[platform.UserDataMoveProgressPayload](platform.UserDataMoveProgressEvent)
 
 	platform.SetSteamLaunchHooks(steam.SaveFolderFromConfirmedExe, steam.ResolveSteamExePath)
@@ -162,9 +153,6 @@ func main() {
 	syncOfflineModeFromSettings(startupSettings)
 	stats.SetStatsCollectionEnabled(startupSettings.StatsEnabled)
 
-	if crashlog.HasPending() && !startupSettings.OfflineMode && startupSettings.CrashReportAutoSubmit {
-		crashSubmitted = crashlog.SubmitPending()
-	}
 	defer crashlog.CaptureFatal()
 
 	if parsed.Kind == cli.KindHelp || parsed.Help {
@@ -233,17 +221,15 @@ func main() {
 	}
 
 	app.RunGUI(app.RunGUIParams{
-		Parsed:           parsed,
-		GuiSettings:      startupSettings,
-		Services:         serviceList(),
-		Dispatch:         disp,
-		DiscordRPC:       discordRPC,
-		CrashSubmitted:   crashSubmitted,
-		StartupToast:     parsed.StartupToast,
-		EmbeddedAssets:   assets,
-		TrayIconPNG:      trayIconPNG,
-		TrayTemplatePNG:  trayTemplatePNG,
-		UpdaterPublicKey: updaterPublicKey,
+		Parsed:          parsed,
+		GuiSettings:     startupSettings,
+		Services:        serviceList(),
+		Dispatch:        disp,
+		DiscordRPC:      discordRPC,
+		StartupToast:    parsed.StartupToast,
+		EmbeddedAssets:  assets,
+		TrayIconPNG:     trayIconPNG,
+		TrayTemplatePNG: trayTemplatePNG,
 	})
 }
 

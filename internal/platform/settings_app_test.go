@@ -10,7 +10,7 @@ import (
 //
 // Those singletons are process-wide, so a test that calls this MUST NOT call t.Parallel():
 // two parallel tests would each repoint them and then read each other's settings file.
-// That is what made TestAppSettingsJSON_PrereleaseUpdates fail roughly one run in three.
+// That made a settings round-trip test fail roughly one run in three.
 func testExeDirWithPortable(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -91,34 +91,5 @@ func TestAppSettingsJSON_AnimationsEnabled(t *testing.T) {
 	}
 	if !loaded2.AnimationsEnabled {
 		t.Fatalf("expected AnimationsEnabled=true when omitted, got %+v", loaded2)
-	}
-}
-
-func TestAppSettingsJSON_PrereleaseUpdates(t *testing.T) {
-	dir := testExeDirWithPortable(t)
-	s := defaultSettings()
-	s.PrereleaseUpdates = false
-	if err := SaveAppSettings(dir, s); err != nil {
-		t.Fatal(err)
-	}
-	loaded, err := LoadAppSettings(dir)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if loaded.PrereleaseUpdates {
-		t.Fatalf("expected PrereleaseUpdates=false after round-trip, got %+v", loaded)
-	}
-
-	dir2 := testExeDirWithPortable(t)
-	p := filepath.Join(PortableUserDataDir(dir2), settingsFileName)
-	if err := atomicWriteBytes(p, []byte(`{"version":1,"language":"en-US"}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	loaded2, err := LoadAppSettings(dir2)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !loaded2.PrereleaseUpdates {
-		t.Fatalf("expected PrereleaseUpdates=true when omitted, got %+v", loaded2)
 	}
 }

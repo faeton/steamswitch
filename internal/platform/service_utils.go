@@ -29,19 +29,17 @@ func (p *PlatformService) GetStatsReport() (StatsReport, error) {
 		p.mu.RUnlock()
 		return StatsReport{}, err
 	}
-	s, err := loadSettings(exeDir)
-	if err != nil {
+	if _, err := loadSettings(exeDir); err != nil {
 		p.mu.RUnlock()
 		return StatsReport{}, err
 	}
-	share := s.StatsShare
 	p.mu.RUnlock()
 
 	data, err := stats.GetReportData()
 	if err != nil {
 		return StatsReport{}, err
 	}
-	return assembleStatsReport(data, share), nil
+	return assembleStatsReport(data), nil
 }
 
 func (p *PlatformService) ResetStatistics() error {

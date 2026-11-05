@@ -41,7 +41,6 @@ type ReportData struct {
 	TotalTaggedAccounts int
 	UniqueDaysSwitched  int
 	UUID                string
-	LastUpload          time.Time
 	Switchers           []ReportSwitcherEntry
 	Pages               []ReportPageEntry
 }
@@ -110,7 +109,6 @@ func GetReportData() (ReportData, error) {
 		TotalTaggedAccounts: tot.TaggedAccounts,
 		UniqueDaysSwitched:  tot.UniqueDays,
 		UUID:                state.Uuid,
-		LastUpload:          state.LastUpload,
 		Switchers:           sw,
 		Pages:               pg,
 	}, nil

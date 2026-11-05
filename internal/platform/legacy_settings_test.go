@@ -18,7 +18,6 @@ func TestStatsOptOutRoundTrips(t *testing.T) {
 	ResetPathSingletonsForTest(exeDir)
 	settings := defaultSettings()
 	settings.StatsEnabled = false
-	settings.StatsShare = false
 	if err := SaveAppSettings(exeDir, settings); err != nil {
 		t.Fatal(err)
 	}
@@ -31,8 +30,8 @@ func TestStatsOptOutRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !bytes.Contains(raw, []byte(`"statsEnabled": false`)) || !bytes.Contains(raw, []byte(`"statsShare": false`)) {
-		t.Fatalf("explicit stats opt-outs were omitted: %s", raw)
+	if !bytes.Contains(raw, []byte(`"statsEnabled": false`)) {
+		t.Fatalf("explicit stats opt-out was omitted: %s", raw)
 	}
 
 	ResetPathSingletonsForTest(exeDir)
@@ -40,8 +39,8 @@ func TestStatsOptOutRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.StatsEnabled || loaded.StatsShare {
-		t.Fatalf("stats opt-out did not survive reload: enabled=%v share=%v", loaded.StatsEnabled, loaded.StatsShare)
+	if loaded.StatsEnabled {
+		t.Fatalf("stats opt-out did not survive reload: enabled=%v", loaded.StatsEnabled)
 	}
 }
 
@@ -87,8 +86,8 @@ func TestLegacyWindowSettingsMigratesPlatformsAndStats(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if settings.StatsEnabled || settings.StatsShare {
-		t.Fatalf("legacy stats opt-out was lost: enabled=%v share=%v", settings.StatsEnabled, settings.StatsShare)
+	if settings.StatsEnabled {
+		t.Fatalf("legacy stats opt-out was lost: enabled=%v", settings.StatsEnabled)
 	}
 	if slices.Contains(settings.DisabledPlatforms, "Steam") {
 		t.Fatalf("legacy enabled Steam was disabled: %v", settings.DisabledPlatforms)
@@ -181,8 +180,8 @@ func TestInstallerStatsPreferenceIsConsumed(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if settings.StatsEnabled || settings.StatsShare {
-		t.Fatalf("installer send preference applied incorrectly: enabled=%v share=%v", settings.StatsEnabled, settings.StatsShare)
+	if settings.StatsEnabled {
+		t.Fatalf("installer send preference applied incorrectly: enabled=%v", settings.StatsEnabled)
 	}
 	if _, err := os.Stat(marker); !os.IsNotExist(err) {
 		t.Fatalf("installer marker was not consumed: %v", err)
