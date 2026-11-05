@@ -3,6 +3,8 @@ package vault
 import (
 	"encoding/json"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +13,7 @@ import (
 
 	"steamswitch/internal/paths"
 	"steamswitch/internal/security"
+	"steamswitch/internal/vault/probe"
 )
 
 // newVault gives each test its own data root and an unlocked app password, then clears the
@@ -24,6 +27,10 @@ func newVault(t *testing.T) string {
 		t.Fatalf("set app password: %v", err)
 	}
 	t.Cleanup(DropCache)
+	// A check with no API key reads Steam's public profile. Tests must never reach the real one.
+	steam := httptest.NewServer(http.NotFoundHandler())
+	t.Cleanup(steam.Close)
+	t.Cleanup(probe.SetCommunityBaseForTest(steam.URL))
 	return root
 }
 

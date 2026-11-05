@@ -13,12 +13,22 @@
  */
 import { get, writable } from "svelte/store";
 import * as VaultService from "../../bindings/steamswitch/internal/vault/vaultservice.js";
-import type { CodeResult, HealthReport, Status, Summary } from "../../bindings/steamswitch/internal/vault/models";
+import * as SteamService from "../../bindings/steamswitch/internal/steam/steamservice.js";
+import type {
+  CodeResult,
+  EmailCheck,
+  EmailDetection,
+  HealthReport,
+  Status,
+  Summary,
+} from "../../bindings/steamswitch/internal/vault/models";
 
 export type VaultStatus = Status;
 export type VaultEntry = Summary;
 export type VaultHealth = HealthReport;
 export type VaultCode = CodeResult;
+export type VaultEmailCheck = EmailCheck;
+export type VaultEmailDetection = EmailDetection;
 
 /** Field names the Go side will accept for a reveal. Anything else is rejected there too. */
 export const VAULT_FIELDS = {
@@ -125,6 +135,33 @@ export async function saveEntry(draft: Record<string, unknown>): Promise<void> {
   }
 }
 
+/** Give a login-only entry its real SteamID. */
+export async function linkSteamId(pendingId: string, steamId64: string): Promise<void> {
+  await VaultService.LinkSteamID(pendingId, steamId64);
+  await loadVaultEntries();
+}
+
+/**
+ * Steam's own list says which SteamID a login belongs to, so a login-only entry can be attached
+ * as soon as Steam has signed in to it here. Best-effort: anything that fails stays login-only.
+ */
+export async function linkPendingEntries(): Promise<void> {
+  const pending = get(vaultEntries).filter((e) => e.pending && e.accountName);
+  if (pending.length === 0) return;
+  try {
+    const { accounts } = await SteamService.GetSteamAccountsList();
+    const byLogin = new Map(
+      (accounts ?? []).map((a) => [a.accountName.trim().toLowerCase(), a.steamId64]),
+    );
+    for (const entry of pending) {
+      const id = byLogin.get((entry.accountName ?? "").trim().toLowerCase());
+      if (id) await linkSteamId(entry.steamId64, id).catch(() => {});
+    }
+  } catch {
+    /* Steam's list could not be read; the entries simply stay as they are. */
+  }
+}
+
 export async function deleteEntry(steamId64: string): Promise<void> {
   vaultBusy.set(true);
   try {
@@ -164,6 +201,11 @@ export async function submitManualGuardCode(
   code: string,
 ): Promise<void> {
   return VaultService.SubmitManualGuardCode(steamId64, requestId, code);
+}
+
+/** What the checks have done for an account since the app started. */
+export async function checkActivity(steamId64: string) {
+  return VaultService.GetCheckActivity(steamId64);
 }
 
 export async function quickCheck(steamId64: string): Promise<VaultHealth> {
@@ -231,12 +273,23 @@ export async function deepCheck(steamId64: string): Promise<VaultHealth> {
   }
 }
 
-export async function testEmailBinding(steamId64: string): Promise<void> {
-  await VaultService.TestEmailBinding(steamId64);
+/** Sign in to a saved mailbox. The row updates as soon as the answer is in. */
+export async function checkEmail(steamId64: string): Promise<VaultEmailCheck> {
+  const check = await VaultService.CheckEmail(steamId64);
+  // Reload rather than patch the row. The entry may have been edited while this ran, and only
+  // the backend knows whether the result still matches its settings.
+  await loadVaultEntries();
+  return check;
 }
 
-export async function discoverIMAP(address: string, password: string): Promise<string> {
-  return VaultService.DiscoverIMAP(address, password);
+/** Sign in using what the editor shows now, saved or not. */
+export async function checkEmailDraft(draft: Record<string, unknown>): Promise<VaultEmailCheck> {
+  return VaultService.CheckEmailDraft(draft as never);
+}
+
+/** Find the mail server for an address. Sends no password. */
+export async function detectEmail(address: string): Promise<VaultEmailDetection> {
+  return VaultService.DetectEmail(address);
 }
 
 export async function tokenDetails(steamId64: string) {

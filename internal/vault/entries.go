@@ -2,6 +2,7 @@ package vault
 
 import (
 	"errors"
+	"net/url"
 	"sort"
 	"strings"
 	"time"
@@ -14,6 +15,8 @@ type Summary struct {
 	AccountName string `json:"accountName,omitempty"`
 	Label       string `json:"label,omitempty"`
 	Standalone  bool   `json:"standalone"`
+	// Pending means the SteamID is not known yet, and SteamID64 holds a stand-in key.
+	Pending bool `json:"pending,omitempty"`
 
 	HasPassword       bool `json:"hasPassword"`
 	HasSharedSecret   bool `json:"hasSharedSecret"`
@@ -22,7 +25,14 @@ type Summary struct {
 
 	EmailAddress string `json:"emailAddress,omitempty"`
 	EmailSource  string `json:"emailSource"`
-	HasEmailAuth bool   `json:"hasEmailAuth"`
+	// Where the mailbox lives, so the editor can show it. None of these is a secret.
+	EmailHost    string      `json:"emailHost,omitempty"`
+	EmailPort    int         `json:"emailPort,omitempty"`
+	EmailUser    string      `json:"emailUser,omitempty"`
+	MailboxURL   string      `json:"mailboxUrl,omitempty"`
+	MailboxID    string      `json:"mailboxId,omitempty"`
+	HasEmailAuth bool        `json:"hasEmailAuth"`
+	EmailCheck   *EmailCheck `json:"emailCheck,omitempty"`
 
 	Source     string `json:"source,omitempty"`
 	AcquiredAt string `json:"acquiredAt,omitempty"`
@@ -44,12 +54,14 @@ func summarise(e Entry) Summary {
 		AccountName:       e.AccountName,
 		Label:             e.Label,
 		Standalone:        e.Standalone,
+		Pending:           IsPendingID(e.SteamID64),
 		HasPassword:       e.Password != "",
 		HasSharedSecret:   e.SharedSecret != "",
 		HasIdentitySecret: e.IdentitySecret != "",
 		HasRefreshToken:   e.RefreshToken != "",
 		EmailAddress:      e.Email.Address,
 		EmailSource:       emailSourceOf(e),
+		EmailCheck:        currentEmailCheck(e),
 		Source:            e.Source,
 		AcquiredAt:        e.AcquiredAt,
 		SecretNote:        e.SecretNote,
@@ -58,6 +70,12 @@ func summarise(e Entry) Summary {
 		NextEligibleAt:    e.NextEligibleAt,
 		UpdatedAt:         e.UpdatedAt,
 	}
+	if e.Email.IMAP != nil {
+		s.EmailHost, s.EmailPort, s.EmailUser = e.Email.IMAP.Host, e.Email.IMAP.Port, e.Email.IMAP.User
+	}
+	if e.Email.Mailbox != nil {
+		s.MailboxURL, s.MailboxID = shareableURL(e.Email.Mailbox.BaseURL), e.Email.Mailbox.MailboxID
+	}
 	switch s.EmailSource {
 	case EmailSourceIMAP:
 		s.HasEmailAuth = e.Email.IMAP != nil && e.Email.IMAP.Password != ""
@@ -65,6 +83,17 @@ func summarise(e Entry) Summary {
 		s.HasEmailAuth = e.Email.Mailbox != nil && e.Email.Mailbox.Token != ""
 	}
 	return s
+}
+
+// shareableURL returns a mailbox URL only if it cannot be carrying a secret. Someone can paste
+// https://user:password@host or ?token=…, and a Summary must stay safe to show. An empty field in
+// the editor leaves the saved URL as it is, because an untouched field is never sent.
+func shareableURL(raw string) string {
+	u, err := url.Parse(raw)
+	if err != nil || u.User != nil || u.RawQuery != "" || u.Fragment != "" {
+		return ""
+	}
+	return raw
 }
 
 func emailSourceOf(e Entry) string {
@@ -233,15 +262,33 @@ type Draft struct {
 // Put creates or updates an entry from a draft.
 func Put(d Draft) error {
 	id := normID(d.SteamID64)
+	made := false
 	if id == "" {
-		return ErrNoSteamID
+		// Login and password are enough to store an account. A login does not reveal its
+		// SteamID without signing in, so the entry waits under a stand-in key; see LinkSteamID.
+		if d.AccountName == nil || strings.TrimSpace(*d.AccountName) == "" {
+			return ErrNoSteamID
+		}
+		token, err := randomToken(pendingIDSize)
+		if err != nil {
+			return err
+		}
+		id, made = pendingIDPrefix+token, true
 	}
 	return mutate(func(doc *Doc) error {
 		e, ok := doc.Entries[id]
 		if !ok {
+			// Seeing a stand-in key with no entry means the entry has since moved to its real
+			// SteamID, and a form left open must not bring a second copy back.
+			if IsPendingID(id) && !made {
+				return ErrNotFound
+			}
 			e = Entry{SteamID64: id, Email: EmailBinding{Source: EmailSourceNone}}
 		}
 		applyDraft(&e, d)
+		if !ok {
+			adoptUnsavedCheck(&e)
+		}
 		e.SteamID64 = id
 		e.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 		doc.Entries[id] = e
@@ -249,11 +296,56 @@ func Put(d Draft) error {
 	})
 }
 
+// pendingIDPrefix marks the key of an entry whose SteamID is not known yet. It cannot collide
+// with a real one, which is 17 digits.
+const (
+	pendingIDPrefix = "login-"
+	pendingIDSize   = 12
+)
+
+// IsPendingID reports a stand-in key rather than a real SteamID.
+func IsPendingID(id string) bool { return strings.HasPrefix(id, pendingIDPrefix) }
+
+// LinkSteamID moves a login-only entry to its real SteamID, once something has established it:
+// a successful sign-in, Steam's own list on this machine, or the user typing it.
+func LinkSteamID(pendingID, steamID64 string) error {
+	pendingID, steamID64 = normID(pendingID), normID(steamID64)
+	if !IsPendingID(pendingID) {
+		return ErrNotPending
+	}
+	if !looksLikeSteamID64Roster(steamID64) {
+		return ErrNoSteamID
+	}
+	return mutate(func(doc *Doc) error {
+		e, ok := doc.Entries[pendingID]
+		if !ok {
+			return ErrNotFound
+		}
+		if _, taken := doc.Entries[steamID64]; taken {
+			return ErrSteamIDTaken
+		}
+		delete(doc.Entries, pendingID)
+		e.SteamID64 = steamID64
+		e.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+		doc.Entries[steamID64] = e
+		moveActivity(pendingID, steamID64)
+		return nil
+	})
+}
+
 func applyDraft(e *Entry, d Draft) {
+	// Whatever a sign-in proved, it proved for the old login.
+	if d.AccountName != nil && *d.AccountName != e.AccountName {
+		forgetSignIn(e, SignalPassword)
+		forgetSignIn(e, SignalSession)
+	}
 	setStr(&e.AccountName, d.AccountName)
 	setStr(&e.Label, d.Label)
 	if d.Standalone != nil {
 		e.Standalone = *d.Standalone
+	}
+	if d.Password != nil && *d.Password != e.Password {
+		forgetSignIn(e, SignalPassword)
 	}
 	setStr(&e.Password, d.Password)
 	setStr(&e.SharedSecret, d.SharedSecret)
@@ -294,6 +386,7 @@ func applyDraft(e *Entry, d Draft) {
 	// express it without echoing the current value back first.
 	if d.ClearPassword {
 		e.Password = ""
+		forgetSignIn(e, SignalPassword)
 	}
 	if d.ClearTOTP {
 		e.SharedSecret = ""
@@ -303,6 +396,7 @@ func applyDraft(e *Entry, d Draft) {
 		e.RefreshToken = ""
 		e.GuardData = ""
 		e.TokenExpiresAt = ""
+		forgetSignIn(e, SignalSession)
 	}
 	if e.Email.Source == "" {
 		e.Email.Source = EmailSourceNone
@@ -368,9 +462,13 @@ func recordSession(steamID64, refreshToken, guardData, expiresAt string) error {
 	return mutate(func(doc *Doc) error {
 		e, ok := doc.Entries[id]
 		if !ok {
+			if IsPendingID(id) {
+				return nil // it moved to its real SteamID while this was running
+			}
 			e = Entry{SteamID64: id, Email: EmailBinding{Source: EmailSourceNone}}
 		}
 		if refreshToken != "" {
+			forgetSignIn(&e, SignalSession)
 			e.RefreshToken = refreshToken
 			e.TokenExpiresAt = expiresAt
 		}
@@ -415,6 +513,7 @@ func recordSessionSkip(steamID64 string, rep HealthReport, nextEligible time.Tim
 		if e.CheckFailures > 0 || e.SessionSkips >= MaxSessionSkips {
 			return errSkipSuperseded
 		}
+		carrySignInResults(&rep, e.Health)
 		e.Health = &rep
 		e.CheckFailures = 0
 		e.SessionSkips++
@@ -460,8 +559,12 @@ func recordHealthOnly(steamID64 string, rep HealthReport) error {
 	return mutate(func(doc *Doc) error {
 		e, ok := doc.Entries[id]
 		if !ok {
+			if IsPendingID(id) {
+				return nil // it moved to its real SteamID while this was running
+			}
 			e = Entry{SteamID64: id, Email: EmailBinding{Source: EmailSourceNone}}
 		}
+		carrySignInResults(&rep, e.Health)
 		e.Health = &rep
 		e.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 		doc.Entries[id] = e
@@ -481,8 +584,12 @@ func recordHealth(steamID64 string, rep HealthReport, nextEligible time.Time, fa
 	return mutate(func(doc *Doc) error {
 		e, ok := doc.Entries[id]
 		if !ok {
+			if IsPendingID(id) {
+				return nil // it moved to its real SteamID while this was running
+			}
 			e = Entry{SteamID64: id, Email: EmailBinding{Source: EmailSourceNone}}
 		}
+		carrySignInResults(&rep, e.Health)
 		e.Health = &rep
 		e.CheckFailures = failures
 		if !nextEligible.IsZero() {

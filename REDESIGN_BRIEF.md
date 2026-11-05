@@ -433,8 +433,8 @@ rewrites the whole blob (no tombstone). **`ids.json`** (unencrypted, `LoginCache
 
 **VaultService methods (Wails-bound, most require app-lock unlocked):** `GetStatus`, `ListEntries`,
 `GetEntry`, `SaveEntry(Draft)` (create/update), `DeleteEntry`, `RevealField`, `HasEntry`,
-`GetGuardCode`, `SubmitManualGuardCode`, `TestEmailBinding`, `RunQuickCheck(All)`, `RunDeepCheck`,
-`RunSessionCheck`, `GetTokenDetails`, `DiscoverIMAP`, `IsRateLimited`, and the handoff set
+`GetGuardCode`, `SubmitManualGuardCode`, `CheckEmail`, `CheckEmailDraft`, `RunQuickCheck(All)`, `RunDeepCheck`,
+`RunSessionCheck`, `GetTokenDetails`, `DetectEmail`, `IsRateLimited`, and the handoff set
 (`ExportHandoff`, `ListHandoffBundles`, `InspectHandoffBundle`, `AcceptHandoffBundle`,
 `GetHandoffLog`, `GetHandoffFolder`).
 

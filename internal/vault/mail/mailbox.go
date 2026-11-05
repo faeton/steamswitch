@@ -96,9 +96,12 @@ func (s *mailboxSource) do(ctx context.Context, method, path string, out any) er
 	return nil
 }
 
-func (s *mailboxSource) Probe(ctx context.Context) error {
+func (s *mailboxSource) Probe(ctx context.Context) (int, error) {
 	var msgs []message
-	return s.do(ctx, http.MethodGet, s.listPath(false), &msgs)
+	if err := s.do(ctx, http.MethodGet, s.listPath(false), &msgs); err != nil {
+		return 0, err
+	}
+	return len(msgs), nil
 }
 
 func (s *mailboxSource) listPath(pendingOnly bool) string {

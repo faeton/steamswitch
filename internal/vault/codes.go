@@ -107,19 +107,6 @@ func GuardCode(ctx context.Context, steamID64 string) (CodeResult, error) {
 	return CodeResult{Code: code, Method: MethodMailbox}, nil
 }
 
-// ProbeEmail validates an entry's email binding without consuming anything.
-func ProbeEmail(ctx context.Context, steamID64 string) error {
-	e, err := entry(steamID64)
-	if err != nil {
-		return err
-	}
-	src, err := sourceFor(e)
-	if err != nil {
-		return err
-	}
-	return src.Probe(ctx)
-}
-
 // --- sign-in assist -------------------------------------------------------------------
 //
 // A swap is over in seconds, so anchoring a code fetch at "now" is honest there: the mail
@@ -333,15 +320,4 @@ func resetPrewarmForTest() {
 		}
 	}
 	prewarms = map[string]*prewarm{}
-}
-
-// autoconfigIMAP probes the usual hosts for an address and returns the one that accepted
-// the credentials. It lives here rather than in the service so the mail package stays the
-// only importer of the IMAP client.
-func autoconfigIMAP(ctx context.Context, address, password string) (string, error) {
-	cfg, err := mail.Autoconfig(ctx, address, password)
-	if err != nil {
-		return "", err
-	}
-	return cfg.Host, nil
 }

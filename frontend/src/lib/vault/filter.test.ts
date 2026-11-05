@@ -5,9 +5,9 @@ import type { HealthReport, Summary } from "../../../bindings/steamswitch/intern
 function ok(): HealthReport {
   return {
     verdict: "ok",
-    probedAt: "2026-07-26T12:00:00Z",
+    probedAt: new Date().toISOString(),
     deep: false,
-    signals: [{ name: "token", status: "ok", detail: "Vault_Signal_TokenValid", blocker: false }],
+    signals: [{ name: "password", status: "ok", detail: "Vault_Signal_PasswordOK", blocker: false }],
   } as HealthReport;
 }
 

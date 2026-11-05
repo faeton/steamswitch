@@ -123,6 +123,22 @@ func (s *VaultService) SaveEntry(d Draft) error {
 	return Put(d)
 }
 
+// GetCheckActivity returns what the checks have done for an account since the app started.
+func (s *VaultService) GetCheckActivity(steamID64 string) ([]ActivityStep, error) {
+	if err := security.RequireVaultUnlocked(); err != nil {
+		return nil, ErrLocked
+	}
+	return Activity(steamID64), nil
+}
+
+// LinkSteamID gives a login-only entry its real SteamID.
+func (s *VaultService) LinkSteamID(pendingID, steamID64 string) error {
+	if err := security.RequireVaultUnlocked(); err != nil {
+		return ErrLocked
+	}
+	return LinkSteamID(pendingID, steamID64)
+}
+
 func (s *VaultService) DeleteEntry(steamID64 string) error {
 	if err := security.RequireVaultUnlocked(); err != nil {
 		return ErrLocked
@@ -196,14 +212,24 @@ func (s *VaultService) SubmitManualGuardCode(steamID64, requestID, code string) 
 	return SubmitManualGuardCode(steamID64, requestID, code)
 }
 
-// TestEmailBinding validates an entry's mailbox configuration without consuming anything.
-func (s *VaultService) TestEmailBinding(steamID64 string) error {
+// CheckEmail signs in to an entry's saved mailbox and records the result.
+func (s *VaultService) CheckEmail(steamID64 string) (EmailCheck, error) {
 	if err := security.RequireVaultUnlocked(); err != nil {
-		return ErrLocked
+		return EmailCheck{}, ErrLocked
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	return ProbeEmail(ctx, steamID64)
+	return CheckEmail(ctx, steamID64)
+}
+
+// CheckEmailDraft checks the mailbox settings the editor currently shows, saved or not.
+func (s *VaultService) CheckEmailDraft(d Draft) (EmailCheck, error) {
+	if err := security.RequireVaultUnlocked(); err != nil {
+		return EmailCheck{}, ErrLocked
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	return CheckEmailDraft(ctx, d)
 }
 
 // RunQuickCheck runs the cheap signals for one account. Safe to call for every account.
@@ -277,19 +303,15 @@ func (s *VaultService) GetTokenDetails(steamID64 string) (TokenDetails, error) {
 	return TokenInfo(steamID64)
 }
 
-// DiscoverIMAP tries the usual hosts for an address so the user does not have to know what
-// their provider calls its IMAP server.
-func (s *VaultService) DiscoverIMAP(address, password string) (string, error) {
+// DetectEmail finds the mail server for an address, so the user does not have to know what
+// their provider calls it. It sends no password.
+func (s *VaultService) DetectEmail(address string) (EmailDetection, error) {
 	if err := security.RequireVaultUnlocked(); err != nil {
-		return "", ErrLocked
+		return EmailDetection{}, ErrLocked
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	cfg, err := autoconfigIMAP(ctx, address, password)
-	if err != nil {
-		return "", err
-	}
-	return cfg, nil
+	return DetectEmail(ctx, address)
 }
 
 // IsRateLimited lets the UI hide the deep-check action rather than offering something that

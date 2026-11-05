@@ -489,6 +489,13 @@ func applyRosterRecord(e *Entry, rec RosterRecord, overwrite bool) {
 			*dst = incoming
 		}
 	}
+	// An import that changes who this is, or the password, invalidates what a sign-in proved.
+	if rec.AccountName != "" && rec.AccountName != e.AccountName {
+		forgetSignIn(e, SignalPassword)
+		forgetSignIn(e, SignalSession)
+	} else if rec.Password != "" && rec.Password != e.Password {
+		forgetSignIn(e, SignalPassword)
+	}
 	set(&e.AccountName, rec.AccountName)
 	set(&e.Label, rec.Label)
 	set(&e.Password, rec.Password)

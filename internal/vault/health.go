@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"strings"
 	"time"
 
 	"steamswitch/internal/vault/probe"
@@ -54,6 +55,10 @@ func QuickCheck(ctx context.Context, steamID64 string, in QuickCheckInput) (Heal
 	if err := recordHealthOnly(steamID64, rep); err != nil {
 		return rep, err
 	}
+	// What was stored, which includes any sign-in results kept from before.
+	if stored, err := entry(steamID64); err == nil && stored.Health != nil {
+		return *stored.Health, nil
+	}
 	return rep, nil
 }
 
@@ -76,13 +81,66 @@ func quickReport(ctx context.Context, steamID64 string, in QuickCheckInput) (Hea
 		rep.Verdict = worst(rep.Verdict, s.Status)
 	}
 
-	add(bansSignal(ctx, in.APIKey, steamID64))
-	add(profileSignal(ctx, in.APIKey, steamID64))
+	logStep(steamID64, "Vault_Step_CheckStart", VerdictUnknown, nil)
+	if IsPendingID(e.SteamID64) {
+		// Both lookups go by SteamID. Sending the stand-in key would only earn an error.
+		add(Signal{Name: SignalBans, Status: VerdictUnknown, Detail: "Vault_Signal_NeedsSteamID"})
+	} else {
+		started := time.Now()
+		if strings.TrimSpace(in.APIKey) == "" {
+			logStep(steamID64, "Vault_Step_AskingPublic", VerdictUnknown, nil)
+			bans, profile := publicSignals(ctx, steamID64)
+			add(bans)
+			add(profile)
+		} else {
+			logStep(steamID64, "Vault_Step_AskingSteam", VerdictUnknown, nil)
+			add(bansSignal(ctx, in.APIKey, steamID64))
+			add(profileSignal(ctx, in.APIKey, steamID64))
+		}
+		logStep(steamID64, "Vault_Step_SteamAnswered", VerdictUnknown, elapsed(started))
+	}
 	add(tokenSignal(e))
 	add(totpSignal(e))
 	add(lastUsedSignal(in.LastUsed))
+	for _, s := range rep.Signals {
+		logSignal(steamID64, s)
+	}
 
 	return rep, e, nil
+}
+
+func elapsed(since time.Time) map[string]string {
+	return map[string]string{"ms": strconv.FormatInt(time.Since(since).Milliseconds(), 10)}
+}
+
+// publicSignals answers from the public profile when there is no API key. It is worded as less
+// than the keyed lookup because it is: the public page does not show game bans.
+func publicSignals(ctx context.Context, steamID64 string) (Signal, Signal) {
+	bans := Signal{Name: SignalBans, Status: VerdictUnknown, Detail: "Vault_Signal_BansUnknown"}
+	profile := Signal{Name: SignalProfile, Status: VerdictUnknown, Detail: "Vault_Signal_ProfileUnknown"}
+	p, err := probe.FetchPublicProfile(ctx, steamID64)
+	if err != nil {
+		if errors.Is(err, probe.ErrRateLimited) {
+			bans.Detail, profile.Detail = "Vault_Signal_RateLimited", "Vault_Signal_RateLimited"
+		}
+		return bans, profile
+	}
+	switch {
+	case p.VACBanned:
+		bans.Status, bans.Blocker, bans.Detail = VerdictFail, true, "Vault_Signal_PublicVACBanned"
+	case p.TradeBan != "" && !strings.EqualFold(p.TradeBan, "None"):
+		bans.Status, bans.Detail = VerdictWarn, "Vault_Signal_EconomyBanned"
+		bans.Params = map[string]string{"state": p.TradeBan}
+	default:
+		bans.Status, bans.Detail = VerdictOK, "Vault_Signal_PublicNoBans"
+	}
+	if p.Limited {
+		// A fact about the account, not a fault: it must not outrank a working sign-in.
+		profile.Status, profile.Detail = VerdictUnknown, "Vault_Signal_PublicLimited"
+	} else {
+		profile.Status, profile.Detail = VerdictOK, "Vault_Signal_PublicProfileOK"
+	}
+	return bans, profile
 }
 
 func bansSignal(ctx context.Context, apiKey, steamID64 string) Signal {
@@ -134,7 +192,7 @@ func profileSignal(ctx context.Context, apiKey, steamID64 string) Signal {
 		if days < probe.LimitedAccountAgeDays {
 			// Steam exposes no "limited" flag, so this is inference — and it is labelled
 			// as inference in the message rather than asserted as fact.
-			s.Status = VerdictWarn
+			s.Status = VerdictUnknown // a fact about the account, not a fault
 			s.Detail = "Vault_Signal_LikelyLimited"
 			s.Params = map[string]string{"days": strconv.Itoa(days)}
 			return s

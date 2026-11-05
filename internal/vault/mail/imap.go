@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"crypto/tls"
+	"crypto/x509"
 	"errors"
 	"io"
 	"net"
@@ -41,6 +42,9 @@ type IMAPConfig struct {
 	// the message \Deleted and expunges it — keeping a code-only mailbox from silting up and
 	// removing any chance a future poll mistakes an old code for a new one.
 	PurgeConsumed bool
+
+	// rootCAs replaces the system roots in tests. Nil everywhere else.
+	rootCAs *x509.CertPool
 }
 
 // dialTimeout bounds the TCP+TLS handshake. Separate from the poll budget: a host that will
@@ -59,6 +63,10 @@ func NewIMAP(cfg IMAPConfig) (CodeSource, error) {
 	}
 	if cfg.Port == 0 {
 		cfg.Port = 993
+	}
+	// 993 is TLS from the first byte. Treating it as plaintext can only hang, so a stored
+	// "no TLS" on this port is ignored rather than turned into a connection error.
+	if cfg.Port == 993 {
 		cfg.UseTLS = true
 	}
 	return &imapSource{cfg: cfg}, nil
@@ -84,7 +92,7 @@ func (s *imapSource) connectSelect(readonly bool) (*client.Client, error) {
 	var conn net.Conn
 	var err error
 	if s.cfg.UseTLS {
-		conn, err = tls.DialWithDialer(d, "tcp", addr, &tls.Config{ServerName: s.cfg.Host, MinVersion: tls.VersionTLS12})
+		conn, err = tls.DialWithDialer(d, "tcp", addr, &tls.Config{ServerName: s.cfg.Host, MinVersion: tls.VersionTLS12, RootCAs: s.cfg.rootCAs})
 	} else {
 		conn, err = d.Dial("tcp", addr)
 	}
@@ -109,14 +117,15 @@ func (s *imapSource) connectSelect(readonly bool) (*client.Client, error) {
 			_ = c.Logout()
 			return nil, ErrConnect
 		}
-		if err := c.StartTLS(&tls.Config{ServerName: s.cfg.Host, MinVersion: tls.VersionTLS12}); err != nil {
+		if err := c.StartTLS(&tls.Config{ServerName: s.cfg.Host, MinVersion: tls.VersionTLS12, RootCAs: s.cfg.rootCAs}); err != nil {
 			_ = c.Logout()
 			return nil, ErrConnect
 		}
 	}
 	if err := c.Login(s.cfg.User, s.cfg.Password); err != nil {
+		failure := loginFailure(c, err)
 		_ = c.Logout()
-		return nil, ErrAuth
+		return nil, failure
 	}
 	if _, err := c.Select("INBOX", readonly); err != nil {
 		_ = c.Logout()
@@ -125,21 +134,44 @@ func (s *imapSource) connectSelect(readonly bool) (*client.Client, error) {
 	return c, nil
 }
 
-func (s *imapSource) Probe(ctx context.Context) error {
-	done := make(chan error, 1)
+// loginFailure separates a server saying no from a connection that died mid-command. go-imap
+// gives a refusal no type of its own, so what can be recognised is the other case. Calling a
+// dropped connection a rejected password would send the user off to change a working password.
+func loginFailure(c *client.Client, err error) error {
+	var netErr net.Error
+	if errors.As(err, &netErr) || errors.Is(err, io.EOF) ||
+		c.State() == imap.LogoutState ||
+		strings.Contains(err.Error(), "connection closed") {
+		return ErrConnect
+	}
+	return ErrAuth
+}
+
+func (s *imapSource) Probe(ctx context.Context) (int, error) {
+	type result struct {
+		messages int
+		err      error
+	}
+	done := make(chan result, 1)
 	go func() {
 		c, err := s.connect()
 		if err != nil {
-			done <- err
+			done <- result{err: err}
 			return
 		}
-		done <- c.Logout()
+		defer func() { _ = c.Logout() }()
+		status := c.Mailbox()
+		if status == nil {
+			done <- result{err: ErrConnect}
+			return
+		}
+		done <- result{messages: int(status.Messages)}
 	}()
 	select {
 	case <-ctx.Done():
-		return ctx.Err()
-	case err := <-done:
-		return err
+		return 0, ctx.Err()
+	case r := <-done:
+		return r.messages, r.err
 	}
 }
 
@@ -416,36 +448,6 @@ func AutoconfigCandidates(address string) []string {
 		return nil
 	}
 	return []string{"imap." + domain, "mail." + domain, "imap.mail." + domain, domain}
-}
-
-// Autoconfig finds a working IMAP host for an address.
-//
-// It identifies the service first and only then tries the credentials, because the two fail
-// for different reasons and trying them together makes "wrong password" and "wrong host"
-// indistinguishable.
-func Autoconfig(ctx context.Context, address, password string) (IMAPConfig, error) {
-	for _, candidate := range AutoconfigCandidates(address) {
-		if ctx.Err() != nil {
-			return IMAPConfig{}, ctx.Err()
-		}
-		host, ok := identifyIMAPHost(candidate)
-		if !ok {
-			continue
-		}
-		cfg := IMAPConfig{Host: host, Port: 993, User: address, Password: password, UseTLS: true, Address: address}
-		src, err := NewIMAP(cfg)
-		if err != nil {
-			continue
-		}
-		if err := src.Probe(ctx); err == nil {
-			return cfg, nil
-		} else if errors.Is(err, ErrAuth) {
-			// The host is right and the credentials are not. Trying the remaining
-			// candidates would only produce connection errors and bury the real answer.
-			return IMAPConfig{}, ErrAuth
-		}
-	}
-	return IMAPConfig{}, ErrConnect
 }
 
 // identifyIMAPHost checks whether something at host:993 speaks IMAP, and returns the name

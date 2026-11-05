@@ -154,6 +154,10 @@ func Export(req ExportRequest) (ExportResult, error) {
 	if err != nil {
 		return ExportResult{}, err
 	}
+	// The recipient's vault keys the account by SteamID, and a stand-in key means nothing there.
+	if IsPendingID(e.SteamID64) {
+		return ExportResult{}, ErrNeedsSteamID
+	}
 
 	if req.Mode == ModeTransfer {
 		// The typed confirmation names the account. Deliberately not a checkbox: the
@@ -427,6 +431,7 @@ func Accept(path, passphrase string) (BundleInfo, error) {
 			}
 		}
 		if p.RefreshToken != "" {
+			forgetSignIn(&e, SignalSession) // a verdict about the old token, not this one
 			e.RefreshToken = p.RefreshToken
 			e.TokenExpiresAt = p.TokenExpiresAt
 			e.GuardData = p.GuardData

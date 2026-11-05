@@ -21,9 +21,10 @@
   import { navigateBackLikeButton } from "../stores/nav";
   import {
     beginLoginAssist,
+    checkEmail,
     deleteEntry,
     endLoginAssist,
-    quickCheck,
+    linkPendingEntries,
     quickCheckAll,
     refreshVault,
     vaultBusy,
@@ -37,6 +38,8 @@
   import { securityStatus, unlockVault } from "../stores/security";
   import * as SteamService from "../../bindings/steamswitch/internal/steam/steamservice.js";
   import { filterVaultEntries, type VaultFilters } from "../lib/vault/filter";
+  import { canCheckEmail } from "../lib/vault/emailCheck";
+  import { askedSteam } from "../lib/vault/health";
   import { loadSwitcherRoster, switcherRoster } from "../stores/switcherRoster";
   import PageHeader from "../components/PageHeader.svelte";
   import VaultGate from "../components/vault/VaultGate.svelte";
@@ -48,6 +51,11 @@
   /** SteamID64 being edited, "" for none, NEW_ENTRY for a blank editor. */
   let editing: string | null = null;
   let checkingAll = false;
+  $: checkingRows = new Set(checkingAll ? $vaultEntries.map((e) => e.steamId64) : []);
+  /** Whose mailbox is being checked, for the row; and how far a "check all" has got. */
+  let checkingEmailId: string | null = null;
+  let emailProgress: { done: number; total: number } | null = null;
+  $: hasCheckableEmail = $vaultEntries.some((e) => canCheckEmail(e.emailSource));
   /** True while the bulk-import flow is open. */
   let importing = false;
 
@@ -107,6 +115,7 @@
         // The gate explains every outcome: the store reports a locked or absent vault as an
         // empty list, and a failed read through vaultLoadError.
       });
+      await linkPendingEntries();
       // Arriving from a tile's "Edit vault": open that entry straight away, so the handoff
       // does not dump the user on a table and ask them to find the row again.
       const pending = takePendingVaultEntry();
@@ -129,6 +138,7 @@
 
   async function onSaved(): Promise<void> {
     await refreshVault();
+    await linkPendingEntries();
     closeEditor();
   }
 
@@ -137,10 +147,13 @@
     checkingAll = true;
     try {
       await quickCheckAll();
+      // Says how many Steam actually answered for: "checked 3" reads as a clean bill of health
+      // when none of them could be looked up.
+      const asked = $vaultEntries.filter((e) => askedSteam(e.health)).length;
       pushToast({
-        type: "success",
-        message: $t("Tools_VaultCheckAll_Done", { count: $vaultEntries.length }),
-        duration: 6000,
+        type: asked === $vaultEntries.length ? "success" : "info",
+        message: $t("Vault_CheckAll_Result", { asked, total: $vaultEntries.length }),
+        duration: 8000,
       });
     } catch (e) {
       pushToast({
@@ -153,15 +166,56 @@
     }
   }
 
-  async function runCheckOne(steamId64: string): Promise<void> {
+  async function runEmailCheckOne(steamId64: string): Promise<void> {
+    if (checkingEmailId) return;
+    checkingEmailId = steamId64;
     try {
-      await quickCheck(steamId64);
+      await checkEmail(steamId64);
     } catch (e) {
       pushToast({
         type: "error",
         message: formatToastWithError($t("Toast_Vault_CheckFailed"), e),
         duration: 8000,
       });
+    } finally {
+      checkingEmailId = null;
+    }
+  }
+
+  /**
+   * One mailbox at a time. Many accounts can share a mail host, and a burst of sign-ins from one
+   * address is what gets a mailbox blocked; this also fills the rows in as answers arrive.
+   */
+  async function runEmailCheckAll(): Promise<void> {
+    if (emailProgress) return;
+    const targets = $vaultEntries.filter((e) => canCheckEmail(e.emailSource)).map((e) => e.steamId64);
+    let ok = 0;
+    try {
+      for (let i = 0; i < targets.length; i++) {
+        emailProgress = { done: i + 1, total: targets.length };
+        checkingEmailId = targets[i];
+        const check = await checkEmail(targets[i]);
+        if (check.status === "ok") ok++;
+      }
+      pushToast({
+        type: ok === targets.length ? "success" : "info",
+        message: $t("Toast_Vault_EmailCheckDone", {
+          total: targets.length,
+          ok,
+          bad: targets.length - ok,
+        }),
+        duration: 6000,
+      });
+    } catch (e) {
+      // Locked or offline: the next one would fail the same way, so stop here.
+      pushToast({
+        type: "error",
+        message: formatToastWithError($t("Toast_Vault_CheckFailed"), e),
+        duration: 8000,
+      });
+    } finally {
+      emailProgress = null;
+      checkingEmailId = null;
     }
   }
 
@@ -322,6 +376,27 @@
     });
   }
 
+  /** The full report, and the only place Verify password and Check session are offered. */
+  async function openHealth(steamId64: string, runSession = false): Promise<void> {
+    const body = await import("../components/modals/VaultHealthModalBody.svelte");
+    await openAlert({
+      title: $t("Vault_Menu_Health"),
+      dismissLabel: $t("Button_Close"),
+      bodyComponent: body.default,
+      bodyProps: { steamId64, runSession },
+    });
+  }
+
+  async function openLoginDetails(steamId64: string): Promise<void> {
+    const body = await import("../components/modals/VaultLoginDetailsModalBody.svelte");
+    await openAlert({
+      title: $t("Vault_Menu_LoginDetails"),
+      dismissLabel: $t("Button_Close"),
+      bodyComponent: body.default,
+      bodyProps: { steamId64 },
+    });
+  }
+
   async function openExport(steamId64: string): Promise<void> {
     const body = await import("../components/modals/VaultHandoffModalBody.svelte");
     await openAlert({
@@ -366,6 +441,18 @@
         >
           {checkingAll ? $t("Vault_Verdict_Checking") : $t("Tools_VaultCheckAll_Title")}
         </button>
+        {#if hasCheckableEmail}
+          <button
+            type="button"
+            class="ss-btn"
+            disabled={emailProgress !== null || checkingEmailId !== null || $vaultBusy}
+            on:click={runEmailCheckAll}
+          >
+            {emailProgress
+              ? $t("Vault_EmailCheck_Progress", emailProgress)
+              : $t("Vault_Action_CheckAllEmails")}
+          </button>
+        {/if}
       {/if}
       {#if state === "list" || state === "empty"}
         <button type="button" class="ss-btn" disabled={$vaultBusy} on:click={openHandoffImport}>
@@ -389,7 +476,12 @@
         bind:filters
         selected={editing}
         on:open={(e) => editEntry(e.detail)}
-        on:check={(e) => void runCheckOne(e.detail)}
+        checkingEmail={checkingEmailId}
+        checking={checkingRows}
+        on:health={(e) => void openHealth(e.detail)}
+        on:loginDetails={(e) => void openLoginDetails(e.detail)}
+        on:recheck={(e) => void openHealth(e.detail.steamId64, e.detail.hasRefreshToken)}
+        on:checkEmail={(e) => void runEmailCheckOne(e.detail)}
         on:export={(e) => void openExport(e.detail)}
         on:delete={(e) => void removeEntry(e.detail)}
         on:signIn={(e) => void signInHere(e.detail)}

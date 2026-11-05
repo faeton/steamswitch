@@ -19,8 +19,9 @@ import (
 type CodeSource interface {
 	// FetchCode blocks until a Steam Guard code newer than notBefore arrives, or ctx ends.
 	FetchCode(ctx context.Context, notBefore time.Time) (string, error)
-	// Probe validates configuration without consuming anything.
-	Probe(ctx context.Context) error
+	// Probe validates configuration without consuming anything, and says how many messages
+	// the inbox holds.
+	Probe(ctx context.Context) (int, error)
 }
 
 // Errors are i18n keys.

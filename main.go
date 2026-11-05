@@ -62,6 +62,7 @@ func init() {
 	application.RegisterEvent[shortcuts.ListPayload](shortcuts.UpdatedEvent)
 	application.RegisterEvent[shortcuts.FilesDroppedPayload](shortcuts.FilesDroppedEvent)
 	application.RegisterEvent[vault.GuardCodeNeededPayload](vault.GuardCodeNeededEvent)
+	application.RegisterEvent[vault.ActivityStep](vault.ActivityEvent)
 	application.RegisterEvent[platform.UserDataMoveProgressPayload](platform.UserDataMoveProgressEvent)
 
 	platform.SetSteamLaunchHooks(steam.SaveFolderFromConfirmedExe, steam.ResolveSteamExePath)
@@ -95,6 +96,11 @@ func init() {
 	// A verification login for an account whose inbox cannot be IMAP-checked asks the user for the
 	// Guard code through this hook; the frontend listens for the event and answers via
 	// SubmitManualGuardCode.
+	vault.SetActivityHook(func(step vault.ActivityStep) {
+		if a := application.Get(); a != nil {
+			a.Event.Emit(vault.ActivityEvent, step)
+		}
+	})
 	vault.SetGuardCodeNeededHook(func(steamID64, requestID, hint string) {
 		if a := application.Get(); a != nil {
 			a.Event.Emit(vault.GuardCodeNeededEvent, vault.GuardCodeNeededPayload{SteamID64: steamID64, RequestID: requestID, Hint: hint})

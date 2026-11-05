@@ -15,7 +15,8 @@
   import { t } from "../../stores/i18n";
   import HealthBadge from "./HealthBadge.svelte";
   import Icon from "../Icon.svelte";
-  import { banSignal } from "../../lib/vault/health";
+  import { banSignal, limitedSignal } from "../../lib/vault/health";
+  import { canCheckEmail, emailCheckView, type EmailCheckView } from "../../lib/vault/emailCheck";
   import { openContextMenuAtRect } from "../../stores/contextMenu";
   import {
     hasActiveFilters,
@@ -31,10 +32,17 @@
   export let filters: VaultFilters;
   /** SteamID64 currently open in the editor, "" for a blank new entry, null for none. */
   export let selected: string | null = null;
+  /** SteamID64 whose mailbox is being signed in to right now, or null. */
+  export let checkingEmail: string | null = null;
+  /** Accounts a Steam check is running for, so the row can say so. */
+  export let checking: ReadonlySet<string> = new Set();
 
   const dispatch = createEventDispatcher<{
     open: string;
-    check: string;
+    health: string;
+    recheck: Summary;
+    loginDetails: string;
+    checkEmail: string;
     export: string;
     delete: Summary;
     signIn: Summary;
@@ -52,9 +60,17 @@
     return entry.label?.trim() || entry.accountName?.trim() || entry.steamId64;
   }
 
+  function limitedParams(entry: Summary): Record<string, string> {
+    return (limitedSignal(entry.health)?.params ?? {}) as Record<string, string>;
+  }
+
   /** Ban counts for the "Banned" flag's tooltip; the Go side always sets all three. */
   function banParams(entry: Summary): Record<string, string> {
     return (banSignal(entry.health)?.params ?? {}) as Record<string, string>;
+  }
+
+  function emailView(entry: Summary): EmailCheckView | null {
+    return canCheckEmail(entry.emailSource) ? emailCheckView(entry.emailCheck) : null;
   }
 
   function cycleHealth(): void {
@@ -76,8 +92,15 @@
     openContextMenuAtRect(
       { left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height },
       [
-        { label: $t("Vault_Action_Check"), action: () => dispatch("check", entry.steamId64) },
-        { label: $t("Vault_Action_Export"), action: () => dispatch("export", entry.steamId64) },
+        { label: $t("Vault_Menu_Health"), action: () => dispatch("health", entry.steamId64) },
+        { label: $t("Vault_Action_Recheck"), action: () => dispatch("recheck", entry) },
+        { label: $t("Vault_Menu_LoginDetails"), action: () => dispatch("loginDetails", entry.steamId64) },
+        ...(canCheckEmail(entry.emailSource)
+          ? [{ label: $t("Vault_Action_CheckEmail"), action: () => dispatch("checkEmail", entry.steamId64) }]
+          : []),
+        ...(entry.pending
+          ? []
+          : [{ label: $t("Vault_Action_Export"), action: () => dispatch("export", entry.steamId64) }]),
         { type: "separator" },
         { label: $t("Vault_Action_Delete"), danger: true, action: () => dispatch("delete", entry) },
       ],
@@ -159,16 +182,45 @@
                     <span class="row__vault-only">{$t("Vault_Badge_VaultOnly")}</span>
                   {/if}
                 </span>
-                <span class="row__login meta-mono">{entry.accountName || entry.steamId64}</span>
+                <span class="row__login meta-mono">
+                  {entry.accountName || entry.steamId64}{#if entry.emailAddress}
+                    · {entry.emailAddress}{/if}
+                </span>
               </button>
 
               <div class="row__health">
-                <HealthBadge report={entry.health} />
+                <button
+                  type="button"
+                  class="row__health-open"
+                  title={$t("Vault_Menu_Health")}
+                  on:click={() => dispatch("health", entry.steamId64)}
+                >
+                  <HealthBadge report={entry.health} checking={checking.has(entry.steamId64)} />
+                </button>
                 {#if banSignal(entry.health)}
                   <span
                     class="flag"
                     data-tone="fail"
-                    title={$t("Vault_Signal_Banned", banParams(entry))}>{$t("Badge_Banned")}</span
+                    title={$t(banSignal(entry.health)?.detail ?? "Vault_Signal_Banned", banParams(entry))}>{$t("Badge_Banned")}</span
+                  >
+                {/if}
+                {#if limitedSignal(entry.health)}
+                  <span
+                    class="flag"
+                    data-tone="info"
+                    title={$t(limitedSignal(entry.health)?.detail ?? "", limitedParams(entry))}
+                    >{$t("Vault_Flag_Limited")}</span
+                  >
+                {/if}
+                {#if checkingEmail === entry.steamId64}
+                  <span class="flag" data-tone="busy">{$t("Vault_Verdict_Checking")}</span>
+                {:else if emailView(entry)}
+                  {@const view = emailView(entry)}
+                  <span
+                    class="flag"
+                    data-tone={view?.tone}
+                    title={view ? $t(view.detailKey, view.params) : ""}
+                    >{view ? $t(view.flagKey, view.params) : ""}</span
                   >
                 {/if}
               </div>
@@ -399,8 +451,23 @@
   .row__health {
     display: flex;
     align-items: center;
-    gap: var(--space-3);
+    flex-wrap: wrap;
+    gap: var(--space-1) var(--space-3);
     min-width: 0;
+  }
+
+  .row__health-open {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .row__health-open:hover :global(.health__label) {
+    text-decoration: underline;
   }
 
   .row__secrets {
@@ -423,6 +490,25 @@
     font-size: var(--fs-meta);
     font-weight: var(--fw-semibold);
     white-space: nowrap;
+  }
+
+  .flag[data-tone="ok"] {
+    border-color: var(--hairline-strong, var(--button-bg));
+    background: transparent;
+    color: var(--fg-ok);
+  }
+
+  .flag[data-tone="warn"] {
+    border-color: var(--hairline-strong, var(--button-bg));
+    background: transparent;
+    color: var(--fg-warn);
+  }
+
+  .flag[data-tone="info"],
+  .flag[data-tone="busy"] {
+    border-color: var(--hairline-strong, var(--button-bg));
+    background: transparent;
+    color: var(--fg-muted);
   }
 
   /*

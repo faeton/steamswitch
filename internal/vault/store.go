@@ -34,6 +34,9 @@ var (
 	ErrLocked       = errors.New("Toast_Vault_Locked")
 	ErrNotFound     = errors.New("Toast_Vault_EntryNotFound")
 	ErrNoSteamID    = errors.New("Toast_Vault_SteamIDRequired")
+	ErrSteamIDTaken = errors.New("Toast_Vault_SteamIDTaken")
+	ErrNotPending   = errors.New("Toast_Vault_EntryNotFound")
+	ErrNeedsSteamID = errors.New("Toast_Vault_NeedsSteamID")
 	ErrCorrupt      = errors.New("Toast_Vault_Corrupt")
 	ErrUnknownField = errors.New("Toast_Vault_UnknownField")
 )
@@ -93,6 +96,8 @@ func Exists() bool {
 // the app actually removes the secrets from memory rather than merely refusing to render
 // them.
 func DropCache() {
+	forgetUnsavedCheck()
+	forgetActivity()
 	cacheMu.Lock()
 	cached = nil
 	cacheMu.Unlock()

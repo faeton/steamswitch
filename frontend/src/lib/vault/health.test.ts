@@ -177,10 +177,62 @@ describe("healthState", () => {
     );
   });
 
-  it("reads a clean probed report as live", () => {
+  it("reads a report as live only after a real sign-in", () => {
+    for (const detail of ["Vault_Signal_PasswordOK", "Vault_Signal_SessionLive"]) {
+      const rep = report("ok", [detailSig("Vault_Signal_NoBans", "ok"), detailSig(detail, "ok")]);
+      const soon = new Date("2026-07-27T12:00:00Z");
+      expect(healthState(rep, { now: soon }).id).toBe("ok");
+      expect(healthState(rep, { now: soon }).tone).toBe("ok");
+    }
+  });
+
+  it("stops calling an account live once its last sign-in is old", () => {
+    const rep = report("ok", [detailSig("Vault_Signal_PasswordOK", "ok")]);
+    expect(healthState(rep, { now: new Date("2026-08-02T11:00:00Z") }).id).toBe("ok");
+    expect(healthState(rep, { now: new Date("2026-08-02T13:00:00Z") }).id).toBe("recheck-due");
+  });
+
+  it("dates a kept sign-in from when it happened, not from the latest lookup", () => {
+    const old = { ...detailSig("Vault_Signal_PasswordOK", "ok"), at: "2026-07-01T12:00:00Z" } as Signal;
+    expect(healthState(report("ok", [old]), { now: new Date("2026-07-27T12:00:00Z") }).id).toBe(
+      "recheck-due",
+    );
+  });
+
+  it("does not call an account live because Steam found no bans", () => {
     const rep = report("ok", [detailSig("Vault_Signal_NoBans", "ok"), detailSig("Vault_Signal_TokenValid", "ok")]);
-    expect(healthState(rep).id).toBe("ok");
-    expect(healthState(rep).tone).toBe("ok");
+    expect(healthState(rep).id).toBe("no-bans");
+  });
+
+  // The public profile does not show game bans, so it must not be reported as "no bans".
+  it("does not claim no bans from the public profile alone", () => {
+    const rep = report("ok", [detailSig("Vault_Signal_PublicNoBans", "ok")]);
+    expect(healthState(rep).id).toBe("no-vac");
+    expect(healthState(rep).labelKey).toBe("Vault_State_NoVAC");
+  });
+
+  it("does not let a limited account hide a working sign-in", () => {
+    const rep = report("ok", [
+      detailSig("Vault_Signal_PublicLimited", "unknown"),
+      detailSig("Vault_Signal_PasswordOK", "ok"),
+    ]);
+    expect(healthState(rep, { now: new Date("2026-07-27T12:00:00Z") }).id).toBe("ok");
+  });
+
+  it("does not describe a suspended account as rate limited", () => {
+    expect(healthState(report("fail", [detailSig("Vault_Signal_AccountSuspended", "fail")])).id).toBe(
+      "attention",
+    );
+  });
+
+  it("does not call an account live on this computer's own evidence", () => {
+    for (const detail of [
+      "Vault_Signal_AuthenticatorReady",
+      "Vault_Signal_RecentlyUsed",
+      "Vault_Signal_TokenValid",
+    ]) {
+      expect(healthState(report("ok", [detailSig(detail, "ok")])).id).toBe("unconfirmed");
+    }
   });
 
   /*

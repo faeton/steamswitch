@@ -132,8 +132,9 @@ func DeepCheck(ctx context.Context, steamID64 string, in QuickCheckInput) (Healt
 	// token, and no Steam error text that might quote one.
 	actionlog.Record("vault.deepcheck", steamID64, sig.Status, nil)
 
-	rep.Signals = append(rep.Signals, sig)
-	rep.Verdict = worst(rep.Verdict, sig.Status)
+	sig.At = time.Now().UTC().Format(time.RFC3339)
+	rep.setSignal(sig)
+	logSignal(steamID64, sig)
 
 	failures := e.CheckFailures
 	if sig.Status == VerdictOK {
@@ -153,6 +154,8 @@ func DeepCheck(ctx context.Context, steamID64 string, in QuickCheckInput) (Healt
 		if err := recordSession(steamID64, result.RefreshToken, result.NewGuardData, expiry); err != nil {
 			slog.Warn("vault: could not store the session material", "steamId64", steamID64)
 		}
+		// That token is new, so a verdict about the one it replaced no longer applies.
+		rep.dropSignal(SignalSession)
 	}
 
 	if err := recordHealth(steamID64, rep, nextEligible(time.Now(), failures), failures); err != nil {
@@ -162,6 +165,16 @@ func DeepCheck(ctx context.Context, steamID64 string, in QuickCheckInput) (Healt
 	// token may again stand in for future checks. Best-effort — a stale non-zero counter only
 	// costs one extra deep check, it never causes a wrong one.
 	_ = resetSessionSkips(steamID64)
+
+	// Steam has just said which account this login is, so a login-only entry can stop waiting.
+	// Best-effort: if that SteamID already has its own entry, this one stays as it is.
+	if IsPendingID(e.SteamID64) && result != nil && result.SteamID64 != "" {
+		if err := LinkSteamID(e.SteamID64, result.SteamID64); err != nil {
+			slog.Warn("vault: could not attach the SteamID to a login-only entry")
+		} else {
+			rep.MovedTo = result.SteamID64
+		}
+	}
 	return rep, nil
 }
 
@@ -245,16 +258,17 @@ func buildSessionHealth(ctx context.Context, steamID64 string, e Entry) HealthRe
 	if quickRateLimited(rep) {
 		markRateLimited()
 		s := Signal{Name: SignalSession, Status: VerdictUnknown, Detail: "Vault_Signal_RateLimited"}
-		rep.Signals = append(rep.Signals, s)
-		rep.Verdict = worst(rep.Verdict, s.Status)
+		rep.setSignal(s)
+		logSignal(steamID64, s)
 		return rep
 	}
 
 	sctx, cancel := context.WithTimeout(ctx, SessionCheckTimeout)
 	defer cancel()
 	sig := sessionSignal(sctx, steamID64, e)
-	rep.Signals = append(rep.Signals, sig)
-	rep.Verdict = worst(rep.Verdict, sig.Status)
+	sig.At = time.Now().UTC().Format(time.RFC3339)
+	rep.setSignal(sig)
+	logSignal(steamID64, sig)
 	return rep
 }
 
@@ -267,7 +281,12 @@ func sessionSignal(ctx context.Context, steamID64 string, e Entry) Signal {
 		s.Detail = "Vault_Signal_NoToken"
 		return s
 	}
-	if _, err := session.Check(ctx, e.AccountName, e.RefreshToken, steamID64); err != nil {
+	logStep(steamID64, "Vault_Step_SessionProbe", VerdictUnknown, nil)
+	expected := steamID64
+	if IsPendingID(e.SteamID64) {
+		expected = "" // nothing to compare the signed-in account with yet
+	}
+	if _, err := session.Check(ctx, e.AccountName, e.RefreshToken, expected); err != nil {
 		return classifySessionError(s, err)
 	}
 	s.Status, s.Detail = VerdictOK, "Vault_Signal_SessionLive"
@@ -309,25 +328,31 @@ func runCredentialLogin(ctx context.Context, e Entry) (Signal, *steamauth.Result
 	// Capture the login-start instant before Begin, which is what triggers the Guard email. The
 	// mailbox fetch judges freshness against this, so it must precede the mail, not follow it.
 	loginStart := time.Now()
+	logStep(e.SteamID64, "Vault_Step_SigningIn", VerdictUnknown, nil)
 	sess, err := client.Begin(ctx, e.AccountName, e.Password, e.GuardData)
 	if err != nil {
 		return classifyLoginError(s, err), nil
 	}
 
 	if sess.Guard != steamauth.GuardNone {
+		logStep(e.SteamID64, "Vault_Step_PasswordAccepted", VerdictOK, nil)
+		started := time.Now()
 		code, cerr := guardCodeForLogin(ctx, e, sess, loginStart)
 		if cerr != nil {
+			logStep(e.SteamID64, "Vault_Step_NoGuardCode", VerdictWarn, elapsed(started))
 			// Reaching the Guard step proves the password was accepted — Steam does not
 			// ask for a second factor otherwise. That is the question this check exists to
 			// answer, so it is a pass with a caveat, not a failure.
 			s.Status, s.Detail = VerdictOK, "Vault_Signal_PasswordOKGuardUnavailable"
 			return s, nil
 		}
+		logStep(e.SteamID64, "Vault_Step_GuardCodeReady", VerdictOK, elapsed(started))
 		if err := client.SubmitGuardCode(ctx, sess, code); err != nil {
 			return classifyLoginError(s, err), nil
 		}
 	}
 
+	logStep(e.SteamID64, "Vault_Step_WaitingForSteam", VerdictUnknown, nil)
 	res, err := client.WaitForResult(ctx, sess)
 	if err != nil {
 		return classifyLoginError(s, err), nil
@@ -343,6 +368,7 @@ func guardCodeForLogin(ctx context.Context, e Entry, sess *steamauth.Session, lo
 		if e.SharedSecret == "" {
 			return "", totp.ErrEmptySecret
 		}
+		logStep(e.SteamID64, "Vault_Step_GuardFromAuthenticator", VerdictUnknown, nil)
 		code, err := totp.Generate(e.SharedSecret, time.Now())
 		if err != nil {
 			return "", err
@@ -358,17 +384,20 @@ func guardCodeForLogin(ctx context.Context, e Entry, sess *steamauth.Session, lo
 	// An inbox we cannot IMAP-check (manual source), or an account with no configured source at
 	// all, asks the user to type the code rather than failing the Guard step.
 	if emailSourceOf(e) == EmailSourceManual {
+		logStep(e.SteamID64, "Vault_Step_GuardFromYou", VerdictUnknown, nil)
 		return requestManualCode(ctx, e.SteamID64, sess.GuardMessage)
 	}
 	src, err := sourceFor(e)
 	if err != nil {
 		if errors.Is(err, mail.ErrNoSource) {
+			logStep(e.SteamID64, "Vault_Step_GuardFromYou", VerdictUnknown, nil)
 			return requestManualCode(ctx, e.SteamID64, sess.GuardMessage)
 		}
 		return "", err
 	}
 	// loginStart, not time.Now(): the email was triggered by Begin above, and freshness is judged
 	// against the instant before it was sent.
+	logStep(e.SteamID64, "Vault_Step_GuardFromEmail", VerdictUnknown, nil)
 	return src.FetchCode(ctx, loginStart)
 }
 

@@ -22,7 +22,7 @@ const Version = 1
 // not) are observable from the filesystem.
 type Doc struct {
 	Version int              `json:"version"`
-	Entries map[string]Entry `json:"entries"` // keyed by SteamID64
+	Entries map[string]Entry `json:"entries"` // keyed by SteamID64, or a stand-in until it is known
 
 	// Exports is the local handoff audit log (VAULT.md §9.3): what left this machine, under
 	// which label, when. It lives inside the sealed blob rather than beside it because the
@@ -77,6 +77,11 @@ type Entry struct {
 	TokenExpiresAt string `json:"tokenExpiresAt,omitempty"` // RFC3339, decoded from the JWT
 
 	Email EmailBinding `json:"email"`
+
+	// EmailCheck is the last mailbox sign-in, and EmailCheckFor the settings it tested. See
+	// currentEmailCheck.
+	EmailCheck    *EmailCheck `json:"emailCheck,omitempty"`
+	EmailCheckFor string      `json:"emailCheckFor,omitempty"`
 
 	// Provenance. The short note stays in SteamSettings.AccountNotes unencrypted; this is
 	// the one that may say where an account came from.
@@ -153,6 +158,9 @@ type HealthReport struct {
 	Verdict  string   `json:"verdict"`
 	Deep     bool     `json:"deep"` // whether a credential login was part of this report
 	Signals  []Signal `json:"signals"`
+	// MovedTo is set when this check gave a login-only entry its real SteamID, so a screen
+	// showing the old key can follow it. Never stored.
+	MovedTo string `json:"movedTo,omitempty"`
 }
 
 // Signal is one check's outcome. Detail is an i18n key, never a secret and never a raw
@@ -163,6 +171,8 @@ type Signal struct {
 	Detail  string            `json:"detail"`
 	Params  map[string]string `json:"params,omitempty"`
 	Blocker bool              `json:"blocker"`
+	// At is when a sign-in result was learned, which can be older than the report carrying it.
+	At string `json:"at,omitempty"`
 }
 
 // Signal names.

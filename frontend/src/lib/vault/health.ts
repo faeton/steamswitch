@@ -48,6 +48,21 @@ export function banSignal(report: HealthReport | null | undefined): Signal | nul
   return report?.signals?.find((s: Signal) => s.name === "steam_bans" && s.status === "fail") ?? null;
 }
 
+/** Whether Steam itself answered the ban lookup, rather than it being skipped or failing. */
+export function askedSteam(report: HealthReport | null | undefined): boolean {
+  const bans = report?.signals?.find((s: Signal) => s.name === "steam_bans");
+  return !!bans && bans.status !== "unknown";
+}
+
+/** Steam's "limited account" finding, for the row's tag. Not a fault, so it isn't a health state. */
+export function limitedSignal(report: HealthReport | null | undefined): Signal | null {
+  return (
+    report?.signals?.find(
+      (s: Signal) => s.detail === "Vault_Signal_PublicLimited" || s.detail === "Vault_Signal_LikelyLimited",
+    ) ?? null
+  );
+}
+
 /** Signals worth surfacing first: blockers, then failures, then warnings. */
 export function rankedSignals(report: HealthReport | null | undefined): Signal[] {
   if (!report?.signals) {
@@ -116,6 +131,10 @@ export type HealthStateId =
   | "guard-unreachable"
   | "limited"
   | "ok"
+  | "recheck-due"
+  | "no-bans"
+  | "no-vac"
+  | "unconfirmed"
   | "never-checked"
   | "attention";
 
@@ -173,6 +192,39 @@ const STATES: Record<HealthStateId, HealthState> = {
   },
   checking: { id: "checking", labelKey: "Vault_Verdict_Checking", actionKey: "", tone: "busy", severity: 20 },
   ok: { id: "ok", labelKey: "Vault_State_OK", actionKey: "", tone: "ok", severity: 10 },
+  // It did sign in, but long enough ago that the password could have changed since.
+  "recheck-due": {
+    id: "recheck-due",
+    labelKey: "Vault_State_RecheckDue",
+    actionKey: "Vault_State_RecheckDue_Next",
+    tone: "neutral",
+    severity: 7,
+  },
+  // Steam answered about the account in public, but nothing has shown that the login works.
+  "no-bans": {
+    id: "no-bans",
+    labelKey: "Vault_State_NoBans",
+    actionKey: "Vault_State_Unconfirmed_Next",
+    tone: "ok",
+    severity: 5,
+  },
+  // The public profile, read when there is no API key. It does not show game bans, so "no bans"
+  // would be a claim it cannot back up.
+  "no-vac": {
+    id: "no-vac",
+    labelKey: "Vault_State_NoVAC",
+    actionKey: "Vault_State_NoVAC_Next",
+    tone: "ok",
+    severity: 4,
+  },
+  // Only this computer's own knowledge: a seed that parses, a recent switch. Steam said nothing.
+  unconfirmed: {
+    id: "unconfirmed",
+    labelKey: "Vault_State_Unconfirmed",
+    actionKey: "Vault_State_Unconfirmed_Next",
+    tone: "neutral",
+    severity: 2,
+  },
   "never-checked": {
     id: "never-checked",
     labelKey: "Vault_State_NeverChecked",
@@ -192,6 +244,7 @@ const STATES: Record<HealthStateId, HealthState> = {
 function stateForSignal(detail: string, status: string): HealthStateId | null {
   switch (detail) {
     case "Vault_Signal_Banned":
+    case "Vault_Signal_PublicVACBanned":
       return "banned";
     case "Vault_Signal_PasswordWrong":
       return "password-wrong";
@@ -204,14 +257,37 @@ function stateForSignal(detail: string, status: string): HealthStateId | null {
     case "Vault_Signal_BadAuthenticatorSeed":
       return "guard-unreachable";
     case "Vault_Signal_RateLimited":
-    case "Vault_Signal_LikelyLimited":
-    case "Vault_Signal_AccountSuspended":
       return "limited";
     default:
       // A signal that is unhappy for a reason with no dedicated state still has to show as
       // unhappy — otherwise a genuinely broken account would read as fine.
       return status === "fail" || status === "warn" ? "attention" : null;
   }
+}
+
+/**
+ * "Live" is a claim that the account signs in, so only a real sign-in may make it. A valid seed,
+ * an unexpired token or a recent switch all pass without Steam being asked anything, and an
+ * account could be dead behind every one of them.
+ */
+const SIGNED_IN = new Set(["Vault_Signal_PasswordOK", "Vault_Signal_SessionLive"]);
+const PUBLIC_ANSWER = new Set(["Vault_Signal_NoBans"]);
+const PUBLIC_PROFILE_ANSWER = new Set(["Vault_Signal_PublicNoBans"]);
+
+/** How long a successful sign-in may vouch for an account before it should be tried again. */
+export const LIVE_FOR_DAYS = 7;
+
+function provenBySteam(report: HealthReport, details: Set<string>): boolean {
+  return (report.signals ?? []).some((s) => s.status === "ok" && details.has(s.detail));
+}
+
+/** Whether a sign-in worked recently. A result with no time of its own dates from its report. */
+function signedInRecently(report: HealthReport, now: Date): boolean {
+  return (report.signals ?? []).some((s) => {
+    if (s.status !== "ok" || !SIGNED_IN.has(s.detail)) return false;
+    const at = Date.parse(s.at || report.probedAt);
+    return !Number.isNaN(at) && now.getTime() - at <= LIVE_FOR_DAYS * 24 * 3600 * 1000;
+  });
 }
 
 /**
@@ -222,7 +298,7 @@ function stateForSignal(detail: string, status: string): HealthStateId | null {
  */
 export function healthState(
   report: HealthReport | null | undefined,
-  opts: { checking?: boolean } = {},
+  opts: { checking?: boolean; now?: Date } = {},
 ): HealthState {
   if (opts.checking) {
     return STATES.checking;
@@ -248,5 +324,13 @@ export function healthState(
   // still "unknown" has run but learned nothing, which is "never checked" from where the
   // user stands, not "healthy".
   const verdict = isVerdict(report.verdict) ? report.verdict : "unknown";
-  return verdict === "ok" ? STATES.ok : verdict === "unknown" ? STATES["never-checked"] : STATES.attention;
+  if (verdict === "ok") {
+    if (provenBySteam(report, SIGNED_IN)) {
+      return signedInRecently(report, opts.now ?? new Date()) ? STATES.ok : STATES["recheck-due"];
+    }
+    if (provenBySteam(report, PUBLIC_ANSWER)) return STATES["no-bans"];
+    if (provenBySteam(report, PUBLIC_PROFILE_ANSWER)) return STATES["no-vac"];
+    return STATES.unconfirmed;
+  }
+  return verdict === "unknown" ? STATES["never-checked"] : STATES.attention;
 }
