@@ -3,7 +3,7 @@ import type { PlatformStartup } from "../../bindings/steamswitch/internal/platfo
 /**
  * Routes after the redesign (REDESIGN_BRIEF.md A6 "App chrome & global nav").
  *
- * `home` is the Steam account list itself, not a platform grid — this fork ships one platform,
+ * `home` is the Steam account list itself, not a platform grid — the app ships one platform,
  * so a chooser in front of it was pure ceremony. The brief fixes the top-level destinations as
  * a small closed set, which is what the sidebar renders: **Switcher / Vault / Tools / Settings
  * / About**. Everything else is a sub-route reached from one of those.

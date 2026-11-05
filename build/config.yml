@@ -28,7 +28,7 @@ info:
 #   # The company/organisation name for templates and project settings
 #   company: "My Company"
 #   # Additional comments to embed in Info.plist metadata
-#   comments: "Steam-only fork of TcNo Account Switcher with Dota 2 config management."
+#   comments: "Steam account switcher with game config management."
 
 # Dev mode configuration
 dev_mode:

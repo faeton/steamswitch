@@ -17,8 +17,20 @@ SteamSwitch was forked from
 This repository's history begins with SteamSwitch's first public tree — the upstream commit
 history was not carried over. That is a packaging choice, not a claim of authorship: the
 1409 commits before the fork point are the work of TroubleChute and the upstream
-contributors listed in the repository above, and they remain available there. `FORK.md`
-lists what this fork changed.
+contributors listed in the repository above, and they remain available there.
+
+## What was changed
+
+From that commit, and continuing since 2026, SteamSwitch was modified as follows:
+
+- narrowed to Steam, with the other platforms, theme packs and upstream branding removed;
+- renamed throughout (product, data folder, URL scheme and identifiers) so it can run beside
+  the original;
+- all outbound reporting and auto-update removed;
+- added: game config copy and saved configs, the Session Kit, the account vault, sign-in
+  checks, macOS support and a redesigned interface.
+
+`ENGINEERING.md` describes how it works now, and the git history records each change.
 
 ## What this means
 

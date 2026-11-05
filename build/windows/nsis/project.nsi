@@ -1,5 +1,5 @@
 ;SteamSwitch
-;Fork of TcNo Account Switcher by TroubleChute (Wesley Pyburn)
+;Derived from TcNo Account Switcher by TroubleChute (Wesley Pyburn)
 ;https://github.com/faeton/steamswitch
 
 ;--------------------------------

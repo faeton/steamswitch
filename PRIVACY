@@ -27,12 +27,9 @@ disabled with Offline Mode (a transport-level block inside the app):
   enable it.
 - Discord Rich Presence talks only to your local Discord client, never the network.
 
-## What the fork removed
+## What is not there
 
-The upstream project (TcNo Account Switcher) offered opt-in anonymous statistics,
-crash-report upload, feedback submission and update checks against its own servers.
-This fork removed all of that: there is no telemetry, no crash upload, no feedback
-endpoint and no phone-home update check. Usage statistics and crash logs are still
+There is no telemetry, no crash upload, no feedback endpoint and no phone-home update check. Usage statistics and crash logs are still
 written locally for your own use; they never leave your PC.
 
 ## License and disclaimer

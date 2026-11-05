@@ -49,7 +49,7 @@ type osBackend interface {
 	ProcessNames() []string
 
 	// GameProcessNames lists game processes that keep their own handles on `userdata` and
-	// outlive Steam — Dota being the one this fork cares about.
+	// outlive Steam — Dota being the one that matters most here.
 	GameProcessNames() []string
 
 	// IsRunning reports whether the named process is alive. Only meaningful when

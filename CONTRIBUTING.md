@@ -26,7 +26,7 @@ and upstream attribution must be preserved.
 
 ## Building and testing
 
-See `FORK.md` for the full development notes. In short:
+See `ENGINEERING.md` for the full development notes. In short:
 
 ```bash
 go install github.com/wailsapp/wails/v3/cmd/wails3@latest   # if not installed
@@ -41,7 +41,7 @@ Notes:
 - `frontend/bindings/` is generated and gitignored; frontend tests fail to resolve
   imports until bindings have been generated at least once.
 - The Go suite only fully passes on Windows. On macOS/Linux a fixed set of tests fail
-  on Windows path/registry assumptions — compare against the baseline in `FORK.md`
+  on Windows path/registry assumptions — compare against the baseline in `ENGINEERING.md`
   rather than expecting green.
 
 ## Translations

@@ -13,8 +13,7 @@ or a Go method, that is context, not a constraint on your design.
 > surfaces, not one); implementation/CSS detail moved out of the design body into Part C; and
 > **measurable acceptance criteria** were added. See Part B for the fixed/known defects.
 
-Companion engineering docs: `VAULT.md` (vault design + threat model), `FORK.md` (divergence
-from upstream TcNo), `FEATURES.md` (what's built). This brief is the **design source of truth**;
+Companion engineering docs: `VAULT.md` (vault design + threat model), `ENGINEERING.md` (how it works and its rules), `FEATURES.md` (what's built). This brief is the **design source of truth**;
 where it needs an engineering fact it states it inline (Part C) rather than sending you to those.
 
 ---

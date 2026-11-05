@@ -6,7 +6,7 @@
    * do with the network. The brief (A12) is explicit that this has to be said plainly
    * somewhere, so designers and users do not infer a product cloud that does not exist.
    *
-   * Fork rule: the upstream TroubleChute attribution stays. No links to tcno.co, the wiki,
+   * Licence rule: the TroubleChute attribution stays. No links to tcno.co, the wiki,
    * Discord or donations, and no update surface.
    */
   import { onMount } from "svelte";

@@ -19,12 +19,11 @@ Windows and macOS. GPL-3.0. No telemetry, no update check, no account of any kin
 > If you want to try it, build from source, read [`TESTING.md`](TESTING.md), and don't point
 > it at an account you couldn't log back into by hand.
 
-> SteamSwitch started life as a Steam-only fork of
+> SteamSwitch began as a Steam-only derivative of
 > [TcNo Account Switcher](https://github.com/TCNOco/TcNo-Acc-Switcher) by TroubleChute —
 > the inspiration and the original codebase for this project. It is **not affiliated with
 > or supported by** that project, so please don't send SteamSwitch problems upstream.
-> See [Credits](#credits) for attribution and [`FORK.md`](FORK.md) for everything that
-> differs.
+> See [Credits](#credits) for attribution and [`NOTICE.md`](NOTICE.md) for what changed.
 
 ---
 
@@ -161,7 +160,6 @@ are proven and which are not.
 
 ### Appearance
 - System / Light / Dark, following the OS by default. One accent colour.
-- The inherited theme packs are still there, collapsed under "Classic themes".
 
 ---
 
@@ -265,7 +263,7 @@ install would confidently report Steam as closed for a large share of users — 
 cloud-synced Dota write made while Steam is up is reverted silently, with no error anywhere.
 
 `go test ./...` reports 15 failures on macOS and Linux, inherited from upstream, that assume
-Windows path and file-locking behaviour. See `FORK.md` for the exact list — that is the
+Windows path and file-locking behaviour. See `ENGINEERING.md` for the exact list — that is the
 expected baseline, not a regression.
 
 [`FEATURES.md`](FEATURES.md) is the inventory of what is built and how confident each part is;
@@ -276,16 +274,16 @@ installed.
 
 SteamSwitch exists because of
 [TcNo Account Switcher](https://github.com/TCNOco/TcNo-Acc-Switcher) by
-**TroubleChute (Wesley Pyburn)** — it was both the inspiration and the codebase this fork
+**TroubleChute (Wesley Pyburn)** — it was both the inspiration and the codebase this project
 began from. If you need to switch accounts on platforms other than Steam, go use the
 original: it supports two dozen of them and is actively maintained.
 
-This fork narrows the scope to Steam, drops all outbound reporting, and adds Dota 2 config
-management. [`FORK.md`](FORK.md) lists every divergence.
+SteamSwitch narrows the scope to Steam, drops all outbound reporting, and adds game config
+management. [`NOTICE.md`](NOTICE.md) lists what changed.
 
 ## Licence
 
-GPL-3.0. Original work © TroubleChute (Wesley Pyburn); fork modifications © 2026
+GPL-3.0. Original work © TroubleChute (Wesley Pyburn); modifications © 2026
 Ivan Faeton Danishevskyi. See [`LICENSE`](LICENSE) and [`NOTICE.md`](NOTICE.md).
 
 Steam and Dota 2 are trademarks of Valve Corporation. This project is not affiliated with

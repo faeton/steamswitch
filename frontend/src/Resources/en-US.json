@@ -530,7 +530,7 @@
   "Settings_Steam_AutoRefreshIntervalHint": "Minimum {min} minutes. Each refresh re-checks avatars, VAC status and profile names for every account.",
   "Settings_Steam_ImageExpiry": "Re-download cached avatars after (days)",
   "Modal_Info_ForkOf": "A Steam account switcher with game config management. Derived from TcNo Account Switcher by TroubleChute (Wesley Pyburn), and developed separately.",
-  "Modal_Info_Licence": "Licensed under the GNU General Public License v3.0. Original work © TroubleChute; fork modifications © Ivan Faeton Danishevskyi.",
+  "Modal_Info_Licence": "Licensed under the GNU General Public License v3.0. Original work © TroubleChute; modifications © Ivan Faeton Danishevskyi.",
   "Settings_Header_LocalStats": "Local statistics",
   "Settings_Header_Steam": "Steam",
   "Toast_SettingsLoadFailed": "Could not read your Steam settings.",
