@@ -204,7 +204,6 @@ jobs:
 
       - name: Package installer from signed executable
         shell: pwsh
-        env:
         run: .\other\github-release.ps1 -Step PackageInstaller -SignedExePath "$env:GITHUB_WORKSPACE\signed-exe\SteamSwitch.exe"
 
       - name: Upload unsigned installer for SignPath
