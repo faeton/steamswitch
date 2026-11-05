@@ -1,8 +1,8 @@
 <script lang="ts">
   /**
    * Copy a game's config between two accounts, in either direction. The one copy flow in the app:
-   * the switcher opens it in a dialog, and Tools > Game configs wraps it with the saved-config
-   * library. Every game goes through one path in the backend (gameconfig.go).
+   * the switcher opens it in a dialog, and Tools > Game configs uses its pickers for the
+   * saved-config library. Every game goes through one path in the backend (gameconfig.go).
    *
    * What a copy will replace is stated in the form rather than in a confirm dialog, because only
    * one modal can be open and the switcher's form already is one. There is no default destination:
@@ -50,6 +50,8 @@
   export let initialSourceId = "";
   /** The Tools page's extras: part hints, the machine-wide folder, and what is not copied. */
   export let detailed = false;
+  /** Off where the pickers only serve something else, as on the Tools page. */
+  export let copyActions = true;
 
   // Bound by the Tools page, whose library applies to this selection.
   export let accounts: ConfigAccount[] = [];
@@ -238,7 +240,7 @@
     </select>
   </SettingRow>
 
-  <SettingRow label={$t("GameCfg_Label_Source")} controlId="cfg-source">
+  <SettingRow label={$t(copyActions ? "GameCfg_Label_Source" : "GameCfg_Label_SaveFrom")} controlId="cfg-source">
     <select id="cfg-source" class="ss-field cfg-select" bind:value={sourceId} disabled={busy}>
       <option value="">{$t("GameCfg_Label_PickAccount")}</option>
       {#each accounts as a (a.steamId64)}
@@ -249,13 +251,15 @@
     </select>
   </SettingRow>
 
-  <div class="cfg-swap">
-    <button type="button" class="ss-btn" disabled={busy || !sourceId || !destId} on:click={reverseDirection}>
-      {$t("GameCfg_Button_Reverse")}
-    </button>
-  </div>
+  {#if copyActions}
+    <div class="cfg-swap">
+      <button type="button" class="ss-btn" disabled={busy || !sourceId || !destId} on:click={reverseDirection}>
+        {$t("GameCfg_Button_Reverse")}
+      </button>
+    </div>
+  {/if}
 
-  <SettingRow label={$t("GameCfg_Label_Destination")} controlId="cfg-dest">
+  <SettingRow label={$t(copyActions ? "GameCfg_Label_Destination" : "GameCfg_Label_ApplyTo")} controlId="cfg-dest">
     <select id="cfg-dest" class="ss-field cfg-select" bind:value={destId} disabled={busy}>
       <option value="">{$t("GameCfg_Label_PickAccount")}</option>
       {#each accounts.filter((a) => a.steamId64 !== sourceId) as a (a.steamId64)}
@@ -274,7 +278,7 @@
 
   {#if info}
     <fieldset class="parts">
-      <legend class="parts__legend">{$t("GameCfg_Label_Parts")}</legend>
+      <legend class="parts__legend">{$t(copyActions ? "GameCfg_Label_Parts" : "GameCfg_Label_PartsInConfig")}</legend>
       {#each shownParts as part (part.id)}
         <label class="part">
           <input type="checkbox" class="ss-checkbox" bind:checked={selected[part.id]} disabled={busy} />
@@ -323,9 +327,11 @@
   {/if}
 
   <div class="cfg-actions">
-    <button type="button" class="ss-btn ss-btn--primary" disabled={!canCopy} on:click={doCopy}>
-      {$t("GameCfg_Button_Copy")}
-    </button>
+    {#if copyActions}
+      <button type="button" class="ss-btn ss-btn--primary" disabled={!canCopy} on:click={doCopy}>
+        {$t("GameCfg_Button_Copy")}
+      </button>
+    {/if}
     <slot name="actions" />
     {#if revert}
       <button type="button" class="ss-btn" disabled={busy} on:click={doUndo}>

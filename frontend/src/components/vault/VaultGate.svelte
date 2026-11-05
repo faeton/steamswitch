@@ -3,7 +3,7 @@
    * What the Vault page shows when there is no table to show (REDESIGN_BRIEF.md A6, A10).
    *
    * The brief is specific that a locked vault must show an unlock gate and a first-run vault
-   * must explain itself — "never a silent empty list". Three distinct states, and conflating
+   * must explain itself — "never a silent empty list". Four distinct states, and conflating
    * any two of them misleads:
    *
    *   - `unset`  — no app password on this machine. There is no vault yet, and nothing is
@@ -12,20 +12,24 @@
    *                and the copy has to say that forgetting it is unrecoverable *before* the
    *                user has anything to lose.
    *   - `empty`  — unlocked, working, no entries yet. This is a starting point, not a fault.
+   *   - `unreadable` — unlocked, but the file would not open. Its entries may well be
+   *                recoverable, so this must not look like `empty` or offer to add to it.
    */
   import { t } from "../../stores/i18n";
 
-  export let state: "unset" | "locked" | "empty";
+  export let state: "unset" | "locked" | "empty" | "unreadable";
 
   const HEADING: Record<typeof state, string> = {
     unset: "Vault_Gate_Unset_Title",
     locked: "Vault_Gate_Locked_Title",
     empty: "Vault_Gate_Empty_Title",
+    unreadable: "Vault_Gate_Unreadable_Title",
   };
   const BODY: Record<typeof state, string> = {
     unset: "Vault_Gate_Unset_Body",
     locked: "Vault_Gate_Locked_Body",
     empty: "Vault_Gate_Empty_Body",
+    unreadable: "Vault_Gate_Unreadable_Body",
   };
 </script>
 
@@ -34,7 +38,7 @@
     <h2 class="gate__title">{$t(HEADING[state])}</h2>
     <p class="gate__body">{$t(BODY[state])}</p>
 
-    {#if state !== "empty"}
+    {#if state === "unset" || state === "locked"}
       <ul class="gate__points">
         <li>{$t("Vault_Gate_Point_Encrypted")}</li>
         <li>{$t("Vault_Gate_Point_Optional")}</li>

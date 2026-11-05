@@ -183,7 +183,7 @@ Only meaningful if you can arrange it, but please do arrange it.
 | # | Steps | Expected |
 |---|---|---|
 | F1 | Tools hub | Grouped under Session / Steam maintenance / Diagnostics. Rows that open a page show a chevron; one-shot actions don't. |
-| F2 | Tools → Dota config library | Opens; snapshots list; a manual copy between two accounts works with no kit active. |
+| F2 | Tools → Game configs | Saved configs only: the game and account pickers, **Save as named config**, and the library with Apply. No Copy or Reverse button; copying is **Copy game config** on the Switcher. |
 | F3 | Tools → Advanced cleaning | Opens; individual options behave; does not sign you out. |
 | F4 | Tools → Refresh avatars / VAC status check | Each runs and reports; rows disable while one is in flight. |
 | F5 | Tools → Open data folder | Explorer opens at the data folder. |
@@ -195,7 +195,7 @@ Only meaningful if you can arrange it, but please do arrange it.
 | F5f | Tools → **Open backup folder** on a machine that has never backed up | The folder is created and opened rather than erroring. |
 | F5g | Tools → **About SteamSwitch** | Shows the version and the TroubleChute attribution. |
 | F6 | Settings | Everything is on **one** page: Appearance, Steam, Game modules, System, Language. No duplicated global block, no per-platform settings page. |
-| F6a | Settings → Steam → **Pick Steam folder**, choose the real install | The path shown updates and a switch still works. Point it somewhere wrong and confirm the switch fails with an error naming the folder, rather than silently doing nothing. |
+| F6a | Settings → Steam → **Pick Steam folder**, choose the real install | The path shown updates and a switch still works. Then pick a folder that exists but is not Steam: no accounts are listed, the error names the folder, it does not claim that no accounts are saved, and the real Steam files are untouched. A saved folder that no longer exists falls back to the detected install on purpose (`root.go`). |
 | F6b | Settings → Steam → uncheck **Automatically start Steam on account switch**, then switch | `loginusers.vdf` is updated and Steam is **not** launched. |
 | F6c | Settings → Steam → uncheck each of SteamID / last login / account username, return to the list | The tile's monospaced meta line loses exactly that part. With all three off the line disappears rather than leaving an empty row or a stray `·`. |
 | F6d | Turn on **Note preview under username**, add a note with two paragraphs via the account menu | The preview shows on one line with the newlines collapsed; the tile does not grow to fit it. |
@@ -278,11 +278,11 @@ surprise. V7 puts that same login on a timer and is only worth running once V4 p
 | V1d | Check the file's permissions | Owner-only. macOS: `ls -l` shows `-rw-------`. Windows: Properties → Security lists only your account. |
 | V1e | Reopen the editor | Password and seed show `••• stored`, not the value, and not a masked field containing the value. |
 | V1f | Press **Save** without touching anything, then Reveal the password | Still the original. Saving a form that never displayed a secret must not erase it. |
-| V1g | Click **Reveal** on the password | It appears once, with a Copy button, and **hides itself after about 20 seconds** without being touched. |
+| V1g | Click **Reveal** on the password | It appears once, with a Copy button, and **hides itself after about 8 seconds** without being touched. |
 | V1h | Reveal, then close the dialog immediately | Nothing is left on screen anywhere, and reopening does not show it again. |
 | V1i | Edit the entry, tick **Store and check only**, Save. Look at the account list | The tile is unchanged (it is still a real Steam account); the entry is marked *store only* in Tools → Stored accounts. |
 | V1j | Delete the entry, then look at the blob again | The file still exists but is smaller. Reopening the vault shows the entry gone. |
-| V1k | Corrupt the blob: change one character inside `"ciphertext"` and relaunch | The vault reports the file could not be read. It must **not** silently start empty — that would look like your data vanished. |
+| V1k | Corrupt the blob: change one character inside `"ciphertext"` and relaunch | The Vault page says the vault could not be read, with no Add or Import buttons. It must **not** silently start empty — that would look like your data vanished. |
 | V1l | Restore the good file, restart, and unlock | Entries are back. |
 
 ### V2. Locking

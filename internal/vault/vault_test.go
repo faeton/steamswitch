@@ -278,6 +278,18 @@ func TestTamperedBlobIsRejected(t *testing.T) {
 	if _, err := load(); !errors.Is(err, ErrCorrupt) {
 		t.Fatalf("load of a tampered blob = %v, want ErrCorrupt", err)
 	}
+
+	// The page tells the user the entries can be recovered, so nothing may write over them.
+	if err := Put(Draft{SteamID64: "76561198000000777"}); !errors.Is(err, ErrCorrupt) {
+		t.Fatalf("Put over a tampered blob = %v, want ErrCorrupt", err)
+	}
+	after, err := os.ReadFile(p)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(after) != string(out) {
+		t.Fatal("Put changed a blob it could not read")
+	}
 }
 
 // A vault that has never been written is an empty vault, not an error. Otherwise the first

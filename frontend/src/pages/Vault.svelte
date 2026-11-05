@@ -28,6 +28,7 @@
     refreshVault,
     vaultBusy,
     vaultEntries,
+    vaultLoadError,
     vaultLoaded,
     vaultStatus,
     takePendingVaultEntry,
@@ -77,7 +78,7 @@
 
   $: appBarTitle.set($t("Title_Vault"));
 
-  type PageState = "unset" | "locked" | "empty" | "list";
+  type PageState = "unset" | "locked" | "unreadable" | "empty" | "list";
 
   // vaultLocked, not appLocked: a vault-only lock leaves this page reachable, which is the
   // whole point of it. (appLocked implies vaultLocked, so the app gate still lands here — it
@@ -87,9 +88,11 @@
       ? "unset"
       : $securityStatus.vaultLocked
         ? "locked"
-        : $vaultLoaded && $vaultEntries.length === 0
-          ? "empty"
-          : "list"
+        : $vaultLoadError
+          ? "unreadable"
+          : $vaultLoaded && $vaultEntries.length === 0
+            ? "empty"
+            : "list"
   ) satisfies PageState as PageState;
   $: gateState = state as Exclude<PageState, "list">;
 
@@ -101,8 +104,8 @@
     void loadSwitcherRoster();
     void (async () => {
       await refreshVault().catch(() => {
-        // A locked or absent vault is a normal state the gate already explains; the store
-        // reports it as an empty list rather than an error.
+        // The gate explains every outcome: the store reports a locked or absent vault as an
+        // empty list, and a failed read through vaultLoadError.
       });
       // Arriving from a tile's "Edit vault": open that entry straight away, so the handoff
       // does not dump the user on a table and ask them to find the row again.

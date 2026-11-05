@@ -1,7 +1,7 @@
 <script lang="ts">
   /**
-   * The copy form plus a library of saved configs. Copying itself lives in GameConfigCopyForm, which
-   * the switcher opens too; this page only adds what is done to the selection it holds.
+   * The library of saved configs. Copying between accounts is on the switcher; this page borrows
+   * that form's pickers, because saving and applying act on the selection it holds.
    */
   import { onMount } from "svelte";
   import { previousPage, appBarTitle } from "../stores/nav";
@@ -241,10 +241,11 @@
   <PageHeader title={$t("GameCfg_Heading")} description={$t("GameCfg_Intro")} />
 
   <div class="cfg-page__scroll">
-    <SettingsCard title={$t("GameCfg_Section_Copy")} description={$t("GameCfg_Note_AutoRevert")}>
+    <SettingsCard title={$t("GameCfg_Section_Selection")} description={$t("GameCfg_Note_AutoRevert")}>
       <GameConfigCopyForm
         bind:this={form}
         detailed
+        copyActions={false}
         bind:accounts
         bind:appId
         bind:info

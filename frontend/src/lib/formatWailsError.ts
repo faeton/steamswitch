@@ -62,7 +62,6 @@ export function formatWailsError(err: unknown, options?: FormatWailsErrorOptions
 }
 
 
-/** Prefix + blank line + formatted error body (same options as [formatWailsError]). */
 /**
  * The translated sentence for an error the backend names by i18n key, such as
  * `Toast_Kit_ProcessesRunning: [dota2.exe]`. Null when the error is not one of those, or the key
@@ -83,6 +82,19 @@ export function formatKeyedToast(prefix: string, err: unknown, t: (key: string) 
   return keyed ? `${prefix} ${keyed}` : formatToastWithError(prefix, err);
 }
 
+/** The prefix and the error's own first line, without the `Cause:` and `Name:` lines. */
+export function formatPlainToast(prefix: string, err: unknown): string {
+  const message = extractErrorObject(err)?.message;
+  const first = typeof message === "string" ? message.split("\n")[0].trim() : "";
+  return first ? `${prefix} ${first}` : formatToastWithError(prefix, err);
+}
+
+/** True when a call failed only because the app is locked. Text from `security.ErrLocked`. */
+export function isAppLockedError(err: unknown): boolean {
+  return extractErrorObject(err)?.message === "app is locked";
+}
+
+/** Prefix + blank line + formatted error body (same options as [formatWailsError]). */
 export function formatToastWithError(
   prefix: string,
   err: unknown,

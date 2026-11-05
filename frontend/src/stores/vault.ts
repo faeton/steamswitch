@@ -53,6 +53,12 @@ export const vaultBusy = writable(false);
  */
 export const vaultHealth = writable<Record<string, VaultHealth>>({});
 
+/**
+ * Why an unlocked vault could not be listed, or null. Kept apart from the empty list because the
+ * two must never look alike: a damaged file is not a vault with no entries.
+ */
+export const vaultLoadError = writable<unknown>(null);
+
 export async function loadVaultStatus(): Promise<VaultStatus> {
   const status = await VaultService.GetStatus();
   vaultStatus.set(status);
@@ -61,6 +67,7 @@ export async function loadVaultStatus(): Promise<VaultStatus> {
 
 export async function loadVaultEntries(): Promise<VaultEntry[]> {
   const status = get(vaultStatus);
+  vaultLoadError.set(null);
   if (status.locked || !status.appPasswordSet) {
     // Nothing to load and nothing to report: a locked vault is a normal state, not an error
     // worth toasting every time a page mounts.
@@ -68,7 +75,15 @@ export async function loadVaultEntries(): Promise<VaultEntry[]> {
     vaultLoaded.set(true);
     return [];
   }
-  const list = await VaultService.ListEntries();
+  let list: VaultEntry[];
+  try {
+    list = await VaultService.ListEntries();
+  } catch (e) {
+    vaultEntries.set([]);
+    vaultLoadError.set(e);
+    vaultLoaded.set(true);
+    throw e;
+  }
   vaultEntries.set(list);
   const health: Record<string, VaultHealth> = {};
   for (const e of list) {

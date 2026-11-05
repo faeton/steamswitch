@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatKeyedToast, keyedErrorMessage } from "./formatWailsError";
+import { formatKeyedToast, formatPlainToast, isAppLockedError, keyedErrorMessage } from "./formatWailsError";
 
 const t = (key: string) =>
   key === "Toast_Kit_ProcessesRunning" ? "Steam or a game is still running." : key;
@@ -22,6 +22,29 @@ describe("keyedErrorMessage", () => {
     expect(keyedErrorMessage({ message: "access denied" }, t)).toBeNull();
     expect(keyedErrorMessage({ message: "Toast_NoSuchKey: x" }, t)).toBeNull();
     expect(keyedErrorMessage(null, t)).toBeNull();
+  });
+});
+
+describe("formatPlainToast", () => {
+  it("leaves out the cause and name", () => {
+    const err = new Error(
+      JSON.stringify({ message: "open C:\\x: Path not found.", cause: { Err: 3 }, name: "RuntimeError" }),
+    );
+    expect(formatPlainToast("Could not load accounts.", err)).toBe(
+      "Could not load accounts. open C:\\x: Path not found.",
+    );
+  });
+
+  it("still says something when the error has no message", () => {
+    expect(formatPlainToast("Failed.", {})).toContain("Failed.");
+  });
+});
+
+describe("isAppLockedError", () => {
+  it("recognises only the lock", () => {
+    expect(isAppLockedError(new Error(JSON.stringify({ message: "app is locked", cause: {} })))).toBe(true);
+    expect(isAppLockedError({ message: "access denied" })).toBe(false);
+    expect(isAppLockedError(null)).toBe(false);
   });
 });
 

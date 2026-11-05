@@ -41,9 +41,10 @@
   import { openConfirm } from "../stores/modal";
   import { gameRunningConfirm } from "../lib/steam/gameWarning";
   import { pushToast } from "../stores/toast";
-  import { formatKeyedToast, formatToastWithError } from "../lib/formatWailsError";
+  import { formatKeyedToast, formatPlainToast, formatToastWithError, isAppLockedError } from "../lib/formatWailsError";
   import { offerRestartIfNeedsAdmin } from "../lib/adminFlow";
   import { openContextMenu } from "../stores/contextMenu";
+  import { securityStatus } from "../stores/security";
   import {
     beginSwitch,
     clearError,
@@ -116,6 +117,8 @@
   let roles: AccountRoleMap = EMPTY_ROLES;
   let avatarEpoch: Record<string, number> = {};
   let loaded = false;
+  /** The list could not be read, so an empty one says nothing about what is saved. */
+  let loadFailed = false;
   let steamRunning = false;
   /** The backend's A4 verdict on who Steam is signed in as. */
   let session: SessionVerdict = UNLOADED_SESSION;
@@ -312,6 +315,7 @@
     try {
       const payload = await SteamService.GetSteamAccountsList();
       if (!listGuard.isCurrent(seq)) return;
+      loadFailed = false;
       applyList(payload);
 
       const enrich = await SteamService.GetSteamAccountsEnrichment();
@@ -324,8 +328,11 @@
       SteamService.StartSteamProfileRefresh();
     } catch (e) {
       if (!listGuard.isCurrent(seq)) return;
+      // The unlock prompt covers this page and the list loads once it is answered.
+      if (isAppLockedError(e)) return;
       loaded = true;
-      setError(formatToastWithError(get(t)("Toast_LoadAccountsFail"), e));
+      loadFailed = true;
+      setError(formatPlainToast(get(t)("Toast_LoadAccountsFail"), e));
     }
   }
 
@@ -385,6 +392,14 @@
       avatarEpoch,
     );
     return next;
+  }
+
+  // A list asked for while the app was locked was refused, so unlocking has to ask again.
+  let wasLocked = false;
+  $: reloadAfterUnlock($securityStatus.appLocked);
+  function reloadAfterUnlock(locked: boolean): void {
+    if (wasLocked && !locked) void loadAccounts();
+    wasLocked = locked;
   }
 
   /** Apply a single-account patch in place, leaving every other row alone. */
@@ -1005,6 +1020,11 @@
       <div class="switcher__scroll">
         {#if !loaded}
           <AccountListSkeleton />
+        {:else if ordered.length === 0 && loadFailed}
+          <div class="empty">
+            <h3 class="empty__title">{$t("Toast_LoadAccountsFail")}</h3>
+            <p class="empty__body">{$t("Switcher_LoadFailed_Body")}</p>
+          </div>
         {:else if ordered.length === 0}
           <!-- First run. The brief asks for one clear primary action and the no-password
                story in one breath, rather than an empty grid staring back. -->
