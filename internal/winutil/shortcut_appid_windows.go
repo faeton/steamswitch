@@ -13,13 +13,18 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-const gpsReadWrite = 0x2
+const (
+	gpsDefault   = 0x0
+	gpsReadWrite = 0x2
+	// vtLPWSTR is VT_LPWSTR: the PROPVARIANT owns a CoTaskMemAlloc'd UTF-16 string.
+	vtLPWSTR = 31
+)
 
 var (
-	modPropsys                            = windows.NewLazySystemDLL("propsys.dll")
+	modOle32                              = windows.NewLazySystemDLL("ole32.dll")
 	modShell32                            = windows.NewLazySystemDLL("shell32.dll")
-	procInitPropVariantFromString         = modPropsys.NewProc("InitPropVariantFromString")
-	procPropVariantClear                  = modPropsys.NewProc("PropVariantClear")
+	procCoTaskMemAlloc                    = modOle32.NewProc("CoTaskMemAlloc")
+	procPropVariantClear                  = modOle32.NewProc("PropVariantClear")
 	procSHGetPropertyStoreFromParsingName = modShell32.NewProc("SHGetPropertyStoreFromParsingName")
 )
 
@@ -81,19 +86,26 @@ func hresultErr(hr uintptr) error {
 	return ole.NewError(hr)
 }
 
-func initPropVariantFromString(s string) (propVariant, error) {
+// newLPWSTRPropVariant builds what InitPropVariantFromString would. That function is an inline
+// helper in propvarutil.h and no DLL exports it, so looking it up panics. The string lives in COM
+// memory because PropVariantClear frees it from there.
+//
+// PROPVARIANT is a 16-bit vt and three reserved words, with the union at offset 8 on both the
+// 32-bit and the 64-bit layout.
+func newLPWSTRPropVariant(s string) (propVariant, error) {
 	var pv propVariant
-	ws, err := windows.UTF16PtrFromString(s)
+	units, err := windows.UTF16FromString(s)
 	if err != nil {
 		return pv, err
 	}
-	hr, _, _ := procInitPropVariantFromString.Call(
-		uintptr(unsafe.Pointer(ws)),
-		uintptr(unsafe.Pointer(&pv)),
-	)
-	if e := hresultErr(hr); e != nil {
-		return pv, e
+	size := uintptr(len(units)) * unsafe.Sizeof(units[0])
+	mem, _, _ := procCoTaskMemAlloc.Call(size)
+	if mem == 0 {
+		return pv, fmt.Errorf("CoTaskMemAlloc: out of memory")
 	}
+	copy(unsafe.Slice((*uint16)(unsafe.Pointer(mem)), len(units)), units)
+	*(*uint16)(unsafe.Pointer(&pv.data[0])) = vtLPWSTR
+	*(*uintptr)(unsafe.Pointer(&pv.data[8])) = mem
 	return pv, nil
 }
 
@@ -111,6 +123,32 @@ func setShortcutAppUserModelID(lnkPath, appID string) error {
 	}
 	if len(appID) > 128 {
 		appID = appID[:128]
+	}
+	return withShortcutPropertyStore(lnkPath, gpsReadWrite, func(ps *iPropertyStore) error {
+		pv, err := newLPWSTRPropVariant(appID)
+		if err != nil {
+			return err
+		}
+		defer clearPropVariant(&pv)
+
+		if err := ps.setValue(&pkeyAppUserModelID, &pv); err != nil {
+			return fmt.Errorf("SetValue AppUserModelID: %w", err)
+		}
+		if err := ps.commit(); err != nil {
+			return fmt.Errorf("Commit: %w", err)
+		}
+		return nil
+	})
+}
+
+// withShortcutPropertyStore opens a shortcut's property store on a COM-initialised thread.
+func withShortcutPropertyStore(lnkPath string, flags uintptr, use func(*iPropertyStore) error) error {
+	// LazyProc.Call panics on a missing export, and through a Wails binding that reaches the user
+	// as a stack trace. Metadata is not worth that.
+	for _, p := range []*windows.LazyProc{procCoTaskMemAlloc, procPropVariantClear, procSHGetPropertyStoreFromParsingName} {
+		if err := p.Find(); err != nil {
+			return err
+		}
 	}
 
 	runtime.LockOSThread()
@@ -148,7 +186,7 @@ func setShortcutAppUserModelID(lnkPath, appID string) error {
 	hr, _, _ := procSHGetPropertyStoreFromParsingName.Call(
 		uintptr(unsafe.Pointer(pathPtr)),
 		0,
-		gpsReadWrite,
+		flags,
 		uintptr(unsafe.Pointer(iid)),
 		uintptr(unsafe.Pointer(&punk)),
 	)
@@ -160,18 +198,5 @@ func setShortcutAppUserModelID(lnkPath, appID string) error {
 	}
 	ps := (*iPropertyStore)(unsafe.Pointer(punk))
 	defer ps.release()
-
-	pv, err := initPropVariantFromString(appID)
-	if err != nil {
-		return err
-	}
-	defer clearPropVariant(&pv)
-
-	if err := ps.setValue(&pkeyAppUserModelID, &pv); err != nil {
-		return fmt.Errorf("SetValue AppUserModelID: %w", err)
-	}
-	if err := ps.commit(); err != nil {
-		return fmt.Errorf("Commit: %w", err)
-	}
-	return nil
+	return use(ps)
 }

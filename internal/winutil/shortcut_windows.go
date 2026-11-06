@@ -30,8 +30,10 @@ func WriteShortcutLnk(shortcutPath, targetExe, arguments, workingDir, descriptio
 	if err := writeShortcutLnkCOM(shortcutPath, targetExe, arguments, workingDir, description, iconLocation); err != nil {
 		return err
 	}
+	// Only the taskbar grouping depends on this. The shortcut on disk already works, so reporting
+	// a failure here would tell the user something false.
 	if err := setShortcutAppUserModelID(shortcutPath, appUserModelID); err != nil {
-		return err
+		slogWin().Warn("shortcut AppUserModelID not set", "err", err)
 	}
 	return nil
 }

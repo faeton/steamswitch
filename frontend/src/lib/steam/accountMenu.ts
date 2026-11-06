@@ -326,7 +326,7 @@ async function createShortcut(
     );
     deps.onToast(deps.t("Toast_ShortcutCreated"));
   } catch (e) {
-    deps.onError(deps.t("Toast_SwitchFailed"), e);
+    deps.onError(deps.t("Toast_ShortcutFailed"), e);
   }
 }
 

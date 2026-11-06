@@ -518,8 +518,8 @@ Use a throwaway account. A transfer is not reversible from inside this app.
 | G1 | Portable install (exe in its own folder) | Data goes to `<exe folder>\SteamSwitch\`, not `%AppData%`. |
 | G2 | Set an app-lock password, restart | Unlock is required before any account data is reachable. |
 | G3 | Turn on Offline mode | No outbound requests. Avatars stop refreshing; nothing hangs waiting on the network. |
-| G4 | Create a desktop shortcut for an account, run it with the app closed | Switches correctly and exits. |
-| G5 | `steamswitch://` protocol link | Handled by the running instance rather than starting a second one. |
+| G4 | Create a desktop shortcut for an account, run it with the app closed | No error when creating it. Switches correctly and exits. |
+| G5 | Turn on `steamswitch://` as a normal user, then open `steamswitch://s:<id>` with the app closed and again with it running | Turning it on needs no elevation and writes `HKCU\Software\Classes\steamswitch`. Each link switches to that account; while running, it is handled by the running instance rather than starting a second one. `steamswitch://--page=settings` does nothing. |
 | G6 | Launch a second copy while one is running | The second forwards its arguments and exits; only one window. |
 | G7 | Switch the app language | Every visible string changes; no raw keys like `Kit_Leave_Title` leak into the UI. |
 | G8 | Tab through the main window and both kit dialogs | Focus is trapped inside a dialog while it's open, and lands on the primary button first. |
