@@ -340,6 +340,11 @@ func (e *Engine) Enter(ctx context.Context, target AccountRef, personaState int)
 	if err := kitBlocksEntry(active, target); err != nil {
 		return err
 	}
+	// The kit is already on this account, so this is only a sign-in. A new transaction here would
+	// snapshot the kit as "their setup" and orphan the journal that names the real one.
+	if active != nil && (active.Phase == PhaseKitActive || active.Phase == PhaseKeptActive) {
+		return e.plainSwitch(ctx, target, personaState)
+	}
 
 	steamRoot, err := e.life.SteamRoot()
 	if err != nil {
@@ -574,13 +579,16 @@ func (e *Engine) Leave(ctx context.Context, target AccountRef, choice LeaveChoic
 	}
 	j.LeaveTarget = &target
 
+	// Before the first journal write. A process that outlives the close is a refusal, and the kit
+	// has to still read as active afterwards; any later phase reads as an interrupted switch.
+	if err := e.ensureClosed(ctx); err != nil {
+		return err
+	}
+
 	if choice == LeaveKeepMine {
 		// The overlay stays. The journal, snapshots and hashes are all retained so that
 		// restoring remains possible later.
 		if err := e.store.journal.Advance(j, PhaseLeavePlanned); err != nil {
-			return err
-		}
-		if err := e.ensureClosed(ctx); err != nil {
 			return err
 		}
 		if err := e.swapAndLaunch(ctx, j, target, personaState,
@@ -595,9 +603,6 @@ func (e *Engine) Leave(ctx context.Context, target AccountRef, choice LeaveChoic
 	}
 
 	if err := e.store.journal.Advance(j, PhaseLeavePlanned); err != nil {
-		return err
-	}
-	if err := e.ensureClosed(ctx); err != nil {
 		return err
 	}
 	if err := e.store.journal.Advance(j, PhaseClosingForRestore); err != nil {
@@ -628,12 +633,17 @@ func (e *Engine) restoreTheirSetup(ctx context.Context, j *Journal, steamRoot st
 		return e.failTransaction(j, err)
 	}
 
-	// External-change detection. If the live tree no longer matches what we applied, the
-	// other person has played (or Steam Cloud pulled), and writing over it would destroy
-	// their work. Default is no write.
+	// External-change detection. If the live tree no longer matches what we applied, the game
+	// rewrote its files during play, the other person played elsewhere, or Steam Cloud pulled.
+	// Nothing on disk tells these apart, so nothing is written until the user has answered.
 	for _, m := range e.modulesFor(j.Plans) {
 		plan, _ := planFor(j.Plans, m.ID())
 		expectedDigests := j.Hashes[m.ID()].KitApplied
+		if len(expectedDigests) == 0 {
+			// A kit kept after a partial write has no applied hashes. Comparing against the full
+			// kit can only over-report a change, which asks; skipping would overwrite unasked.
+			expectedDigests = j.Hashes[m.ID()].KitSource
+		}
 		if len(expectedDigests) == 0 {
 			continue
 		}
@@ -657,6 +667,7 @@ func (e *Engine) restoreTheirSetup(ctx context.Context, j *Journal, steamRoot st
 	}
 
 	e.phase("Status_Kit_RestoringTheirSetup", nil)
+	e.releaseVerifiedRollbacks(j)
 	j.ResetPartStates()
 	if err := e.store.journal.Advance(j, PhaseRestoring); err != nil {
 		return e.failTransaction(j, err)
@@ -737,7 +748,40 @@ func (e *Engine) finish(j *Journal) {
 func (e *Engine) partJournal(j *Journal, moduleID string) PartJournal {
 	return func(partID string, state ReplaceState) error {
 		j.SetPartState(moduleID, partID, state)
-		return e.store.journal.Write(j)
+		if err := e.store.journal.Write(j); err != nil {
+			return err
+		}
+		// Recovery reads a rollback directory as a replacement still in progress, so one must
+		// not outlive the write it belongs to. The snapshots hold the older tree from here on.
+		if state == ReplaceVerified {
+			if steamRoot, err := e.journalSteamRoot(j); err == nil {
+				if _, rollbackRoot, err := e.recoveryScratchDirs(j, moduleID, steamRoot); err == nil {
+					ReleaseRollback(partPath(rollbackRoot, partID))
+				}
+			}
+		}
+		return nil
+	}
+}
+
+// releaseVerifiedRollbacks clears what a crash left between journalling `verified` and deleting the
+// copy. It has to run before part states are reset: as `pending`, a leftover would read as a
+// replacement in progress, and recovery would swap it over the live tree.
+func (e *Engine) releaseVerifiedRollbacks(j *Journal) {
+	steamRoot, err := e.journalSteamRoot(j)
+	if err != nil {
+		return
+	}
+	for moduleID, parts := range j.ModuleState {
+		_, rollbackRoot, err := e.recoveryScratchDirs(j, moduleID, steamRoot)
+		if err != nil {
+			continue
+		}
+		for partID, state := range parts {
+			if state == ReplaceVerified {
+				ReleaseRollback(partPath(rollbackRoot, partID))
+			}
+		}
 	}
 }
 

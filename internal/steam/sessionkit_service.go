@@ -216,7 +216,7 @@ func (s *SessionKitService) LeaveKit(steamID64, choice string, personaState int)
 }
 
 // ResolveRecovery applies the user's answer to the recovery modal:
-// `restore-theirs`, `keep-current` or `abandon`.
+// `restore-theirs`, `keep-current`, `accept-current` or `abandon`.
 func (s *SessionKitService) ResolveRecovery(action string) error {
 	if err := security.RequireUnlocked(); err != nil {
 		return err
@@ -227,7 +227,7 @@ func (s *SessionKitService) ResolveRecovery(action string) error {
 	}
 	a := sessionkit.RecoveryAction(strings.TrimSpace(action))
 	switch a {
-	case sessionkit.ActionRestoreTheirs, sessionkit.ActionKeepCurrent, sessionkit.ActionAbandon:
+	case sessionkit.ActionRestoreTheirs, sessionkit.ActionKeepCurrent, sessionkit.ActionAcceptCurrent, sessionkit.ActionAbandon:
 	default:
 		return errors.New("Toast_Kit_UnknownChoice")
 	}

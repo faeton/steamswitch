@@ -120,6 +120,12 @@ func (f *fakeModule) write(req ApplyRequest, honourAbsence bool) ([]string, Mani
 		if err != nil {
 			return done, Manifest{}, err
 		}
+		// Part by part, as the real modules do, so a later part's crash finds this one verified.
+		if req.Journal != nil {
+			if err := req.Journal(p.ID, ReplaceVerified); err != nil {
+				return done, Manifest{}, err
+			}
+		}
 		done = append(done, p.ID)
 	}
 	man, err := HashParts(fakeModuleID, req.Plan.Parts, func(id string) (string, bool) {
@@ -430,7 +436,36 @@ func TestResolve_RestoreTheirsAfterExternalChange(t *testing.T) {
 	}
 }
 
-func TestResolve_KeepCurrentClosesTheExternalChangeBlock(t *testing.T) {
+func TestResolve_KeepCurrentKeepsAChangedKitTrackedAndRestorable(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+
+	if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err != nil {
+		t.Fatal(err)
+	}
+	// The game rewrote a file while being played, so the account still carries the kit.
+	writeFile(t, filepath.Join(h.mod.root, sharedID, partLocal, "my.cfg"), "mine, touched by the game")
+	_ = h.engine.Leave(ctx, AccountRef{SteamID64: homeID}, LeaveRestoreTheirs, -1)
+
+	if err := h.engine.Resolve(ctx, ActionKeepCurrent); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if got := h.liveTree(t, sharedID, partLocal); got["my.cfg"] != "mine, touched by the game" {
+		t.Fatalf("live = %v, want the changed files kept", got)
+	}
+	st, _ := h.engine.Status()
+	if st.Kind != RecoveryKitActive || !st.CanRestore {
+		t.Fatalf("status = %+v, want a kit that can still be restored", st)
+	}
+	if err := h.engine.Resolve(ctx, ActionRestoreTheirs); err != nil {
+		t.Fatalf("restore after keeping: %v", err)
+	}
+	if got := h.liveTree(t, sharedID, partLocal); got["their.cfg"] != "theirs" {
+		t.Fatalf("live = %v, want their setup back", got)
+	}
+}
+
+func TestResolve_AcceptCurrentStopsTrackingWithoutWriting(t *testing.T) {
 	h := newHarness(t)
 	ctx := context.Background()
 
@@ -440,14 +475,242 @@ func TestResolve_KeepCurrentClosesTheExternalChangeBlock(t *testing.T) {
 	writeFile(t, filepath.Join(h.mod.root, sharedID, partLocal, "my.cfg"), "edited by them")
 	_ = h.engine.Leave(ctx, AccountRef{SteamID64: homeID}, LeaveRestoreTheirs, -1)
 
-	if err := h.engine.Resolve(ctx, ActionKeepCurrent); err != nil {
+	if err := h.engine.Resolve(ctx, ActionAcceptCurrent); err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
 	if got := h.liveTree(t, sharedID, partLocal); got["my.cfg"] != "edited by them" {
-		t.Fatalf("live = %v, want the outside edit kept", got)
+		t.Fatalf("live = %v, want the files untouched", got)
+	}
+	st, _ := h.engine.Status()
+	if st.Kind != RecoveryNone {
+		t.Fatalf("status = %+v, want none", st)
 	}
 	if err := h.engine.Enter(ctx, AccountRef{SteamID64: otherID}, -1); err != nil {
-		t.Fatalf("switching after keep-current: %v", err)
+		t.Fatalf("switching after accepting: %v", err)
+	}
+}
+
+// Accepting abandons the record of what to put back, so it must not be reachable from a state
+// where the user was never told the files had changed.
+func TestResolve_AcceptCurrentIsOnlyForAnExternalChange(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.mod.failApplyOn = partRemote
+	if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err == nil {
+		t.Fatal("expected the simulated crash to surface")
+	}
+	if err := h.engine.Resolve(ctx, ActionAcceptCurrent); err == nil {
+		t.Fatal("accepting an interrupted transaction should be refused")
+	}
+	st, _ := h.engine.Status()
+	if st.Kind != RecoveryInterrupted {
+		t.Fatalf("status = %+v, want it still interrupted", st)
+	}
+}
+
+// Nothing landed, so there is no overlay to track. Calling this a kit would tell the user their
+// settings are on the account when they are not, and the next entry would snapshot around it.
+func TestResolve_KeepCurrentWithNothingWrittenEndsTheTransaction(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.mod.failApplyOn = partLocal
+	if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err == nil {
+		t.Fatal("expected the simulated crash to surface")
+	}
+	if err := h.engine.Resolve(ctx, ActionKeepCurrent); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	st, _ := h.engine.Status()
+	if st.Kind != RecoveryNone {
+		t.Fatalf("status = %+v, want none", st)
+	}
+	assertNoTransactionLeftovers(t, h)
+	if got := h.liveTree(t, sharedID, partLocal); got["their.cfg"] != "theirs" {
+		t.Fatalf("live = %v, want their setup untouched", got)
+	}
+}
+
+func TestResolve_KeepCurrentAfterAPartialWriteStaysRestorable(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.mod.failApplyOn = partRemote
+	if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err == nil {
+		t.Fatal("expected the simulated crash to surface")
+	}
+	if err := h.engine.Resolve(ctx, ActionKeepCurrent); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	st, _ := h.engine.Status()
+	if st.Kind != RecoveryKitActive || !st.CanRestore {
+		t.Fatalf("status = %+v, want it tracked and restorable", st)
+	}
+}
+
+// A crash between moving the live tree aside and recording it leaves the part `pending` with the
+// account's files sitting in the rollback directory. Keeping "what is on disk" must not mean
+// keeping a hole where their config was.
+// A verified part's rollback copy is the tree from before that write. Left in place it would look
+// like an in-progress replacement to a later recovery, which would swap it over the live files.
+func TestPartVerified_ReleasesItsRollbackCopy(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err != nil {
+		t.Fatal(err)
+	}
+	j, err := h.engine.activeJournal()
+	if err != nil || j == nil {
+		t.Fatalf("active journal: %v %v", j, err)
+	}
+	_, rollback, err := h.engine.recoveryScratchDirs(j, fakeModuleID, h.life.steamRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, part := range []string{partLocal, partRemote} {
+		if exists, _ := pathExists(partPath(rollback, part)); exists {
+			t.Fatalf("rollback copy of %s outlived its verified write", part)
+		}
+	}
+}
+
+// The restore that crashes here never started on `remote`, so keeping what is on disk has to keep
+// the files that are there, not bring back the ones from before the kit.
+func TestResolve_KeepCurrentAfterACrashedRestoreKeepsTheLiveFiles(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err != nil {
+		t.Fatal(err)
+	}
+	j, err := h.engine.activeJournal()
+	if err != nil || j == nil {
+		t.Fatalf("active journal: %v %v", j, err)
+	}
+	j.ResetPartStates()
+	if err := h.engine.store.journal.Advance(j, PhaseRestoring); err != nil {
+		t.Fatal(err)
+	}
+	if err := h.engine.Resolve(ctx, ActionKeepCurrent); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if got := h.liveTree(t, sharedID, partRemote); got["grid.json"] != "my-grid" {
+		t.Fatalf("remote = %v, want the files that were live", got)
+	}
+}
+
+// A crash can land between journalling `verified` and deleting the rollback copy. Once a restore
+// resets that part to pending, the leftover would read as a replacement in progress.
+func TestRestore_RetiresARollbackCopyLeftByAVerifiedPart(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err != nil {
+		t.Fatal(err)
+	}
+	j, err := h.engine.activeJournal()
+	if err != nil || j == nil {
+		t.Fatalf("active journal: %v %v", j, err)
+	}
+	_, rollback, err := h.engine.recoveryScratchDirs(j, fakeModuleID, h.life.steamRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(partPath(rollback, partLocal), "stale.cfg"), "stale")
+
+	h.mod.failApplyOn = partLocal // The restore dies before it starts on this part.
+	if err := h.engine.Leave(ctx, AccountRef{SteamID64: homeID}, LeaveRestoreTheirs, -1); err == nil {
+		t.Fatal("expected the simulated crash to surface")
+	}
+	h.mod.failApplyOn = ""
+	if err := h.engine.Resolve(ctx, ActionKeepCurrent); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if got := h.liveTree(t, sharedID, partLocal); got["my.cfg"] != "mine" {
+		t.Fatalf("local = %v, want the files that were live", got)
+	}
+}
+
+// With no applied hashes recorded, a later restore would otherwise overwrite without looking.
+func TestLeave_PartialKitStillChecksForOutsideChanges(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.mod.failApplyOn = partRemote
+	if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err == nil {
+		t.Fatal("expected the simulated crash to surface")
+	}
+	h.mod.failApplyOn = ""
+	if err := h.engine.Resolve(ctx, ActionKeepCurrent); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	writeFile(t, filepath.Join(h.mod.root, sharedID, partLocal, "my.cfg"), "edited later")
+	err := h.engine.Leave(ctx, AccountRef{SteamID64: homeID}, LeaveRestoreTheirs, -1)
+	if !errors.Is(err, ErrExternalChange) {
+		t.Fatalf("err = %v, want ErrExternalChange", err)
+	}
+}
+
+// Keeping can move a tree back into place, which is a write like any other.
+func TestResolve_KeepCurrentRefusesWhileAProcessHoldsTheFiles(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.mod.failApplyOn = partRemote
+	if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err == nil {
+		t.Fatal("expected the simulated crash to surface")
+	}
+	h.life.stillOpen = []string{"dota2.exe"}
+	if err := h.engine.Resolve(ctx, ActionKeepCurrent); !errors.Is(err, ErrProcessesRunning) {
+		t.Fatalf("err = %v, want ErrProcessesRunning", err)
+	}
+	st, _ := h.engine.Status()
+	if st.Kind != RecoveryInterrupted {
+		t.Fatalf("status = %+v, want it still interrupted", st)
+	}
+}
+
+// The block is reached with Steam already closed and no replacement in progress, so keeping
+// has nothing to do to the files and no reason to touch Steam.
+func TestResolve_KeepCurrentAfterExternalChangeLeavesSteamAlone(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, filepath.Join(h.mod.root, sharedID, partLocal, "my.cfg"), "changed")
+	_ = h.engine.Leave(ctx, AccountRef{SteamID64: homeID}, LeaveRestoreTheirs, -1)
+	before := len(h.life.calls)
+	if err := h.engine.Resolve(ctx, ActionKeepCurrent); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if got := h.life.calls[before:]; len(got) != 0 {
+		t.Fatalf("lifecycle calls = %v, want none", got)
+	}
+}
+
+func TestResolve_KeepCurrentPutsAHalfMovedPartBack(t *testing.T) {
+	h := newHarness(t)
+	ctx := context.Background()
+	h.mod.failApplyOn = partRemote
+	if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err == nil {
+		t.Fatal("expected the simulated crash to surface")
+	}
+	j, err := h.engine.activeJournal()
+	if err != nil || j == nil {
+		t.Fatalf("active journal: %v %v", j, err)
+	}
+	_, rollback, err := h.engine.recoveryScratchDirs(j, fakeModuleID, h.life.steamRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	dst := partPath(rollback, partRemote)
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(filepath.Join(h.mod.root, sharedID, partRemote), dst); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := h.engine.Resolve(ctx, ActionKeepCurrent); err != nil {
+		t.Fatalf("resolve: %v", err)
+	}
+	if got := h.liveTree(t, sharedID, partRemote); got["grid.json"] != "their-grid" {
+		t.Fatalf("remote = %v, want their files back in place", got)
 	}
 }
 
@@ -742,6 +1005,91 @@ func TestEnter_AllowsReEnteringTheAccountTheKitIsOn(t *testing.T) {
 	}
 	if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err != nil {
 		t.Fatalf("re-enter the same account = %v, want nil", err)
+	}
+}
+
+// The kit is already on the account, so a second entry has no setup of theirs to save. Treating
+// it as a new transaction snapshots the kit as "their setup" and loses the real one.
+func TestEnter_ReEnteringKeepsTheirSetupRestorable(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		first func(h *harness) error
+	}{
+		{"from kit-active", func(*harness) error { return nil }},
+		{"after keeping mine on it", func(h *harness) error {
+			return h.engine.Leave(context.Background(), AccountRef{SteamID64: homeID}, LeaveKeepMine, -1)
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newHarness(t)
+			ctx := context.Background()
+			if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err != nil {
+				t.Fatal(err)
+			}
+			if err := tc.first(h); err != nil {
+				t.Fatal(err)
+			}
+			if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err != nil {
+				t.Fatalf("re-enter: %v", err)
+			}
+			if h.life.current.SteamID64 != sharedID {
+				t.Fatalf("signed in as %s, want the shared account", h.life.current.SteamID64)
+			}
+			if err := h.engine.Leave(ctx, AccountRef{SteamID64: homeID}, LeaveRestoreTheirs, -1); err != nil {
+				t.Fatalf("leave: %v", err)
+			}
+			if got := h.liveTree(t, sharedID, partLocal); got["their.cfg"] != "theirs" || got["my.cfg"] != "" {
+				t.Fatalf("live = %v, want their own setup", got)
+			}
+			assertNoTransactionLeftovers(t, h)
+		})
+	}
+}
+
+// A process outliving the close is a refusal, not a crash: nothing has been touched, so the kit
+// must still be there to leave once the game is gone.
+func TestLeave_RefusalLeavesTheKitInPlace(t *testing.T) {
+	for _, choice := range []LeaveChoice{LeaveRestoreTheirs, LeaveKeepMine} {
+		t.Run(string(choice), func(t *testing.T) {
+			h := newHarness(t)
+			ctx := context.Background()
+			if err := h.engine.Enter(ctx, AccountRef{SteamID64: sharedID}, -1); err != nil {
+				t.Fatal(err)
+			}
+			h.life.stillOpen = []string{"dota2.exe"}
+			if err := h.engine.Leave(ctx, AccountRef{SteamID64: homeID}, choice, -1); !errors.Is(err, ErrProcessesRunning) {
+				t.Fatalf("err = %v, want ErrProcessesRunning", err)
+			}
+			st, _ := h.engine.Status()
+			if st.Kind != RecoveryKitActive {
+				t.Fatalf("status = %+v, want the kit still active", st)
+			}
+			h.life.stillOpen = nil
+			if err := h.engine.Leave(ctx, AccountRef{SteamID64: homeID}, choice, -1); err != nil {
+				t.Fatalf("leave once the game closed: %v", err)
+			}
+		})
+	}
+}
+
+func assertNoTransactionLeftovers(t *testing.T, h *harness) {
+	t.Helper()
+	entries, err := os.ReadDir(filepath.Join(h.store.root, "transactions"))
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("%d transaction(s) left behind", len(entries))
+	}
+	scratch, err := os.ReadDir(h.mod.scratchAnchor)
+	if err != nil && !os.IsNotExist(err) {
+		t.Fatal(err)
+	}
+	for _, account := range scratch {
+		tx := filepath.Join(h.mod.scratchAnchor, account.Name(), scratchDirName)
+		if _, err := os.Stat(tx); err == nil {
+			t.Fatalf("scratch left at %s", tx)
+		}
 	}
 }
 

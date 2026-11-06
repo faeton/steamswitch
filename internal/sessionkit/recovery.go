@@ -126,8 +126,12 @@ type RecoveryAction string
 const (
 	// ActionRestoreTheirs rolls the shared account back to its saved setup.
 	ActionRestoreTheirs RecoveryAction = "restore-theirs"
-	// ActionKeepCurrent accepts whatever is on disk and closes the transaction.
+	// ActionKeepCurrent leaves what is on disk in place for now. Anything the kit wrote stays
+	// tracked, so restoring their setup remains possible.
 	ActionKeepCurrent RecoveryAction = "keep-current"
+	// ActionAcceptCurrent declares a changed tree to be theirs and stops tracking it. Only for
+	// an external change, and the only answer there after which restoring is no longer offered.
+	ActionAcceptCurrent RecoveryAction = "accept-current"
 	// ActionAbandon discards the transaction without touching files. Used when the crash
 	// happened before anything was written.
 	ActionAbandon RecoveryAction = "abandon"
@@ -171,13 +175,34 @@ func (e *Engine) Resolve(ctx context.Context, action RecoveryAction) error {
 
 	case ActionKeepCurrent:
 		actionlog.Record("kit:keepCurrent", j.TransactionID, string(j.Phase), nil)
-		if j.Phase == PhaseExternalChangeBlocked {
-			// Their files won, so the overlay is gone; there is nothing left to restore.
-			e.finish(j)
-			return nil
+		// A blocked transaction is settled: Steam is closed and no replacement is in progress.
+		if j.Phase != PhaseExternalChangeBlocked {
+			// Putting a moved tree back is a write, so it needs the same closed Steam as any other.
+			if err := e.ensureClosed(ctx); err != nil {
+				return err
+			}
+			// "What is on disk" must not include a hole left by a tree moved aside and never put back.
+			if err := e.rollbackIncomplete(j); err != nil {
+				return err
+			}
+			// Nothing landed, so there is no overlay to track, and calling this a live kit would
+			// tell the user their settings are on the account when they are not.
+			if !e.hasCompletedWrites(j) && j.Phase.beforeKitLanded() {
+				e.finish(j)
+				return nil
+			}
 		}
-		// The overlay stands and stays tracked, so restoring remains available later.
+		// A changed tree may well still be the kit: games rewrite their own config while they run.
+		// Stay tracked, so that their setup can still be put back.
 		return e.store.journal.Advance(j, PhaseKeptActive)
+
+	case ActionAcceptCurrent:
+		if j.Phase != PhaseExternalChangeBlocked {
+			return errors.New("sessionkit: only an external change can be accepted")
+		}
+		actionlog.Record("kit:acceptCurrent", j.TransactionID, j.To.SteamID64, nil)
+		e.finish(j)
+		return nil
 
 	case ActionRestoreTheirs:
 		steamRoot, err := e.journalSteamRoot(j)
@@ -325,6 +350,7 @@ func (e *Engine) rollbackIncomplete(j *Journal) error {
 // restoreFromSnapshots writes every recorded "their setup" back, skipping the
 // external-change gate that Leave applies.
 func (e *Engine) restoreFromSnapshots(ctx context.Context, j *Journal, steamRoot string) error {
+	e.releaseVerifiedRollbacks(j)
 	j.ResetPartStates()
 	if err := e.store.journal.Advance(j, PhaseRestoring); err != nil {
 		return err

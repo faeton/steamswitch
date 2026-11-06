@@ -111,7 +111,7 @@ Mark your second account **Shared**. Home must be set.
 | C8 | Repeat C2, then leave with **Keep mine on it** | Your config stays on their account. The strip still shows the kit as active, and it survives an app restart. |
 | C9 | While a kit is active, open Tools → Dota config library and try a manual copy | Refused, citing an active kit. This is `guardManualConfigWrite`. |
 | C10 | With Steam **running**, try to switch to the shared account | Steam is closed first automatically. It should not write anything while Steam is up. |
-| C11 | Start Dota, leave it running, and try to switch | Refused with "Steam or a game is still running", naming the process. Not a silent failure, not a partial write. |
+| C11 | Start Dota on the shared account, leave it running, and switch away, choosing **Restore theirs** in the leave prompt | Asks first, naming the game. **Cancel** changes nothing and the kit stays active. **Close and switch** closes it, then the "Game settings changed" dialog below may follow. |
 
 ### C-bypass. The ways to switch that are not a tile
 
@@ -153,12 +153,12 @@ This is the most important section and the easiest to skip. Don't.
 | D5a | Immediately after D5, check which account Steam will sign in as | It is the account you started from, **not** the shared one. A restore that puts the files back but leaves the login pointing at someone else's account is a half-undo. |
 | D5b | Confirm Steam did **not** start on its own during D5 | Answering a repair prompt is not a request to launch Steam. |
 | D5c | Repeat D1 but kill the app *before* the strip reaches "Applying my kit", then relaunch and expand **Inspect** | "Signed in as" shows the original account and there is no login-mismatch notice — nothing was swapped, so there is nothing to reconcile. |
-| D6 | Repeat D1, then choose **Keep current** instead | The app unblocks; whatever was on disk stays. |
+| D6 | Repeat D1, then choose **Keep current** instead | The app unblocks and no tree is missing. If nothing had been written, the transaction ends; if a part landed, the kit stays tracked and can be restored later. |
 | D7 | Repeat D1 twice in a row without resolving between them | The second launch still shows exactly one prompt and still recovers cleanly. |
-| D8 | Inspect `%AppData%\SteamSwitch\SessionKit\` after a clean switch | `transactions/` is empty; `snapshots/` and `archive/` hold history. No leftovers. |
+| D8 | Inspect `%AppData%\SteamSwitch\SessionKit\` after a clean switch, including one that re-entered the account the kit is on | `transactions/` is empty; `snapshots/` and `archive/` hold history. No leftovers. |
 | D9 | Inspect `<Steam>\userdata\<id32>\570\` after a clean switch | **No `.steamswitch-tx` folder is left behind.** |
 
-### D-external. Somebody else played
+### D-external. The files changed while the kit was on
 
 | # | Steps | Expected |
 |---|---|---|

@@ -150,11 +150,27 @@ export async function resolveLeave(
   await refreshKitStatus();
 }
 
-/** Answer the recovery modal. */
-export async function resolveRecovery(
-  action: "restore-theirs" | "keep-current" | "abandon",
-): Promise<void> {
+export type RecoveryAction = "restore-theirs" | "keep-current" | "accept-current" | "abandon";
+
+/**
+ * Whether answering the recovery modal this way closes Steam, and any game with it. A blocked
+ * restore is settled, so leaving its files alone needs nothing from Steam.
+ */
+export function recoveryActionClosesSteam(action: RecoveryAction, kind: KitKind): boolean {
+  if (action === "accept-current") return false;
+  return !(action === "keep-current" && kind === "external-change");
+}
+
+/**
+ * Answer the recovery modal.
+ *
+ * A leave prompt still open is the question that led here, now answered or out of date, and the
+ * switch it asked for is dropped: recovery does not sign in to its target. It goes before the
+ * status refresh, which is what would otherwise bring the old dialog back for a frame.
+ */
+export async function resolveRecovery(action: RecoveryAction): Promise<void> {
   await SessionKitService.ResolveRecovery(action);
+  leavePrompt.set(null);
   await refreshKitStatus();
 }
 

@@ -1120,11 +1120,13 @@
   <KitRecoveryModal
     status={$kitStatus}
     targetLabel={labelOf(byId.get($kitStatus.targetSteamId64))}
+    confirmClosing={confirmClosingGame}
     on:done={() => void afterSwitch()}
   />
 {:else if $leavePrompt}
   <KitLeaveModal
     prompt={$leavePrompt}
+    confirmClosing={confirmClosingGame}
     on:cancel={() => leavePrompt.set(null)}
     on:done={() => {
       const target = $leavePrompt?.toSteamId64 ?? "";

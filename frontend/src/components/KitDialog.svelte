@@ -58,7 +58,8 @@
   .kitdlg__scrim {
     position: absolute;
     inset: 0;
-    z-index: 60;
+    /* Under the modal layer (50): answering this can open a confirm, and it has to be on top. */
+    z-index: 45;
     display: flex;
     align-items: center;
     justify-content: center;

@@ -13,11 +13,13 @@
   import { createEventDispatcher } from "svelte";
   import KitDialog from "./KitDialog.svelte";
   import { t } from "../stores/i18n";
-  import { formatToastWithError } from "../lib/formatWailsError";
+  import { formatKeyedToast } from "../lib/formatWailsError";
   import { resolveLeave, type LeavePrompt } from "../stores/sessionKit";
   import { get } from "svelte/store";
 
   export let prompt: LeavePrompt;
+  /** Asks before leaving closes Steam, since a running game goes with it. */
+  export let confirmClosing: () => Promise<boolean> = async () => true;
 
   const dispatch = createEventDispatcher<{ done: void; cancel: void }>();
 
@@ -30,12 +32,13 @@
     busy = true;
     error = "";
     try {
+      if (!(await confirmClosing())) return;
       await resolveLeave(choice, prompt.toSteamId64);
       dispatch("done");
     } catch (e) {
       // Keep the dialog open. Closing over a failure would leave the user believing a
       // decision was applied when the files were never touched.
-      error = formatToastWithError(get(t)("Toast_Kit_LeaveFailed"), e);
+      error = formatKeyedToast(get(t)("Toast_Kit_LeaveFailed"), e, get(t));
     } finally {
       busy = false;
     }

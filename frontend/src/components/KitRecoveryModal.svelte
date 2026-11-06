@@ -8,21 +8,29 @@
    * already refusing every switch until this is answered, so a dismissable dialog would just
    * produce an app that silently does nothing when tiles are clicked.
    *
-   * The default differs by cause, because the safe answer does:
-   *  - interrupted mid-write → restore the other person's setup, if one was captured;
-   *  - external change → keep what is on disk, since something we did not write is there and
-   *    overwriting it would destroy work that is not ours (REDESIGN.md: "Default = no write").
+   * Restoring is the default in both cases. After an interrupted write that is the other
+   * person's setup coming back. After a changed tree it is usually the same thing: games rewrite
+   * their own config while being played, so the account most likely still carries the kit, and
+   * nothing on disk can tell that from Steam Cloud bringing newer files. The body says that
+   * restoring discards the changes.
    */
   import { createEventDispatcher } from "svelte";
   import KitDialog from "./KitDialog.svelte";
   import { t } from "../stores/i18n";
-  import { formatToastWithError } from "../lib/formatWailsError";
-  import { resolveRecovery, type KitStatus } from "../stores/sessionKit";
+  import { formatKeyedToast } from "../lib/formatWailsError";
+  import {
+    recoveryActionClosesSteam,
+    resolveRecovery,
+    type KitStatus,
+    type RecoveryAction,
+  } from "../stores/sessionKit";
   import { get } from "svelte/store";
 
   export let status: KitStatus;
   /** Display name for the affected account; falls back to the raw id when unknown. */
   export let targetLabel = "";
+  /** Asks before an answer closes Steam, since a running game goes with it. */
+  export let confirmClosing: () => Promise<boolean> = async () => true;
 
   const dispatch = createEventDispatcher<{ done: void }>();
 
@@ -36,15 +44,16 @@
   // before the crash. Offering it otherwise would promise a rollback that cannot happen.
   $: canRestore = status.canRestore;
 
-  async function choose(action: "restore-theirs" | "keep-current" | "abandon"): Promise<void> {
+  async function choose(action: RecoveryAction): Promise<void> {
     if (busy) return;
     busy = true;
     error = "";
     try {
+      if (recoveryActionClosesSteam(action, status.kind) && !(await confirmClosing())) return;
       await resolveRecovery(action);
       dispatch("done");
     } catch (e) {
-      error = formatToastWithError(get(t)("Toast_Kit_RecoveryFailed"), e);
+      error = formatKeyedToast(get(t)("Toast_Kit_RecoveryFailed"), e, get(t));
     } finally {
       busy = false;
     }
@@ -52,12 +61,12 @@
 </script>
 
 <KitDialog
-  title={external ? $t("Kit_Recovery_ExternalChange") : $t("Kit_Recovery_Interrupted")}
+  title={external ? $t("Kit_Recovery_Changed_Title") : $t("Kit_Recovery_Interrupted")}
   tone="error"
 >
   <p>
     {external
-      ? $t("Kit_Recovery_ExternalBody").replace("{0}", label)
+      ? $t("Kit_Recovery_Changed_Body").replaceAll("{0}", label)
       : $t("Kit_Recovery_Body").replace("{0}", label)}
   </p>
 
@@ -109,14 +118,17 @@
 
   <svelte:fragment slot="actions">
     {#if external}
-      <button type="button" class="is-primary" disabled={busy} on:click={() => choose("keep-current")}>
-        {$t("Kit_Action_KeepCurrent")}
-      </button>
       {#if canRestore}
-        <button class="ss-btn" type="button" disabled={busy} on:click={() => choose("restore-theirs")}>
-          {$t("Kit_Recovery_RestoreAnyway")}
+        <button type="button" class="is-primary" disabled={busy} on:click={() => choose("restore-theirs")}>
+          {busy ? $t("Kit_Leave_Working") : $t("Kit_Recovery_Changed_Restore")}
         </button>
       {/if}
+      <button class="ss-btn" type="button" disabled={busy} on:click={() => choose("keep-current")}>
+        {$t("Kit_Recovery_Changed_KeepForNow")}
+      </button>
+      <button class="ss-btn" type="button" disabled={busy} on:click={() => choose("accept-current")}>
+        {$t("Kit_Recovery_Changed_Accept")}
+      </button>
     {:else}
       {#if canRestore}
         <button type="button" class="is-primary" disabled={busy} on:click={() => choose("restore-theirs")}>

@@ -73,6 +73,16 @@ func (p Phase) IsResting() bool { return restingPhases[p] }
 // NeedsRecovery reports whether finding this phase on startup means work was interrupted.
 func (p Phase) NeedsRecovery() bool { return !p.IsResting() && p != "" }
 
+// beforeKitLanded reports a phase on the way into a kit, where part states alone say what was
+// written. A restore resets them to pending, so from later phases they cannot answer that.
+func (p Phase) beforeKitLanded() bool {
+	switch p {
+	case PhasePlanned, PhaseClosingSteam, PhaseSteamClosed, PhaseSnapshotting, PhaseSnapshotSaved, PhaseApplying:
+		return true
+	}
+	return false
+}
+
 // PartState within a replacement — tracked per part so a crash between the two renames of a
 // staged replace is recoverable.
 type ReplaceState string
