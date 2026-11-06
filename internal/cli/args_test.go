@@ -201,3 +201,69 @@ func TestParse_WindowDiagnosticFlags(t *testing.T) {
 		t.Fatalf("leaked into Steam's arguments: %v", p.PassthroughLaunchArgs)
 	}
 }
+
+func TestParse_ProtocolLinkMeansTheSameAsThePlusToken(t *testing.T) {
+	const id = "76561197960287930"
+	for _, tc := range []struct{ link, plus string }{
+		{"steamswitch://s:" + id, "+s:" + id},
+		{"steamswitch://s:" + id + ":7", "+s:" + id + ":7"},
+		{"STEAMSWITCH://S:" + id, "+s:" + id},
+		{"steamswitch://s:" + id + "/", "+s:" + id},
+		{"steamswitch://+s:" + id, "+s:" + id},
+	} {
+		got, err := Parse([]string{tc.link}, nil)
+		if err != nil {
+			t.Errorf("%s: %v", tc.link, err)
+			continue
+		}
+		want, err := Parse([]string{tc.plus}, nil)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.plus, err)
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("%s = %+v, want %+v", tc.link, got, want)
+		}
+	}
+}
+
+// A link can be clicked on any web page, so it reaches only the switch it documents. Everything
+// else the command line accepts stays out of its reach.
+func TestParse_ProtocolLinkRefusesEverythingElse(t *testing.T) {
+	for _, link := range []string{
+		"steamswitch://",
+		"steamswitch://--run-appid=570",
+		"steamswitch://--run-shortcut=eA",
+		"steamswitch://--seal-roster",
+		"steamswitch://--page=settings",
+		"steamswitch://help",
+		"steamswitch://s:",
+		"steamswitch://s:notanumber",
+		"steamswitch://s:765:x",
+		"steamswitch://s:765:1:2",
+		"steamswitch://s:765 --run-appid=570",
+		"steamswitch://s:765?x=1",
+	} {
+		if p, err := Parse([]string{link}, nil); err == nil {
+			t.Errorf("%s was accepted: %+v", link, p)
+		}
+	}
+}
+
+// ShellExecute splits a quote inside a URI into extra arguments, so a link can arrive with company
+// despite the quoted "%1" in the registry command.
+func TestParse_ProtocolLinkRefusesInjectedSiblings(t *testing.T) {
+	const link = "steamswitch://s:76561197960287930"
+	for _, argv := range [][]string{
+		{link, "--run-appid=570", ""},
+		{link, "--seal-roster"},
+		{"--run-appid=570", link},
+		{link, "+s:76561197960287931"},
+	} {
+		if p, err := Parse(argv, nil); err == nil {
+			t.Errorf("%q was accepted: %+v", argv, p)
+		}
+	}
+	if _, err := Parse([]string{link, ""}, nil); err != nil {
+		t.Errorf("an empty trailing argument is not company: %v", err)
+	}
+}

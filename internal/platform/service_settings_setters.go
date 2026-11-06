@@ -188,18 +188,39 @@ func (p *PlatformService) SetProtocolEnabled(enabled bool) error {
 	}
 	self = filepath.Clean(self)
 
-	err = p.withSettingsWrite(func(s *AppSettings) error {
-		s.ProtocolEnabled = enabled
-		return nil
-	})
-	if err != nil {
+	// Unreadable settings cannot be saved either, so the answer here only matters when saving works.
+	previous, _ := p.GetProtocolEnabled()
+	return changeProtocol(enabled, previous,
+		func() error { return winutil.RegisterProtocol(self) },
+		winutil.UnregisterProtocol,
+		func(v bool) error {
+			return p.withSettingsWrite(func(s *AppSettings) error {
+				s.ProtocolEnabled = v
+				return nil
+			})
+		})
+}
+
+// changeProtocol keeps the registry and the saved preference in step: the preference only changes
+// once the registry has, and the registry goes back to what the preference still says if it cannot
+// be saved. The toggle reads the preference, so a difference would show the wrong answer.
+func changeProtocol(enabled, previous bool, register, unregister func() error, save func(bool) error) error {
+	apply, undo := unregister, register
+	if enabled {
+		apply, undo = register, unregister
+	}
+	if err := apply(); err != nil {
 		return err
 	}
-
-	if enabled {
-		return winutil.RegisterProtocol(self)
+	if err := save(enabled); err != nil {
+		if enabled == previous {
+			return err
+		}
+		if undoErr := undo(); undoErr != nil {
+			return errors.Join(err, undoErr)
+		}
+		return err
 	}
-	_ = winutil.UnregisterProtocol()
 	return nil
 }
 

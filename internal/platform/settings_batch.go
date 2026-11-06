@@ -25,7 +25,6 @@ func applySettingsBatchUpdate(s *AppSettings, req SettingsBatchUpdate) settingsB
 		effects.offlineMode = req.OfflineMode
 		effects.dirty = true
 	}
-	applyBool(&s.ProtocolEnabled, req.ProtocolEnabled)
 	applyBool(&s.ExitToTray, req.ExitToTray)
 	applyBool(&s.MinimizeOnSwitch, req.MinimizeOnSwitch)
 	applyBool(&s.StartTrayWithWindows, req.StartTrayWithWindows)

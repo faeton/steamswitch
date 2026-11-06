@@ -3,6 +3,7 @@
 package winutil
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -11,25 +12,23 @@ import (
 
 const protocolScheme = "steamswitch"
 
-// IsProtocolRegistered reports whether HKCR\steamswitch has URL Protocol set (custom URL scheme).
-func IsProtocolRegistered() bool {
-	k, err := registry.OpenKey(registry.CLASSES_ROOT, protocolScheme, registry.QUERY_VALUE)
-	if err != nil {
-		return false
-	}
-	defer k.Close()
-	v, _, err := k.GetStringValue("URL Protocol")
-	return err == nil && strings.TrimSpace(v) != ""
+// protocolClassesKey is the per-user class root. A new key written through HKCR lands in HKLM,
+// which an unelevated process cannot write, so the merged view would refuse every normal user.
+var protocolClassesKey = `Software\Classes`
+
+func protocolKey(sub string) string {
+	return protocolClassesKey + `\` + protocolScheme + sub
 }
 
-// RegisterProtocol writes HKCR\steamswitch with Shell\Open\Command pointing at exe with "%1".
+// RegisterProtocol registers the scheme for the current user, with shell\open\command pointing at
+// exe with "%1".
 func RegisterProtocol(exePath string) error {
 	exePath = strings.TrimSpace(exePath)
 	if exePath == "" {
 		return fmt.Errorf("empty exe path")
 	}
 
-	k, _, err := registry.CreateKey(registry.CLASSES_ROOT, protocolScheme, registry.SET_VALUE)
+	k, _, err := registry.CreateKey(registry.CURRENT_USER, protocolKey(""), registry.SET_VALUE)
 	if err != nil {
 		return err
 	}
@@ -38,25 +37,27 @@ func RegisterProtocol(exePath string) error {
 	if err := k.SetStringValue("", "URL:SteamSwitch"); err != nil {
 		return err
 	}
+	// The value's existence is the marker; Windows expects it empty.
 	if err := k.SetStringValue("URL Protocol", ""); err != nil {
 		return err
 	}
 
-	sub := protocolScheme + `\shell\open\command`
-	cmdKey, _, err := registry.CreateKey(registry.CLASSES_ROOT, sub, registry.SET_VALUE)
+	cmdKey, _, err := registry.CreateKey(registry.CURRENT_USER, protocolKey(`\shell\open\command`), registry.SET_VALUE)
 	if err != nil {
 		return err
 	}
 	defer cmdKey.Close()
 
-	cmd := fmt.Sprintf("\"%s\" \"%%1\"", exePath)
-	return cmdKey.SetStringValue("", cmd)
+	return cmdKey.SetStringValue("", fmt.Sprintf("\"%s\" \"%%1\"", exePath))
 }
 
-// UnregisterProtocol removes HKCR\steamswitch (best-effort; delete children first).
+// UnregisterProtocol removes this user's registration, children first. Already gone is success. A
+// machine-wide registration is not ours to touch.
 func UnregisterProtocol() error {
-	_ = registry.DeleteKey(registry.CLASSES_ROOT, protocolScheme+`\shell\open\command`)
-	_ = registry.DeleteKey(registry.CLASSES_ROOT, protocolScheme+`\shell\open`)
-	_ = registry.DeleteKey(registry.CLASSES_ROOT, protocolScheme+`\shell`)
-	return registry.DeleteKey(registry.CLASSES_ROOT, protocolScheme)
+	for _, sub := range []string{`\shell\open\command`, `\shell\open`, `\shell`, ""} {
+		if err := registry.DeleteKey(registry.CURRENT_USER, protocolKey(sub)); err != nil && !errors.Is(err, registry.ErrNotExist) {
+			return err
+		}
+	}
+	return nil
 }

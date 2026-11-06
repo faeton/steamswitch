@@ -376,5 +376,7 @@ func syncProtocolRegistration() {
 	if err != nil {
 		return
 	}
-	_ = winutil.RegisterProtocol(filepath.Clean(self))
+	if err := winutil.RegisterProtocol(filepath.Clean(self)); err != nil {
+		slog.Warn("could not refresh the steamswitch:// registration", "err", err)
+	}
 }

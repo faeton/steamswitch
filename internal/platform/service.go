@@ -176,7 +176,6 @@ func (p *PlatformService) ReadSettings() (PlatformStartup, error) {
 
 type SettingsBatchUpdate struct {
 	OfflineMode          *bool   `json:"offlineMode,omitempty"`
-	ProtocolEnabled      *bool   `json:"protocolEnabled,omitempty"`
 	ExitToTray           *bool   `json:"exitToTray,omitempty"`
 	MinimizeOnSwitch     *bool   `json:"minimizeOnSwitch,omitempty"`
 	StartTrayWithWindows *bool   `json:"startTrayWithWindows,omitempty"`

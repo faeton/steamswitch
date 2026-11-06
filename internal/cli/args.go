@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/url"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -72,14 +73,21 @@ func (p Parsed) EffectiveSlogLevel() slog.Level {
 	return slog.LevelInfo
 }
 
-// NormalizeProtocolArg strips steamswitch:// and returns the payload path (e.g. "s:765...").
-func NormalizeProtocolArg(s string) string {
-	s = strings.TrimSpace(s)
-	low := strings.ToLower(s)
-	if strings.HasPrefix(low, "steamswitch://") {
-		s = s[len("steamswitch://"):]
+const protocolPrefix = "steamswitch://"
+
+// protocolSwitch is the whole of what a link may ask for: `s:<steamId64>[:<personaState>]`.
+var protocolSwitch = regexp.MustCompile(`(?i)^\+?s:(\d+(?::\d+)?)/?$`)
+
+// protocolLinkToken turns a steamswitch:// link into the `+s:` token it stands for.
+//
+// A link can be clicked on any web page, so this is an allowlist and not a matter of stripping the
+// scheme and parsing what is left: that would hand a page every flag the command line has.
+func protocolLinkToken(link string) (string, error) {
+	m := protocolSwitch.FindStringSubmatch(strings.TrimSpace(link[len(protocolPrefix):]))
+	if m == nil {
+		return "", fmt.Errorf("unsupported %s link", protocolPrefix)
 	}
-	return strings.TrimSpace(s)
+	return "+s:" + m[1], nil
 }
 
 // Parse inspects argv (typically os.Args[1:]) with optional platform index from LoadPlatformIndex.
@@ -92,15 +100,26 @@ func Parse(argv []string, idx *PlatformIndex) (Parsed, error) {
 	}
 
 	expanded := make([]string, 0, len(argv))
+	hasLink := false
 	for _, a := range argv {
 		a = strings.TrimSpace(a)
 		if a == "" {
 			continue
 		}
-		if strings.Contains(a, "://") {
-			a = NormalizeProtocolArg(a)
+		if strings.HasPrefix(strings.ToLower(a), protocolPrefix) {
+			token, err := protocolLinkToken(a)
+			if err != nil {
+				return Parsed{}, err
+			}
+			a = token
+			hasLink = true
 		}
 		expanded = append(expanded, a)
+	}
+	// A quote inside a URI makes ShellExecute split it, so the rest of the page's link can arrive
+	// as further arguments even though the registered command quotes "%1".
+	if hasLink && len(expanded) > 1 {
+		return Parsed{}, fmt.Errorf("a %s link cannot come with other arguments", protocolPrefix)
 	}
 
 	for _, a := range expanded {

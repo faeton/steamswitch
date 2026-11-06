@@ -3,7 +3,7 @@
   import { get, writable } from "svelte/store";
   import { t } from "../stores/i18n";
   import { pushToast } from "../stores/toast";
-  import { formatToastWithError } from "../lib/formatWailsError";
+  import { formatPlainToast, formatToastWithError } from "../lib/formatWailsError";
   import SharedSettingCheckbox from "./settings/SharedSettingCheckbox.svelte";
   import SettingRow from "./settings/SettingRow.svelte";
   import SettingsCard from "./settings/SettingsCard.svelte";
@@ -123,7 +123,7 @@
       await PlatformService.SetProtocolEnabled(next);
       protocol.value.set(next);
     } catch (e) {
-      pushToast({ type: "error", message: formatToastWithError($t("Toast_SaveFailed"), e), duration: 8000 });
+      pushToast({ type: "error", message: formatPlainToast($t("Toast_ProtocolFailed"), e), duration: 8000 });
     } finally {
       protocol.loading.set(false);
     }

@@ -197,6 +197,7 @@
   "Toast_OfflineModeNoLinks": "Offline mode is on: open the link from your browser manually if needed.",
   "Toast_RestartAsAdmin": "Please start as Admin and try again.",
   "Toast_ShortcutCreated": "Shortcut created!",
+  "Toast_ProtocolFailed": "Could not change the steamswitch:// link setting.",
   "Toast_ShortcutFailed": "Could not create the shortcut.",
   "Toast_ShortcutImportUnsupported": "Only .lnk and .url files can be dropped here",
   "DropOverlay_CopyShortcut": "Drop to copy shortcut",
