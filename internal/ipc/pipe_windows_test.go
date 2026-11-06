@@ -7,6 +7,7 @@ import (
 	"io"
 	"net"
 	"testing"
+	"time"
 )
 
 func TestIsClosedPipeErr(t *testing.T) {
@@ -40,4 +41,27 @@ func TestStopIsIdempotent(t *testing.T) {
 	}
 	stop()
 	stop() // must not panic on double close
+}
+
+// TestForwardArgsRoundTrip is the path a second instance takes to hand its arguments to the GUI.
+func TestForwardArgsRoundTrip(t *testing.T) {
+	got := make(chan []string, 1)
+	stop, err := StartGUIServer(func(argv []string) { got <- argv })
+	if err != nil {
+		t.Fatalf("StartGUIServer: %v", err)
+	}
+	defer stop()
+
+	want := []string{"+s:76561198000000000"}
+	if err := ForwardArgs(want); err != nil {
+		t.Fatalf("ForwardArgs: %v", err)
+	}
+	select {
+	case argv := <-got:
+		if len(argv) != 1 || argv[0] != want[0] {
+			t.Fatalf("handler got %v, want %v", argv, want)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("handler was not called")
+	}
 }
