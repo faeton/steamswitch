@@ -233,8 +233,6 @@ func RunGUI(params RunGUIParams) {
 		steam.SyncTrayKnownAccounts()
 	}
 	trayMgr.Start(params.TrayIconPNG, params.TrayTemplatePNG)
-
-	steam.StartSteamAppListMonitor()
 	params.Dispatch.SteamSvc.StartAutoRefreshScheduler()
 	// GUI only, and deliberately not in main(): the vault's scheduler logs in to Steam
 	// accounts, which a headless `--run-appid=` invocation that exits in a second has no
@@ -363,6 +361,8 @@ func dispatchCLIInGUI(app *application.App, p cli.Parsed, disp *Dispatch) {
 		})
 		_ = app.Event.Emit("navigate", `{"page":"home"}`)
 	}
+}
+
 // tightenSecretFiles brings files written by older builds under owner-only permissions. New writes
 // do this themselves; these may never be written again. Not fatal: the contents are encrypted.
 func tightenSecretFiles() {
@@ -371,8 +371,6 @@ func tightenSecretFiles() {
 			slog.Warn("could not tighten secret file permissions", "err", err)
 		}
 	}
-}
-
 }
 
 func syncProtocolRegistration() {

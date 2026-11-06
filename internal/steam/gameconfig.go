@@ -1013,10 +1013,9 @@ func (s *SteamService) ListConfigGames(steamIDs []string) ([]ConfigGame, error) 
 			}
 		}
 	}
-	names, _ := getSteamAppNameMapCached()
 	out := make([]ConfigGame, 0, len(counts))
 	for appID, n := range counts {
-		out = append(out, ConfigGame{AppID: appID, Name: configGameName(root, appID, names), Accounts: n})
+		out = append(out, ConfigGame{AppID: appID, Name: configGameName(root, appID), Accounts: n})
 	}
 	rank := func(appID string) int {
 		switch appID {
@@ -1036,20 +1035,11 @@ func (s *SteamService) ListConfigGames(steamIDs []string) ([]ConfigGame, error) 
 	return out, nil
 }
 
-func configGameName(steamRoot, appID string, names map[string]string) string {
+func configGameName(steamRoot, appID string) string {
 	if p, ok := gameProfiles[appID]; ok {
 		return p.name
 	}
-	if libs, err := steamAppsDirs(steamRoot); err == nil {
-		for _, lib := range libs {
-			if data, err := os.ReadFile(filepath.Join(lib, "appmanifest_"+appID+".acf")); err == nil {
-				if n := strings.TrimSpace(extractACFValue(string(data), "name")); n != "" {
-					return n
-				}
-			}
-		}
-	}
-	if n := strings.TrimSpace(names[appID]); n != "" {
+	if n := appManifestName(steamRoot, appID); n != "" {
 		return n
 	}
 	return "App " + appID
@@ -1102,10 +1092,9 @@ func (s *SteamService) GetGameConfigInfo(appID string, steamIDs []string) (GameC
 	if err != nil {
 		return GameConfigInfo{}, err
 	}
-	names, _ := getSteamAppNameMapCached()
 	info := GameConfigInfo{
 		AppID:    appID,
-		Name:     configGameName(root, appID, names),
+		Name:     configGameName(root, appID),
 		Accounts: make([]GameConfigAccount, 0, len(steamIDs)),
 		Parts: []GameConfigPart{
 			{ID: DotaPartLocal, CloudSynced: partCloudSynced(appID, DotaPartLocal)},

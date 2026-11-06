@@ -39,8 +39,8 @@ in `internal/security/vault.go`, which skips Steam.
 
 - There is no code that uploads statistics, crash reports, ratings or feedback, or checks for
   updates. Statistics and crash dumps are written locally and stay there.
-- Steam's app-name list comes from Valve's own `ISteamApps/GetAppList/v2`. `parseAppNameMapJSON`
-  accepts that shape and the flat `{"appid":"name"}` shape of the on-disk cache.
+- Game names come from Steam's own `appmanifest_*.acf` files, without the network. Valve removed
+  the public `ISteamApps/GetAppList/v2`, and its replacement needs a Web API key.
 - There is no updater, and nothing downloads a replacement `Platforms.json`.
 
 ### Appearance

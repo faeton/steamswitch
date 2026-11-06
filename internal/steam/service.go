@@ -882,7 +882,7 @@ func (s *SteamService) GetInstalledGames() ([]InstalledGameInfo, error) {
 	if strings.TrimSpace(root) == "" {
 		return nil, fmt.Errorf("steam install folder not found")
 	}
-	return BuildInstalledGamesList(context.Background(), root)
+	return BuildInstalledGamesList(root)
 }
 
 func (s *SteamService) OpenUserdataFolder(steamID64 string) error {
