@@ -24,8 +24,10 @@
     handleContextMenuQuickFilter,
   } from "../lib/contextMenuKeyboard";
   import {
+    flyoutPlacement,
     submenuShouldFillRootHeight,
     submenuTopOffset,
+    type FlyoutSide,
   } from "../lib/contextMenuLayout";
 
   /** Viewport padding — keep menu fully inside the window. */
@@ -268,8 +270,8 @@
   }
 
   function refreshFlyoutLayout(root: HTMLUListElement): void {
+    placeExpandedFlyouts(root);
     fitExpandedSubmenusToViewport(root);
-    nudgeRootForSubmenus(root);
   }
 
   function onSubmenuPlanned(ev: Event): void {
@@ -283,24 +285,42 @@
     }
   }
 
-  function nudgeRootForSubmenus(el: HTMLUListElement): void {
-    const subs = el.querySelectorAll(".submenu");
-    let shiftLeft = 0;
-    subs.forEach((sub) => {
-      const r = sub.getBoundingClientRect();
-      const rs = r.right - window.innerWidth;
-      if (rs > 0) shiftLeft = Math.max(shiftLeft, rs + 40);
+  function clearFlyoutPlacement(sub: HTMLElement): void {
+    delete sub.dataset.flyoutSide;
+    sub.style.removeProperty("left");
+    sub.style.removeProperty("right");
+  }
+
+  /**
+   * Pick a side for each newly opened flyout, parents first since a child follows its parent.
+   * Placement is kept until the flyout closes: this runs on every observer tick, and flyouts are
+   * measured mid-planning with a different height, so deciding again would make them flip.
+   */
+  function placeExpandedFlyouts(root: HTMLUListElement): void {
+    root.querySelectorAll("ul.submenu").forEach((sub) => {
+      if (!(sub instanceof HTMLElement) || sub.dataset.flyoutSide === undefined) return;
+      if (!sub.parentElement?.classList.contains("submenu-expanded")) clearFlyoutPlacement(sub);
     });
-    if (shiftLeft <= 0) {
-      return;
-    }
-    const cur = el.getBoundingClientRect();
-    const nextLeft = clamp(
-      cur.left - shiftLeft,
-      PAD,
-      Math.max(PAD, window.innerWidth - cur.width - PAD),
-    );
-    el.style.left = `${nextLeft}px`;
+    root.querySelectorAll("li.hasSubmenu.submenu-expanded > ul.submenu").forEach((sub) => {
+      if (!(sub instanceof HTMLElement) || sub.dataset.flyoutSide !== undefined) return;
+      const li = sub.parentElement;
+      const parent = li?.closest("ul");
+      if (!li || !(parent instanceof HTMLElement) || sub.offsetWidth === 0) return;
+      const parentRect = parent.getBoundingClientRect();
+      const placed = flyoutPlacement({
+        parentLeft: parentRect.left,
+        parentRight: parentRect.right,
+        width: sub.offsetWidth,
+        viewportWidth: window.innerWidth,
+        pad: PAD,
+        preferred: (parent.dataset.flyoutSide as FlyoutSide | undefined) ?? "right",
+      });
+      sub.dataset.flyoutSide = placed.side;
+      if (placed.overlapLeft !== null) {
+        sub.style.left = `${placed.overlapLeft - li.getBoundingClientRect().left}px`;
+        sub.style.right = "auto";
+      }
+    });
   }
 
   function applyAnchorLayout(): void {
@@ -350,6 +370,9 @@
       layoutEpoch++;
       applyAnchorLayout();
       if (menuEl) {
+        menuEl.querySelectorAll("ul.submenu").forEach((sub) => {
+          if (sub instanceof HTMLElement) clearFlyoutPlacement(sub);
+        });
         refreshFlyoutLayout(menuEl);
       }
     }
@@ -371,7 +394,7 @@
     detachObservers();
     resizeObs = new ResizeObserver(() => {
       /* Never applyAnchorLayout here: root/subtree size changes (e.g. submenu pagination)
-         would snap the menu back to the pointer anchor and undo nudge from flyouts. */
+         would snap the menu back to the pointer anchor. */
       refreshFlyoutLayout(el);
     });
     resizeObs.observe(el);

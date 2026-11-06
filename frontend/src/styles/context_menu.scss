@@ -267,6 +267,13 @@
         }
     }
 
+    /* Mirror of the placement above, chosen by placeExpandedFlyouts when the right has no room. */
+    li.hasSubmenu.submenu-expanded > .submenu[data-flyout-side="left"] {
+        right: auto;
+        left: calc(-1 * var(--ctx-width) - var(--ctx-pad) + 2px);
+        animation-name: submenuFlyoutLeft;
+    }
+
     /* Invisible hit strip between parent column and submenu so brief gaps don’t collapse the branch */
     li.hasSubmenu.submenu-expanded > .submenu::before {
         content: "";
@@ -276,6 +283,11 @@
         bottom: 0;
         width: 14px;
         z-index: 1;
+    }
+
+    li.hasSubmenu.submenu-expanded > .submenu[data-flyout-side="left"]::before {
+        left: auto;
+        right: -14px;
     }
 }
 
@@ -306,6 +318,18 @@ hr {
   from {
     opacity: 0;
     transform: translateX(-4px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes submenuFlyoutLeft {
+  from {
+    opacity: 0;
+    transform: translateX(4px);
   }
 
   to {

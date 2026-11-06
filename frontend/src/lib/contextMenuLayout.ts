@@ -18,6 +18,44 @@ export function submenuTopOffset(layout: SubmenuVerticalLayout): number {
   return -Math.ceil(Math.min(overflow, availableShift));
 }
 
+export type FlyoutSide = "left" | "right";
+
+export type FlyoutPlacementInput = {
+  parentLeft: number;
+  parentRight: number;
+  width: number;
+  viewportWidth: number;
+  pad: number;
+  /** The way the parent column went, so a chain keeps heading in one direction. */
+  preferred: FlyoutSide;
+};
+
+export type FlyoutPlacement = {
+  side: FlyoutSide;
+  /** Viewport x for a flyout that fits on neither side and has to cover its parent. */
+  overlapLeft: number | null;
+};
+
+/**
+ * Where a submenu opens relative to its parent column. Decided once per opening and never by
+ * moving an ancestor: an ancestor sliding away under a still pointer lands it on a different row,
+ * which opens a different branch, which moves the chain again.
+ */
+export function flyoutPlacement(input: FlyoutPlacementInput): FlyoutPlacement {
+  const { parentLeft, parentRight, width, viewportWidth, pad, preferred } = input;
+  const roomRight = viewportWidth - pad - parentRight;
+  const roomLeft = parentLeft - pad;
+  const fits = (side: FlyoutSide) => (side === "right" ? roomRight : roomLeft) >= width;
+
+  if (fits(preferred)) return { side: preferred, overlapLeft: null };
+  const other: FlyoutSide = preferred === "right" ? "left" : "right";
+  if (fits(other)) return { side: other, overlapLeft: null };
+
+  const side: FlyoutSide = roomRight >= roomLeft ? "right" : "left";
+  const flushRight = viewportWidth - pad - width;
+  return { side, overlapLeft: side === "right" ? Math.max(pad, flushRight) : pad };
+}
+
 export type SubmenuPageRange = {
   start: number;
   end: number;

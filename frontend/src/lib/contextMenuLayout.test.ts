@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   balancedSubmenuPageRanges,
+  flyoutPlacement,
   submenuShouldFillRootHeight,
   submenuTopOffset,
 } from "./contextMenuLayout";
@@ -127,5 +128,45 @@ describe("context menu root-height snapping", () => {
         rowHeight: 32,
       }),
     ).toBe(false);
+  });
+});
+
+describe("flyoutPlacement", () => {
+  const base = { width: 240, viewportWidth: 860, pad: 8, preferred: "right" as const };
+
+  it("opens to the right when there is room", () => {
+    expect(flyoutPlacement({ ...base, parentLeft: 100, parentRight: 340 })).toEqual({
+      side: "right",
+      overlapLeft: null,
+    });
+  });
+
+  it("opens to the left when only the left has room", () => {
+    expect(flyoutPlacement({ ...base, parentLeft: 500, parentRight: 740 })).toEqual({
+      side: "left",
+      overlapLeft: null,
+    });
+  });
+
+  it("keeps going the way the parent went, rather than doubling back over it", () => {
+    expect(
+      flyoutPlacement({ ...base, preferred: "left", parentLeft: 300, parentRight: 540 }),
+    ).toEqual({ side: "left", overlapLeft: null });
+  });
+
+  it("overlaps the parent against the roomier edge when neither side fits", () => {
+    expect(flyoutPlacement({ ...base, parentLeft: 200, parentRight: 440, viewportWidth: 500 })).toEqual({
+      side: "left",
+      overlapLeft: 8,
+    });
+    expect(flyoutPlacement({ ...base, parentLeft: 80, parentRight: 320, viewportWidth: 500 })).toEqual({
+      side: "right",
+      overlapLeft: 252,
+    });
+  });
+
+  it("stays on screen in a window narrower than the flyout", () => {
+    const { overlapLeft } = flyoutPlacement({ ...base, parentLeft: 8, parentRight: 200, viewportWidth: 200 });
+    expect(overlapLeft).toBe(8);
   });
 });
