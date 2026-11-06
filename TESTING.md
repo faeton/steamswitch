@@ -162,10 +162,13 @@ This is the most important section and the easiest to skip. Don't.
 
 | # | Steps | Expected |
 |---|---|---|
-| DE1 | With a kit active on the shared account, edit a file under `<Steam>\userdata\<shared id32>\570\local\` by hand | Simulates the other person playing. |
-| DE2 | Try to leave with **Restore theirs** | Blocked: "Files changed outside SteamSwitch". **Nothing is overwritten.** |
-| DE3 | In the prompt, the default is **Keep current** | Confirm the safe option is the default, not the destructive one. |
-| DE4 | Choose **Restore saved setup anyway** | Now it overwrites, because you asked explicitly. |
+| DE0 | With a kit active, play Dota on the shared account, close it normally, then leave with **Restore theirs** | Note whether the dialog below appears. **Never measured with a normal game exit**, and it decides how often people see it. Then choose Restore and check the account's own settings are back, including after Steam Cloud has synced. |
+| DE1 | With a kit active on the shared account, edit a file under `<Steam>\userdata\<shared id32>\570\local\` by hand | Stands in for the game or Steam Cloud changing it. |
+| DE2 | Try to leave with **Restore theirs** | Stops at "Game settings changed". **Nothing is overwritten yet.** |
+| DE3 | Read the dialog | **Restore saved setup** is the default and the text says it discards the changes. |
+| DE4 | Choose **Keep for now**, then try to leave again | The edit is still there and the kit is still shown as active. The switch you asked for did not happen. Leaving asks again. |
+| DE5 | Choose **Restore saved setup** | Their setup is back. Steam stays closed and Steam is set to sign in to the account you were heading to. |
+| DE6 | Repeat DE1–DE2, choose **Keep these files and stop tracking** | The files stay, the kit line disappears, and switching works without another question. |
 
 ## E. Multi-drive install — the one that used to break
 
