@@ -276,7 +276,7 @@ surprise. V7 puts that same login on a timer and is only worth running once V4 p
 | V1a | With **no app password set**, Settings → Account vault | It says the vault needs an app password and offers to set one. There is no toggle that pretends to enable it without one. |
 | V1b | Set an app password, then right-click an account → Advanced → **Vault…** | The editor opens. Every secret field is empty with no "stored" marker yet. |
 | V1c | Enter a password, an authenticator seed and an email address, Save. Then open `%AppData%\SteamSwitch\Vault\secrets.ssvault` in a text editor | **A JSON envelope and nothing else.** Search it for the password, the account name, the email address and the SteamID64 — none may appear. If any does, this is a release blocker. |
-| V1d | Check the file's permissions | Owner-only. macOS: `ls -l` shows `-rw-------`. Windows: Properties → Security lists only your account. |
+| V1d | Check the file's permissions | Owner-only. macOS: `ls -l` shows `-rw-------`. Windows: Properties → Security lists only your account, including when the data folder is portable on a drive others can read. Files from an older build are fixed at the next start. |
 | V1e | Reopen the editor | Password and seed show `••• stored`, not the value, and not a masked field containing the value. |
 | V1f | Press **Save** without touching anything, then Reveal the password | Still the original. Saving a form that never displayed a secret must not erase it. |
 | V1g | Click **Reveal** on the password | It appears once, with a Copy button, and **hides itself after about 8 seconds** without being touched. |

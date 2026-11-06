@@ -21,6 +21,7 @@ import (
 	"steamswitch/internal/stats"
 	"steamswitch/internal/steam"
 	"steamswitch/internal/tray"
+	"steamswitch/internal/vault"
 	"steamswitch/internal/winutil"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -120,6 +121,7 @@ func RunGUI(params RunGUIParams) {
 	}
 
 	syncProtocolRegistration()
+	tightenSecretFiles()
 
 	if err := stats.IncrementLaunchCount(); err != nil {
 		log.Printf("stats launch count: %v", err)
@@ -361,6 +363,16 @@ func dispatchCLIInGUI(app *application.App, p cli.Parsed, disp *Dispatch) {
 		})
 		_ = app.Event.Emit("navigate", `{"page":"home"}`)
 	}
+// tightenSecretFiles brings files written by older builds under owner-only permissions. New writes
+// do this themselves; these may never be written again. Not fatal: the contents are encrypted.
+func tightenSecretFiles() {
+	for _, dir := range append(security.SecretDirs(), vault.SecretDirs()...) {
+		if err := security.TightenOwnerOnlyDir(dir); err != nil {
+			slog.Warn("could not tighten secret file permissions", "err", err)
+		}
+	}
+}
+
 }
 
 func syncProtocolRegistration() {

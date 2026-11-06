@@ -200,6 +200,18 @@ func SavedAccountDataEncrypted() bool {
 	return err == nil && st.SavedAccountDataEncrypted
 }
 
+// SecretDirs are the folders of this package whose files hold key material or encrypted accounts.
+func SecretDirs() []string {
+	var dirs []string
+	if d, err := securityDir(); err == nil {
+		dirs = append(dirs, d)
+	}
+	if d, err := vaultRoot(); err == nil {
+		dirs = append(dirs, d)
+	}
+	return dirs
+}
+
 func securityDir() (string, error) {
 	root, err := paths.DataRoot()
 	if err != nil {

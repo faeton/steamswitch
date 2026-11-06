@@ -65,6 +65,15 @@ var (
 	writeMu sync.Mutex
 )
 
+// SecretDirs are the folders holding the encrypted vault and exported handoff bundles.
+func SecretDirs() []string {
+	root, err := paths.DataRoot()
+	if err != nil {
+		return nil
+	}
+	return []string{filepath.Join(root, dirName), filepath.Join(root, handoffDir)}
+}
+
 func vaultDir() (string, error) {
 	root, err := paths.DataRoot()
 	if err != nil {
